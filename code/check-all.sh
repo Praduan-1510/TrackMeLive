@@ -275,6 +275,10 @@ step_backend_typecheck() {
   [[ -f "${BACKEND}/tests/package.json" ]] || skip "no code/backend/tests"
   has_script "${BACKEND}/tests" typecheck || skip "code/backend/tests has no typecheck script"
   node_deps "${BACKEND}/tests"
+  # The tests import the compiled functions (functions/lib), which is gitignored, so build first.
+  node_deps "${BACKEND}/functions"
+  echo "==> functions: build"
+  npm --prefix "${BACKEND}/functions" run --silent build
   echo "==> tests: tsc"
   npm --prefix "${BACKEND}/tests" run --silent typecheck
 }

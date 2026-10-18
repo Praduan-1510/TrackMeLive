@@ -121,6 +121,12 @@ show_errors() { # <log>
   grep -E "error:|\*\* (BUILD|TEST) FAILED|Test Case .* failed|✘|failed \(" "$1" | head -n 60 || true
   echo "--- last 30 lines of $1"
   tail -n 30 "$1"
+  # On GitHub, also post the first errors as annotations: they show on the run page without a
+  # login, while job logs and artifacts need one. GitHub shows at most 10 per step.
+  if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+    grep -E "error:|Test Case .* failed|✘" "$1" | awk '!seen[$0]++' | head -n 10 |
+      sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/^/::error title=xcodebuild '"${action}"'::/' || true
+  fi
 }
 
 echo "xcodebuild ${action}, scheme ${SCHEME} (${destination}); full log: ${LOG}"
