@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The twelve characters (FSD §11). Names live here, never in the schema. -->
+    <string name="mascot_name_fox">Fox</string>
+    <string name="mascot_name_ghost">Ghost</string>
+    <string name="mascot_name_robot">Robot</string>
+    <string name="mascot_name_astronaut">Astronaut</string>
+    <string name="mascot_name_hero">Hero</string>
+    <string name="mascot_name_star">Star</string>
+    <string name="mascot_name_ninja">Ninja</string>
+    <string name="mascot_name_neko">Neko</string>
+    <string name="mascot_name_ace">Ace</string>
+    <string name="mascot_name_detective">Detective</string>
+    <string name="mascot_name_cowboy">Cowboy</string>
+    <string name="mascot_name_agent">Agent</string>
+
+    <!-- The three sets. -->
+    <string name="mascot_set_classics_name">Classics</string>
+    <string name="mascot_set_anime">Anime</string>
+    <string name="mascot_set_movie">Movie night</string>
+
+    <!-- The five colors. -->
+    <string name="mascot_color_original">Original</string>
+    <string name="mascot_color_moss">Moss</string>
+    <string name="mascot_color_lagoon">Lagoon</string>
+    <string name="mascot_color_dusk">Dusk</string>
+    <string name="mascot_color_rose">Rose</string>
+
+    <!-- Accessories, and None. -->
+    <string name="mascot_accessory_none">None</string>
+    <string name="mascot_accessory_headphones">Headphones</string>
+    <string name="mascot_accessory_glasses">Glasses</string>
+    <string name="mascot_accessory_headlamp">Headlamp</string>
+
+    <!-- The mascot picker (prototype › viewPicker). -->
+    <string name="picker_title">Your mascot</string>
+    <string name="picker_lede">It marks where you are on the map, for you and whoever follows you.</string>
+    <string name="picker_character">Character</string>
+    <string name="picker_color">Color</string>
+    <string name="picker_accessory">Accessory</string>
+    <string name="picker_no_accessories_astronaut">The astronaut’s helmet doesn’t take accessories.</string>
+    <!-- %1$s: the character's name, "Robot". -->
+    <string name="picker_no_accessories">%1$s doesn’t take accessories.</string>
+    <!-- What the stage shows, for TalkBack. %1$s: the character ("Fox"), %2$s: the color ("Lagoon"). -->
+    <string name="picker_stage_label">%1$s, %2$s</string>
+    <!-- %1$s: the character, %2$s: the color, %3$s: the accessory ("Headphones"). -->
+    <string name="picker_stage_label_accessory">%1$s, %2$s, %3$s</string>
+    <string name="picker_save">Save</string>
+    <string name="picker_continue">Continue</string>
+</resources>

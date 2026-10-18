@@ -18,7 +18,9 @@ export const FIRESTORE = hostPort("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080");
 export const AUTH = hostPort("FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099");
 export const FUNCTIONS = hostPort("FUNCTIONS_EMULATOR_HOST", "127.0.0.1:5001");
 
-// The Admin SDK in the tests finds the emulators through these.
+// The Admin SDK in the tests finds the emulators through these. GCLOUD_PROJECT
+// is for the functions' own default app, which the lifecycle tests load.
+process.env.GCLOUD_PROJECT ??= PROJECT_ID;
 process.env.FIRESTORE_EMULATOR_HOST ??= `${FIRESTORE.host}:${FIRESTORE.port}`;
 process.env.FIREBASE_AUTH_EMULATOR_HOST ??= `${AUTH.host}:${AUTH.port}`;
 // Offline: don't let google-auth-library probe for a GCP metadata server (a ~5 s stall).

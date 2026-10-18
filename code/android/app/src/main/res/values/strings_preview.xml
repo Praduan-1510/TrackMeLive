@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Sample data for the @Preview functions of ui/components only: people, times and the labels of
+    screens that later sprints build. Not shown anywhere in the app, so not translated. When a
+    screen ships one of these labels, it gets its own string in that screen's file.
+-->
+<resources>
+    <string name="preview_name_you" translatable="false">You</string>
+    <string name="preview_name_mom" translatable="false">Mom</string>
+    <string name="preview_name_them" translatable="false">Them</string>
+    <string name="preview_detail_updated" translatable="false">Sharing · updated 3 s ago</string>
+    <string name="preview_detail_sharing_back" translatable="false">Sharing back · updated 2 s ago</string>
+    <string name="preview_detail_link_sent" translatable="false">Link sent · not opened yet</string>
+    <string name="preview_status_live" translatable="false">Live</string>
+    <string name="preview_status_waiting" translatable="false">Waiting</string>
+    <string name="preview_status_watching" translatable="false">Watching</string>
+
+    <string name="preview_pill_live" translatable="false">Live · updated 2 s ago</string>
+    <string name="preview_pill_sharing_back" translatable="false">Sharing back</string>
+    <string name="preview_pill_last_seen" translatable="false">Last seen 9:41 pm</string>
+    <string name="preview_pill_ended" translatable="false">Sharing ended at 9:52 pm</string>
+    <string name="preview_pill_call" translatable="false">On a call · 04:12</string>
+    <string name="preview_badge_live" translatable="false">LIVE</string>
+    <string name="preview_badge_together" translatable="false">LIVE TOGETHER</string>
+    <string name="preview_badge_no_signal" translatable="false">NO SIGNAL</string>
+
+    <string name="preview_sheet_title" translatable="false">You’re both live</string>
+    <string name="preview_sheet_subtitle" translatable="false">Visible until your call ends.</string>
+    <string name="preview_stat_distance" translatable="false">1.2 km</string>
+    <string name="preview_stat_distance_label" translatable="false">apart</string>
+    <string name="preview_stat_call" translatable="false">04:12</string>
+    <string name="preview_stat_call_label" translatable="false">on the call</string>
+    <string name="preview_stat_waiting" translatable="false">Waiting</string>
+    <string name="preview_stat_waiting_label" translatable="false">for Mom to share</string>
+
+    <string name="preview_button_share" translatable="false">Share live location</string>
+    <string name="preview_button_change_timer" translatable="false">Change timer</string>
+    <string name="preview_button_stop" translatable="false">Stop sharing</string>
+    <string name="preview_button_not_now" translatable="false">Not now</string>
+</resources>

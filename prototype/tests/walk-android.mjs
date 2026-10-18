@@ -3,6 +3,7 @@
 // Covers every Android permission path, the picture-in-picture mini map, the notification shade,
 // the system Settings pages, accessories, and switching platforms and back.
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const OUT = process.argv[2];
 const theme = process.argv[3] || 'light';
@@ -360,3 +361,5 @@ console.log(checks.join('\n'));
 console.log(`accessory renders not found (skipped gracefully): ${accMissing.size ? [...accMissing].join(', ') : 'none'}`);
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();
+
+await finish(checks, errors);

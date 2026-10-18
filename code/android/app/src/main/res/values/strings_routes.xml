@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messages from the screens' wiring (ui/routes): saving the mascot and settings. -->
+<resources>
+    <string name="route_mascot_saved">Your mascot is saved.</string>
+    <string name="route_mascot_save_failed">We couldn’t save your mascot. Check your connection, then try again.</string>
+    <string name="route_settings_save_failed">We couldn’t save that. Check your connection, then try again.</string>
+    <string name="route_delete_offline">We couldn’t delete your account. Check your connection, then try again.</string>
+    <string name="route_delete_failed">We couldn’t delete your account just now. Try again in a few minutes.</string>
+</resources>

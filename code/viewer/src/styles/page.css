@@ -1,12 +1,18 @@
-/* The viewer page over the map. Phones: one column, the glass bar at the top, the open band for the
-   map, and the glass sheet at the bottom (var(--space-2) from the edges). From 45em (720px at the
-   default text size) the bar and the sheet become a floating column at the left and the map fills
-   the rest. When the text is large the band keeps 160px and the column scrolls (.tall, set by
-   main.ts), so nothing truncates and every action stays reachable. */
+/* The page's layout over the map (src/app/layout.ts).
+   Phones: one column, the glass bar at the top, the open band for the map, and the glass sheet at the
+   bottom, var(--space-2) from the edges. When the text is large or the page is zoomed, the page
+   becomes one column that scrolls as a whole (.tall, body.column): the bar sticks to the top, the
+   band keeps 160px with the people framed in it, and the bar and sheet turn solid, so the map never
+   shows through their text. A heading or control that takes focus lands just under the bar
+   (scroll-margin-top is the bar's height, --bar-h from src/app/layout.ts).
+   From 45em (720px at the default text size) the bar and sheet are a floating column at the left
+   and the map fills the rest. Expired and invalid links are a plain message page (.msg). */
 
 .vp {
   position: fixed; inset: 0; z-index: 1;
   display: flex; flex-direction: column;
+  /* A phone layout on a wide screen (very large text): keep the column readable. */
+  max-width: 40rem; margin-inline: auto;
   padding:
     max(var(--space-2), env(safe-area-inset-top))
     max(var(--space-2), env(safe-area-inset-right))
@@ -16,7 +22,8 @@
 }
 .vp > *, .vp-body > * { pointer-events: auto; }
 .vp-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; pointer-events: none; }
-.vp-gap { flex: 1 1 0; min-height: var(--space-2); pointer-events: none; }
+.vp-gap { flex: 1 1 0; min-height: var(--space-2); display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.vp-gap > * { pointer-events: auto; }
 
 /* ---------- Glass: fill, a defined inner edge and a top highlight; never a drop shadow ---------- */
 .glassbar, .sheet {
@@ -26,7 +33,6 @@
   backdrop-filter: var(--glass-blur);
 }
 
-/* ---------- The bar: who, and whether they're live ---------- */
 .glassbar {
   position: relative; flex: none;
   margin: var(--space-1) var(--space-1) 0;
@@ -34,32 +40,7 @@
   min-height: 60px; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   border-radius: var(--radius-lg);
 }
-.glassbar .txt { flex: 1 1 5em; min-width: 0; display: flex; flex-direction: column; }
-.glassbar .t1 { font: var(--t-subheadline); font-weight: 600; letter-spacing: -0.23px; overflow-wrap: anywhere; }
-.glassbar .t2 {
-  display: flex; align-items: flex-start; gap: var(--space-2);
-  font: var(--t-caption-1); letter-spacing: 0; color: var(--ink-secondary); font-variant-numeric: tabular-nums;
-}
-.glassbar .t2 > :not(.d) { min-width: 0; }
-/* The dot stays with the first line when the status wraps. */
-.glassbar .t2 .d { width: 7px; height: 7px; margin-top: calc((1rem - 7px) / 2); border-radius: 50%; background: var(--lamplight); flex: none; }
 
-.av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; }
-.av.sharer { background: var(--vw-disc); border: 2px solid var(--lamplight); }
-.av.sharer img { width: 32px; height: 32px; object-fit: contain; }
-.av.sharer.no-art { background: var(--lamplight); }
-.av.sharer.no-art img { visibility: hidden; }
-
-.pill {
-  display: inline-flex; align-items: center; gap: var(--space-2);
-  min-height: 28px; padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill);
-  font: var(--t-footnote); font-weight: 600; letter-spacing: -0.08px;
-}
-.pill .d { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.pill.call { background: var(--connected-wash); color: var(--connected); }
-.pill.call .d { background: var(--connected); }
-
-/* ---------- The sheet ---------- */
 .sheet {
   position: relative; flex: 0 1 auto; min-height: 0;
   display: flex; flex-direction: column; gap: var(--space-3);
@@ -69,99 +50,30 @@
   container-type: inline-size;
 }
 .sheet > * { flex-shrink: 0; }
+.sheet .body { display: flex; flex-direction: column; gap: var(--space-3); }
+.sheet .body:empty { display: none; }
 .grab { width: 36px; height: 5px; border-radius: 3px; margin: 0 auto; background: var(--ink-tertiary); opacity: .45; }
-.head { display: flex; flex-direction: column; gap: var(--space-1); }
-.sheet h1 { font: var(--t-title-2); letter-spacing: -0.3px; text-wrap: balance; }
 
-/* Where the sharer is, in words: the nearest street or area. */
-.where { display: flex; align-items: flex-start; gap: var(--space-2); margin-top: var(--space-1); font: var(--t-callout); font-weight: 600; letter-spacing: -0.31px; }
-.where .wi { width: 1.25em; height: 1.3125em; display: grid; place-items: center; color: var(--lamplight-text); font-size: 1em; }
-.where .wi .ms { font-size: 1.2em; }
-.where .wt { min-width: 0; overflow-wrap: anywhere; }
-.sub { font: var(--t-callout); letter-spacing: -0.31px; color: var(--ink-secondary); }
-.where-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
-.where-btns .btn { flex: 1 1 9em; }
-
-/* ---------- Buttons: 48px or taller, text in rem ---------- */
-.btn {
-  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-height: var(--target); padding: var(--space-2) var(--space-6);
-  border: 0; border-radius: var(--radius-pill);
-  font: var(--t-headline); letter-spacing: -0.43px; text-align: center; text-decoration: none;
-  transition: transform var(--dur-press) ease, background-color .15s ease;
-}
-.btn:active { transform: scale(.97); }
-.btn.small { padding: var(--space-2) var(--space-4); font: var(--t-subheadline); font-weight: 600; letter-spacing: -0.23px; }
-.btn.block { width: 100%; }
-.btn.grow { flex: 1; }
-.btn .ms { font-size: 1.3em; margin-inline-start: -2px; }
-.btn.neutral { background: var(--surface-raised); color: var(--ink); }
-.btn.viewer { background: var(--crossing); color: var(--on-crossing); }
-.btn.plain { background: transparent; color: var(--crossing-text); }
-@media (hover: hover) and (pointer: fine) {
-  .btn.neutral:hover { background: color-mix(in srgb, var(--ink) 7%, var(--surface-raised)); }
-  .btn.viewer:hover { background: color-mix(in srgb, var(--ink) 12%, var(--crossing)); }
-  .btn.plain:hover { background: color-mix(in srgb, var(--crossing) 10%, transparent); }
-}
-
-/* ---------- Share back: only during the call, only when the sharer allows it ---------- */
-.sb-slot { display: flex; flex-direction: column; gap: var(--space-2); }
-.shareback { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-md); background: var(--crossing-wash); }
-.shareback .row { display: flex; align-items: center; gap: var(--space-4); }
-.shareback .ico { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--crossing); color: var(--on-crossing); }
-.shareback .ico .ms { font-size: 22px; }
-.shareback .t1 { font: var(--t-callout); font-weight: 700; letter-spacing: -0.31px; }
-.shareback .t2 { font: var(--t-subheadline); letter-spacing: -0.23px; color: var(--ink-secondary); }
-.sb-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.sb-btns .btn { flex: 1 1 8em; }
-.sb-btns .btn.plain { flex: 0 1 auto; }
-.fine { text-align: center; font: var(--t-caption-1); letter-spacing: 0; color: var(--ink-secondary); }
-
-/* The sheet's layout follows its own text size: at large sizes the buttons stack full width. */
-@container (max-width: 17em) {
-  .sb-btns, .where-btns { flex-direction: column; }
-  .sb-btns .btn, .sb-btns .btn.plain, .where-btns .btn { flex: none; width: 100%; }
-  .shareback .row { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
-}
-/* Very narrow viewports (small phones, or 200% zoom): give the words the room. */
-@media (max-width: 22.5em) {
-  .sheet { padding-inline: var(--space-4); }
-  .shareback { padding: var(--space-3); }
-}
-
-/* ---------- Loading: a skeleton, never a blank map ---------- */
-/* Ink at low strength reads on glass in both themes (surface-raised nearly matches dark glass). */
-.skel .sk { display: block; height: 14px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 10%, transparent); animation: sk-pulse 1.6s ease-in-out infinite; }
-.skel .sk.av { width: 38px; height: 38px; border-radius: 50%; }
-.skel .sk-lines { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
-.skel .w40 { width: 40%; } .skel .w50 { width: 50%; } .skel .w60 { width: 60%; } .skel .w70 { width: 70%; } .skel .w90 { width: 90%; }
-.skel .tall { height: 22px; }
-.skel .sk-lines .sk:nth-child(2), .sheet.skel .sk:nth-of-type(2) { animation-delay: .12s; }
-.sheet.skel .sk:nth-of-type(3) { animation-delay: .24s; }
-.sheet.skel { gap: var(--space-4); padding-bottom: var(--space-8); }
-@keyframes sk-pulse { 50% { opacity: .55; } }
-
-/* ---------- Arrival: one orchestrated entrance when the page goes live ---------- */
-.vp.enter .glassbar > * { animation: rise var(--dur-enter) var(--ease-out) both; }
-.vp.enter .glassbar > :nth-child(2) { animation-delay: 40ms; }
-.vp.enter .glassbar > :nth-child(3) { animation-delay: 80ms; }
-.vp.enter .sheet > * { animation: rise var(--dur-enter) var(--ease-out) both; }
-.vp.enter .sheet > :nth-child(2) { animation-delay: 60ms; }
-.vp.enter .sheet > :nth-child(3) { animation-delay: 120ms; }
-.vp.enter .sheet > :nth-child(4) { animation-delay: 180ms; }
-@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
-
-/* ---------- Large text or zoom on a phone: the column scrolls, the map keeps a 160px band ---------- */
-.vp.tall .vp-body { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.vp.tall .vp-body > * { flex-shrink: 0; }
+/* ---------- Large text or zoom on a phone: one column, the page scrolls, the map keeps a 160px band ---------- */
+body.column { height: auto; min-height: 100%; overflow: visible; }
+.vp.tall { position: relative; inset: auto; min-height: 100%; padding-top: 0; }
+.vp.tall .vp-body { flex: none; }
 .vp.tall .vp-gap { flex: none; height: 160px; }
-.vp.tall .glassbar { margin-bottom: var(--space-1); background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* The bar becomes the page's header: edge to edge at the top, so nothing scrolls past above it. */
+.vp.tall .glassbar {
+  position: sticky; top: 0; z-index: 2;
+  margin: 0 calc(-1 * var(--space-2)) var(--space-1);
+  padding-top: max(var(--space-2), env(safe-area-inset-top));
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none;
+}
 .vp.tall .sheet { flex: none; overflow: visible; background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+.vp.tall h1, .vp.tall .btn { scroll-margin-top: calc(var(--bar-h, 0px) + var(--space-2)); scroll-margin-bottom: var(--space-2); }
 
 /* ---------- Wide screens: a floating column at the left, the map fills the rest ---------- */
 @media (min-width: 45em) {
   .vp {
-    right: auto; width: 100%; max-width: calc(26.25rem + 2 * var(--space-4));
+    right: auto; width: 100%; max-width: calc(26.25rem + 2 * var(--space-4)); margin-inline: 0;
     padding: var(--space-4) var(--space-4) var(--space-4) max(var(--space-4), env(safe-area-inset-left));
   }
   .glassbar { margin: 0; }
@@ -169,6 +81,32 @@
   .vp-gap { flex: 0 0 var(--space-2); min-height: var(--space-2); }
   .sheet { padding-top: var(--space-5); }
   .sheet .grab { display: none; }
+  /* The map-didn't-load notice sits on the open map, beside the column. */
+  .vp-gap:has(.map-failed) { position: fixed; inset: 0 0 0 calc(26.25rem + 2 * var(--space-4)); z-index: 1; }
 }
 
-.noscript { position: fixed; inset: auto var(--space-4) var(--space-4); z-index: 2; padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); font: var(--t-callout); }
+/* ---------- Expired and invalid links: no map, a quiet message ---------- */
+body.msg { display: flex; flex-direction: column; height: auto; min-height: 100%; overflow: visible; background: var(--ground); }
+.msg {
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-4);
+  max-width: 30rem; width: 100%; margin: 0 auto; text-align: center;
+  padding: max(var(--space-8), env(safe-area-inset-top)) var(--space-6) var(--space-6);
+}
+.msg h1 { font: var(--t-title-1); letter-spacing: -0.45px; text-wrap: balance; }
+.msg .detail { font: var(--t-callout); letter-spacing: -0.31px; color: var(--ink-secondary); text-wrap: pretty; }
+.msg .ring {
+  width: 104px; height: 104px; border-radius: 50%; border: 3px dashed var(--ink-tertiary);
+  display: grid; place-items: center; color: var(--ink-secondary);
+}
+.msg .ring img { width: 64px; height: 64px; opacity: .5; object-fit: contain; }
+.msg .ring.no-art img { visibility: hidden; }
+.msg .ring .ic { width: 40px; height: 40px; }
+.brandfoot { display: flex; justify-content: center; padding: var(--space-6) var(--space-4) max(var(--space-8), env(safe-area-inset-bottom)); }
+.brandfoot img { height: 1.5rem; width: auto; opacity: .85; }
+.logo-dark { display: none; }
+[data-theme="dark"] .logo-light { display: none; }
+[data-theme="dark"] .logo-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .logo-light { display: none; }
+  :root:not([data-theme]) .logo-dark { display: block; }
+}

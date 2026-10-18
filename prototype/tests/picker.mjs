@@ -2,6 +2,7 @@
 // accessory chips follow the support matrix, and the chosen tile is marked.
 // node picker.mjs <out-dir> [light|dark]
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const OUT = process.argv[2];
 const theme = process.argv[3] || 'light';
@@ -55,3 +56,5 @@ console.log(`accessory chips off the matrix: ${accBad.length ? accBad.join('; ')
 console.log(`missing or wrong size: ${bad.length ? bad.join('; ') : 'none'}`);
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();
+
+await finish([], errors);

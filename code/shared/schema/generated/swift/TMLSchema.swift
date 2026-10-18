@@ -432,7 +432,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
     public var endReason: TMLEndReason?
     /// The call that was connected when the session started: a per-device unique id (the CallKit UUID on iOS, a generated UUID on Android). Null for a manual share. The app never knows who is on the call (x-decisions Q-CALL-TIME).
     public var callId: String?
-    /// True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. The watchdog clears it after 2 minutes without a check-in; the app sets it again if the same call is still connected, unless call_ended_at is set.
+    /// True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. Function-owned: clients never write it. The watchdog clears it after 2 minutes without a check-in; the app sets it again through reportCallActive if the same call is still connected, unless call_ended_at is set (reportCallEnded sets that).
     public var callActive: Bool
     /// When the session's call ended; null while it is connected or for a manual share. Once set, call_active can never become true again for this session, which tells a real call end apart from the watchdog clearing call_active (x-decisions Q-CALL-ENDED-AT).
     public var callEndedAt: Date?
@@ -454,6 +454,8 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
     public var viewerSharing: Bool
     /// When the sharer tapped Ask to share; null if never. At most once per call (each session has at most one call), so a non-null value means Ask to share is used.
     public var shareBackRequestedAt: Date?
+    /// Function-owned: when the 24-hour cleanup deleted this session's pings, viewerPings and viewer sign-ins (FSD §8 Retention); null until then. The cleanup finds stopped sessions with cleaned_at null and ended_at at least 24 hours ago, so a session ended late, with ended_at set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK).
+    public var cleanedAt: Date?
 
     public init(
         status: TMLSessionStatus,
@@ -475,7 +477,8 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         sharer: TMLSharerSnapshot,
         firstViewedAt: Date? = nil,
         viewerSharing: Bool,
-        shareBackRequestedAt: Date? = nil
+        shareBackRequestedAt: Date? = nil,
+        cleanedAt: Date? = nil
     ) {
         self.status = status
         self.startedAt = startedAt
@@ -497,6 +500,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         self.firstViewedAt = firstViewedAt
         self.viewerSharing = viewerSharing
         self.shareBackRequestedAt = shareBackRequestedAt
+        self.cleanedAt = cleanedAt
     }
 
     /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
@@ -521,6 +525,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         case firstViewedAt = "first_viewed_at"
         case viewerSharing = "viewer_sharing"
         case shareBackRequestedAt = "share_back_requested_at"
+        case cleanedAt = "cleaned_at"
     }
     public typealias Field = CodingKeys
 
@@ -547,6 +552,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         try c.encode(firstViewedAt, forKey: .firstViewedAt)
         try c.encode(viewerSharing, forKey: .viewerSharing)
         try c.encode(shareBackRequestedAt, forKey: .shareBackRequestedAt)
+        try c.encode(cleanedAt, forKey: .cleanedAt)
     }
 }
 
@@ -599,7 +605,7 @@ public struct TMLSessionPrivateMeta: Codable, Hashable, Sendable {
     }
 }
 
-/// One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before expires_at.
+/// One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at.
 /// Firestore: `shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}`.
 public struct TMLPing: Codable, Hashable, Sendable {
     /// Latitude, WGS 84 degrees.
@@ -685,7 +691,38 @@ public struct TMLMascot: Codable, Hashable, Sendable {
     }
 }
 
-/// Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8).
+/// One per browser sign-in that redeemLinkToken minted for this session (the doc id is that Auth uid), viewer and watchers alike, written in the transaction that decides the role. Function-only: clients can't read or write it. The 24-hour cleanup deletes these Auth users, then these docs (FSD §8 Retention; x-decisions Q-VIEWER-SIGNINS).
+/// Firestore: `shareSessions/{sessionId}/viewerSignIns/{viewerUid}`.
+public struct TMLViewerSignIn: Codable, Hashable, Sendable {
+    /// The role minted for this uid: viewer for the first browser, watcher for any later one.
+    public var role: TMLViewerRole
+    /// Server timestamp of the first redeem by this uid.
+    public var createdAt: Date
+
+    public init(
+        role: TMLViewerRole,
+        createdAt: Date
+    ) {
+        self.role = role
+        self.createdAt = createdAt
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case role
+        case createdAt = "created_at"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(role, forKey: .role)
+        try c.encode(createdAt, forKey: .createdAt)
+    }
+}
+
+/// Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8). createSession writes it for a call-triggered share, in the same transaction, with callLogId = the session id (each session has at most one call), and the 30-day purge deletes it with the session. Clients can't read or write it (x-decisions Q-CALLLOG-ID).
 /// Firestore: `callLogs/{callLogId}`.
 public struct TMLCallLog: Codable, Hashable, Sendable {
     /// The sharer's userId.
@@ -857,7 +894,7 @@ public struct TMLRedeemLinkTokenRequest: Codable, Hashable, Sendable {
     }
 }
 
-/// Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc.
+/// Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc. Errors: not-found for any token that matches no session (malformed or unknown, with the same message). A session that has stopped, or passed stop_at or expires_at, fails with failed-precondition and details {reason: 'session_ended', sharer: SharerSnapshot}; no custom token is minted, so nothing can read pings, and the page shows 'This location is no longer being shared' with the mascot. A browser that redeems again with its own viewer sign-in (sid claim for this session) keeps its uid and role. A new browser once the session already has MAX_VIEWER_SIGN_INS sign-ins gets resource-exhausted with details {reason: 'too_many_viewers'}; the page shows 'This link can't be opened right now'.
 /// Callable: `redeemLinkToken` (response).
 public struct TMLRedeemLinkTokenResponse: Codable, Hashable, Sendable {
     /// Firebase custom token for signInWithCustomToken, minted per browser, with the ViewerClaims {sid, role}.
@@ -900,6 +937,413 @@ public struct TMLRedeemLinkTokenResponse: Codable, Hashable, Sendable {
     }
 }
 
+/// Callable saveProfile, request: creates or updates the caller's users/{uid} (FSD §4 Sign up, Settings; §6). Phone sign-in only. The app sends the whole profile it shows; the server trims name. settings is optional: omitted, it keeps the stored settings, or DEFAULT_USER_SETTINGS for a new profile. last_viewer_name, active_session_id, created_at and updated_at are server-owned and rejected here. Errors: unauthenticated (signed out), permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}.
+/// Callable: `saveProfile` (request).
+public struct TMLSaveProfileRequest: Codable, Hashable, Sendable {
+    /// The user's name. The server trims it, then it must be 1–24 grapheme clusters.
+    public var name: String
+    /// The chosen mascot; fox for a new account that hasn't picked one.
+    public var mascotId: TMLMascotId
+    /// The chosen color; original by default.
+    public var mascotColor: TMLMascotColor
+    /// The chosen accessory, or null for none. Must be one the mascot takes (MASCOT_CATALOG); the server rejects any other.
+    public var mascotAccessory: TMLMascotAccessory?
+    /// The whole settings object. Omitted, the stored settings stay; a new profile gets DEFAULT_USER_SETTINGS.
+    public var settings: TMLUserSettings?
+
+    public init(
+        name: String,
+        mascotId: TMLMascotId,
+        mascotColor: TMLMascotColor,
+        mascotAccessory: TMLMascotAccessory? = nil,
+        settings: TMLUserSettings? = nil
+    ) {
+        self.name = name
+        self.mascotId = mascotId
+        self.mascotColor = mascotColor
+        self.mascotAccessory = mascotAccessory
+        self.settings = settings
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case name
+        case mascotId = "mascot_id"
+        case mascotColor = "mascot_color"
+        case mascotAccessory = "mascot_accessory"
+        case settings
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(mascotId, forKey: .mascotId)
+        try c.encode(mascotColor, forKey: .mascotColor)
+        try c.encode(mascotAccessory, forKey: .mascotAccessory)
+        try c.encodeIfPresent(settings, forKey: .settings)
+    }
+}
+
+/// Callable saveProfile, response: the profile as stored in users/{uid}, with created_at and updated_at in epoch ms.
+/// Callable: `saveProfile` (response).
+public struct TMLSaveProfileResponse: Codable, Hashable, Sendable {
+    /// The stored name, trimmed.
+    public var name: String
+    /// The stored mascot.
+    public var mascotId: TMLMascotId
+    /// The stored color.
+    public var mascotColor: TMLMascotColor
+    /// The stored accessory, or null for none.
+    public var mascotAccessory: TMLMascotAccessory?
+    /// The last "who it's for" name (set by createSession), or null.
+    public var lastViewerName: String?
+    /// The stored settings.
+    public var settings: TMLUserSettings
+    /// The active shareSessions id (function-owned), or null when not sharing.
+    public var activeSessionId: String?
+    /// created_at, epoch ms.
+    public var createdAt: Int64
+    /// updated_at, epoch ms.
+    public var updatedAt: Int64
+
+    public init(
+        name: String,
+        mascotId: TMLMascotId,
+        mascotColor: TMLMascotColor,
+        mascotAccessory: TMLMascotAccessory? = nil,
+        lastViewerName: String? = nil,
+        settings: TMLUserSettings,
+        activeSessionId: String? = nil,
+        createdAt: Int64,
+        updatedAt: Int64
+    ) {
+        self.name = name
+        self.mascotId = mascotId
+        self.mascotColor = mascotColor
+        self.mascotAccessory = mascotAccessory
+        self.lastViewerName = lastViewerName
+        self.settings = settings
+        self.activeSessionId = activeSessionId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case name
+        case mascotId = "mascot_id"
+        case mascotColor = "mascot_color"
+        case mascotAccessory = "mascot_accessory"
+        case lastViewerName = "last_viewer_name"
+        case settings
+        case activeSessionId = "active_session_id"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(name, forKey: .name)
+        try c.encode(mascotId, forKey: .mascotId)
+        try c.encode(mascotColor, forKey: .mascotColor)
+        try c.encode(mascotAccessory, forKey: .mascotAccessory)
+        try c.encode(lastViewerName, forKey: .lastViewerName)
+        try c.encode(settings, forKey: .settings)
+        try c.encode(activeSessionId, forKey: .activeSessionId)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(updatedAt, forKey: .updatedAt)
+    }
+}
+
+/// Callable deleteAccount, request: no fields. Settings › Delete account and all data (FSD §4 Settings, §8 Deletion). Phone sign-in only. Stops any active session (end_reason stopped), then deletes users/{uid} with its devices, every session the caller owns with private/meta, pings, viewerPings and viewerSignIns (and those viewer Auth users), the caller's callLogs, and last the caller's Auth user. Idempotent: calling it again finishes anything a failed run left. The app signs out afterwards. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument (any field sent).
+/// Callable: `deleteAccount` (request).
+public struct TMLDeleteAccountRequest: Codable, Hashable, Sendable {
+    public init() {}
+}
+
+/// Callable deleteAccount, response.
+/// Callable: `deleteAccount` (response).
+public struct TMLDeleteAccountResponse: Codable, Hashable, Sendable {
+    /// How many of the caller's sessions this call deleted (0 on a repeat call).
+    public var sessionsDeleted: Int
+
+    public init(
+        sessionsDeleted: Int
+    ) {
+        self.sessionsDeleted = sessionsDeleted
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionsDeleted = "sessions_deleted"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionsDeleted, forKey: .sessionsDeleted)
+    }
+}
+
+/// Callable stopSession, request: the sharer taps Stop (FSD §4 Stop sharing). Phone sign-in, owner only. Ends the session now with end_reason stopped, sets viewer_sharing false and clears users.active_session_id, in one transaction. Idempotent: a session that has already ended (or is past stop_at or expires_at, which ends it as timer or limit) returns how it ended. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}, not-found (no such session, or not the caller's).
+/// Callable: `stopSession` (request).
+public struct TMLStopSessionRequest: Codable, Hashable, Sendable {
+    /// The shareSessions doc id from createSession.
+    public var sessionId: String
+
+    public init(
+        sessionId: String
+    ) {
+        self.sessionId = sessionId
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+    }
+}
+
+/// Callable stopSession, response: how the session ended.
+/// Callable: `stopSession` (response).
+public struct TMLStopSessionResponse: Codable, Hashable, Sendable {
+    /// The session.
+    public var sessionId: String
+    /// ended_at, epoch ms.
+    public var endedAt: Int64
+    /// stopped, unless it had already ended another way.
+    public var endReason: TMLEndReason
+
+    public init(
+        sessionId: String,
+        endedAt: Int64,
+        endReason: TMLEndReason
+    ) {
+        self.sessionId = sessionId
+        self.endedAt = endedAt
+        self.endReason = endReason
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+        case endedAt = "ended_at"
+        case endReason = "end_reason"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(endedAt, forKey: .endedAt)
+        try c.encode(endReason, forKey: .endReason)
+    }
+}
+
+/// Callable reportCallEnded, request: the app saw the session's call end (FSD §4 Auto-expiry, §9 Call drops mid-share). Phone sign-in, owner only, and call_id must be the session's call_id. Sets call_ended_at, call_active false and viewer_sharing false; when stop_rule is call it also ends the session (end_reason call) and clears users.active_session_id. After this, call_active can never be true again for the session. Idempotent: a second report, or one for a session that has already ended, changes nothing and returns the state. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason: 'no_call'} (a manual share) or {reason: 'call_mismatch'} (another call).
+/// Callable: `reportCallEnded` (request).
+public struct TMLReportCallEndedRequest: Codable, Hashable, Sendable {
+    /// The shareSessions doc id.
+    public var sessionId: String
+    /// The call that ended: the same per-device id sent to createSession.
+    public var callId: String
+
+    public init(
+        sessionId: String,
+        callId: String
+    ) {
+        self.sessionId = sessionId
+        self.callId = callId
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+        case callId = "call_id"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(callId, forKey: .callId)
+    }
+}
+
+/// Callable reportCallEnded, response: the session after the report.
+/// Callable: `reportCallEnded` (response).
+public struct TMLReportCallEndedResponse: Codable, Hashable, Sendable {
+    /// The session.
+    public var sessionId: String
+    /// stopped when the stop rule was the call (or the session had already ended); active when a timer keeps it going.
+    public var status: TMLSessionStatus
+    /// call_ended_at, epoch ms; null only when the session had already ended before the call did.
+    public var callEndedAt: Int64?
+    /// ended_at, epoch ms, when stopped; null while active.
+    public var endedAt: Int64?
+    /// Why it ended, when stopped; null while active.
+    public var endReason: TMLEndReason?
+
+    public init(
+        sessionId: String,
+        status: TMLSessionStatus,
+        callEndedAt: Int64? = nil,
+        endedAt: Int64? = nil,
+        endReason: TMLEndReason? = nil
+    ) {
+        self.sessionId = sessionId
+        self.status = status
+        self.callEndedAt = callEndedAt
+        self.endedAt = endedAt
+        self.endReason = endReason
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+        case status
+        case callEndedAt = "call_ended_at"
+        case endedAt = "ended_at"
+        case endReason = "end_reason"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(status, forKey: .status)
+        try c.encode(callEndedAt, forKey: .callEndedAt)
+        try c.encode(endedAt, forKey: .endedAt)
+        try c.encode(endReason, forKey: .endReason)
+    }
+}
+
+/// Callable reportCallActive, request: pings have resumed and the platform still reports the session's call connected, after the watchdog cleared call_active (FSD §6: a signal gap must not end share back for the rest of the call). Phone sign-in, owner only. Succeeds only while the session is active and before stop_at and expires_at, call_id matches and call_ended_at is null; it sets call_active true and last_ping_at to server time. Idempotent. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason}: 'session_ended', 'no_call' (a manual share), 'call_mismatch', or 'call_ended' (call_ended_at is set, so call_active never comes back).
+/// Callable: `reportCallActive` (request).
+public struct TMLReportCallActiveRequest: Codable, Hashable, Sendable {
+    /// The shareSessions doc id.
+    public var sessionId: String
+    /// The connected call: the same per-device id sent to createSession.
+    public var callId: String
+
+    public init(
+        sessionId: String,
+        callId: String
+    ) {
+        self.sessionId = sessionId
+        self.callId = callId
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+        case callId = "call_id"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(callId, forKey: .callId)
+    }
+}
+
+/// Callable reportCallActive, response.
+/// Callable: `reportCallActive` (response).
+public struct TMLReportCallActiveResponse: Codable, Hashable, Sendable {
+    /// The session.
+    public var sessionId: String
+    /// The check-in time it wrote, epoch ms (server time).
+    public var lastPingAt: Int64
+
+    public init(
+        sessionId: String,
+        lastPingAt: Int64
+    ) {
+        self.sessionId = sessionId
+        self.lastPingAt = lastPingAt
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+        case lastPingAt = "last_ping_at"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+        try c.encode(lastPingAt, forKey: .lastPingAt)
+    }
+}
+
+/// Callable discardSession, request: the share sheet closed without a choice, so the session is deleted before anyone can see it (FSD §4 Live map link). Phone sign-in, owner only, and only while first_viewed_at is null. Deletes the session, private/meta, its pings and its callLogs entry, and clears users.active_session_id. Errors: unauthenticated, permission-denied, invalid-argument, not-found (no such session, not the caller's, or already discarded: treat not-found on a retry as done), and failed-precondition with details {reason: 'link_opened'} once the link has been opened.
+/// Callable: `discardSession` (request).
+public struct TMLDiscardSessionRequest: Codable, Hashable, Sendable {
+    /// The shareSessions doc id from createSession.
+    public var sessionId: String
+
+    public init(
+        sessionId: String
+    ) {
+        self.sessionId = sessionId
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+    }
+}
+
+/// Callable discardSession, response.
+/// Callable: `discardSession` (response).
+public struct TMLDiscardSessionResponse: Codable, Hashable, Sendable {
+    /// The deleted session.
+    public var sessionId: String
+
+    public init(
+        sessionId: String
+    ) {
+        self.sessionId = sessionId
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case sessionId = "session_id"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(sessionId, forKey: .sessionId)
+    }
+}
+
 /// The viewer's shared-back location: same shape as a ping, in `shareSessions/{sessionId}/viewerPings`.
 public typealias TMLViewerPing = TMLPing
 
@@ -909,6 +1353,12 @@ public typealias TMLViewerPing = TMLPing
 public enum TMLCallable {
     public static let createSession = "createSession"
     public static let redeemLinkToken = "redeemLinkToken"
+    public static let saveProfile = "saveProfile"
+    public static let deleteAccount = "deleteAccount"
+    public static let stopSession = "stopSession"
+    public static let reportCallEnded = "reportCallEnded"
+    public static let reportCallActive = "reportCallActive"
+    public static let discardSession = "discardSession"
 }
 
 // MARK: - Firestore paths
@@ -943,6 +1393,10 @@ public enum TMLPaths {
     public static func viewerPing(sessionId: String, pingId: String) -> String { "shareSessions/\(sessionId)/viewerPings/\(pingId)" }
     /// The collection holding `shareSessions/{sessionId}/viewerPings/{pingId}`.
     public static func viewerPingCollection(sessionId: String) -> String { "shareSessions/\(sessionId)/viewerPings" }
+    /// `shareSessions/{sessionId}/viewerSignIns/{viewerUid}`
+    public static func viewerSignIn(sessionId: String, viewerUid: String) -> String { "shareSessions/\(sessionId)/viewerSignIns/\(viewerUid)" }
+    /// The collection holding `shareSessions/{sessionId}/viewerSignIns/{viewerUid}`.
+    public static func viewerSignInCollection(sessionId: String) -> String { "shareSessions/\(sessionId)/viewerSignIns" }
     /// `mascots/{mascotId}`
     public static func mascot(mascotId: String) -> String { "mascots/\(mascotId)" }
     /// The collection holding `mascots/{mascotId}`.
@@ -1008,6 +1462,8 @@ public enum TMLSchemaConstants {
     public static let linkTokenBits = 128
     /// …in base64url without padding: 22 characters. (FSD §6 Viewer access; x-decisions Q-TOKEN-HASH)
     public static let linkTokenLength = 22
+    /// redeemLinkToken mints at most 10 browser sign-ins per session (viewer plus watchers, counted from viewerSignIns). A new browser past that gets resource-exhausted {reason: 'too_many_viewers'}; a browser that already has a sign-in can still refresh. (FSD §6 Viewer access; lead decision Oct 18 (abuse cap))
+    public static let maxViewerSignIns = 10
     /// Share links are <viewer origin>/s/<token>; the apps never claim this path for universal links or App Links. (FSD §4 Live map link; x-decisions Q-LINK-FORMAT)
     public static let shareLinkPath = "/s/"
 }

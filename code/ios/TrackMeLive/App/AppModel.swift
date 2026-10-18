@@ -11,59 +11,116 @@ enum HomeDestination: Hashable {
     case share
 }
 
-/// App state for Sprint 0: onboarding, the chosen mascot, Settings and navigation.
-/// Persists to UserDefaults. Sign-up, the profile in Firestore and sessions come later.
+/// The app's composition root: the account flow (TMLCore's `AccountModel`), the tabs and their
+/// models, and deep links. Views read it from the environment; the logic lives in TMLCore.
 @Observable
 @MainActor
 final class AppModel {
-    private let defaults: UserDefaults
-
-    var hasOnboarded: Bool {
-        didSet { defaults.set(hasOnboarded, forKey: Keys.onboarded) }
-    }
-
-    /// Every account has a mascot; Fox is the default.
-    var mascot: Mascot {
-        didSet { defaults.set(mascot.rawValue, forKey: Keys.mascot) }
-    }
-
-    var settings: AppSettings {
-        didSet { settings.save(to: defaults, key: Keys.settings) }
-    }
-
-    /// Sample name until sign-up exists (sign-up asks for a name of 1 to 24 characters).
-    var profileName = "Alex"
+    let account: AccountModel
+    @ObservationIgnored let dependencies: AppDependencies
 
     var selectedTab: AppTab = .home
     var homePath: [HomeDestination] = []
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        hasOnboarded = defaults.bool(forKey: Keys.onboarded)
-        mascot = defaults.string(forKey: Keys.mascot).flatMap(Mascot.init(rawValue:)) ?? .default
-        settings = AppSettings.load(from: defaults, key: Keys.settings)
+    /// The Mascot and Settings tabs' models, made once per signed-in account.
+    private(set) var mascotTab: MascotPickerModel?
+    private(set) var settingsTab: SettingsModel?
+    /// The picker a new account sees after sign-up (onboarding mode).
+    private(set) var mascotSetup: MascotPickerModel?
+
+    @ObservationIgnored private var tabsUID: String?
+    /// A deep link that arrived before the tabs were on screen (at launch, during onboarding).
+    @ObservationIgnored private var pendingRoute: TMLCore.Route?
+
+    init(dependencies: AppDependencies) {
+        self.dependencies = dependencies
+        account = AccountModel(
+            auth: dependencies.auth,
+            profileBackend: dependencies.profileBackend,
+            settings: dependencies.settings
+        )
+        // Restore the sign-in and the profile now, so the first frame is already the right screen.
+        account.start()
     }
 
-    /// Onboarding's last page. The full flow goes on to sign-up and the mascot picker; until those
-    /// exist it lands on Home.
-    func finishOnboarding() {
-        hasOnboarded = true
-        selectedTab = .home
+    // MARK: What the screens show
+
+    var profile: TMLUser? { account.profiles.profile }
+    var appearance: AppearancePreference { account.settings.appearance }
+
+    /// Call when `account.route` changes: makes the models the new route needs, and opens a deep link
+    /// that was waiting for the tabs.
+    func routeDidChange() {
+        switch account.route {
+        case .chooseMascot:
+            if mascotSetup == nil, let profile {
+                mascotSetup = MascotPickerModel(
+                    look: MascotLook(user: profile), isSharing: false, profile: account.profiles, mode: .onboarding,
+                    onFinished: { [weak self] in self?.account.finishMascotSetup() }
+                )
+            }
+        case .main:
+            mascotSetup = nil
+            makeTabModels()
+            if let route = pendingRoute {
+                pendingRoute = nil
+                open(route)
+            }
+        case .launch, .onboarding, .signUp:
+            mascotSetup = nil
+            resetTabs()
+        }
     }
 
-    /// Settings → Delete account and all data. Sprint 0 has only local data: clear it and start
-    /// over at onboarding. TODO(backend): call the delete-account function first.
-    func deleteAccount() {
-        mascot = .default
-        settings = AppSettings()
+    /// Call when the profile changes (another device, or a save answering): the open screens follow.
+    func profileDidChange() {
+        guard let profile else { return }
+        // A model waiting for the profile to load.
+        if (account.route == .chooseMascot && mascotSetup == nil) || (account.route == .main && mascotTab == nil) {
+            routeDidChange()
+        }
+        mascotTab?.profileDidChange(profile)
+        settingsTab?.profileDidChange(profile)
+        mascotSetup?.profileDidChange(profile)
+    }
+
+    /// Call when the profile listener stops or starts getting through: Settings says so quietly.
+    func profileUpdatesDidChange() {
+        settingsTab?.profileUpdatesUnavailable = account.profiles.updatesUnavailable
+    }
+
+    private func makeTabModels() {
+        guard let profile, let uid = account.user?.uid, tabsUID != uid else { return }
+        tabsUID = uid
+        mascotTab = MascotPickerModel(
+            look: MascotLook(user: profile), isSharing: false, profile: account.profiles, mode: .tab
+        )
+        settingsTab = SettingsModel(
+            settings: profile.settings,
+            profile: account.profiles,
+            deviceSettings: account.settings,
+            permissions: dependencies.permissions,
+            onAccountDeleted: { [weak self] in self?.resetTabs() }
+        )
+        profileUpdatesDidChange()
+    }
+
+    private func resetTabs() {
+        tabsUID = nil
+        mascotTab = nil
+        settingsTab = nil
         homePath = []
         selectedTab = .home
-        hasOnboarded = false
     }
 
-    /// Opens a deep link from the Live Activity or the Share location control.
+    // MARK: Deep links
+
+    /// The Live Activity, the Share location control or a URL. Waits for the tabs if they aren't up.
     func open(_ route: TMLCore.Route) {
-        guard hasOnboarded else { return }
+        guard account.route == .main else {
+            pendingRoute = route
+            return
+        }
         selectedTab = .home
         switch route {
         case .share:
@@ -74,48 +131,23 @@ final class AppModel {
         }
     }
 
+    func handleOpenURL(_ url: URL) {
+        // Firebase's reCAPTCHA redirect comes back as a URL, before any deep link handling.
+        if dependencies.lifecycle?.handleOpenURL(url) == true { return }
+        if let route = TMLCore.Route(url: url) { open(route) }
+    }
+
     func consumePendingRoute() {
         let shared = TMLCore.sharedDefaults
         guard let raw = shared.string(forKey: TMLCore.pendingRouteKey) else { return }
         shared.removeObject(forKey: TMLCore.pendingRouteKey)
         if let route = TMLCore.Route(rawValue: raw) { open(route) }
     }
-
-    private enum Keys {
-        static let onboarded = "onboarded"
-        static let mascot = "mascot"
-        static let settings = "settings"
-    }
 }
 
-/// Settings (FSD §4 "Settings"): the account's settings from the shared schema (`users.settings`,
-/// restored on a new phone) plus Appearance, which stays on this device.
-/// Stored on the device until sign-up and the profile sync exist.
-struct AppSettings: Codable, Equatable {
-    enum Appearance: String, Codable, CaseIterable, Identifiable {
-        case system, light, dark
-        var id: Self { self }
-        var label: String { rawValue.capitalized }
-        var colorScheme: ColorScheme? {
-            switch self {
-            case .system: nil
-            case .light: .light
-            case .dark: .dark
-            }
-        }
-    }
-
-    /// Offer on a call, Location detail, Default stop time, share back and the three alerts.
-    var user = TMLUserSettings.defaults
-    var appearance = Appearance.system
-
-    static func load(from defaults: UserDefaults, key: String) -> AppSettings {
-        guard let data = defaults.data(forKey: key),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else { return AppSettings() }
-        return settings
-    }
-
-    func save(to defaults: UserDefaults, key: String) {
-        if let data = try? JSONEncoder().encode(self) { defaults.set(data, forKey: key) }
+extension AppModel {
+    /// For previews: in-memory fakes, signed in on the tabs, or signed out at onboarding.
+    static func preview(signedIn: Bool = true, mascot: TMLMascotId = .fox) -> AppModel {
+        AppModel(dependencies: .preview(signedIn: signedIn, mascot: mascot))
     }
 }

@@ -1,14 +1,16 @@
-/* The map behind everything: a stylized street map in the map tokens, the sharer's marker and trail.
-   Labels are caption-2 (11px or more, sentence case) with a halo in the color under them.
-   Shadows go on markers only (tokens.json shadow note). */
+/* The map behind everything (src/map/): the sample city drawn in the map tokens, the trail, the
+   connector line and distance chip, and the people's markers. Only markers get a shadow (tokens.json
+   shadow note). Labels are caption-2 at every zoom (--k counter-scales them) and grow with the text
+   size; markers, the line and trail dots hold 3:1 on every map fill. */
 
 .map { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: var(--map-land); contain: strict; }
-.mapsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-
-/* The drawing and the markers pan together to keep the sharer in the open band. */
-.world, .map-pan { transition: transform var(--dur-pan) var(--ease-pan); }
-.map.instant .world, .map.instant .map-pan { transition: none; }
-.map-pan { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.map[hidden] { display: none; }
+.mapsvg, .overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.overlay { overflow: visible; pointer-events: none; }
+/* The hidden attribute only hides HTML elements by default; the overlay's line is SVG. */
+.overlay [hidden] { display: none; }
+.world { transform-origin: 0 0; }
+.marks { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 
 .m-land { fill: var(--map-land); }
 .m-block { fill: var(--map-road); opacity: .3; }
@@ -22,46 +24,83 @@
 .m-pier { fill: var(--map-land); stroke: var(--map-land); stroke-width: 3; stroke-linejoin: round; }
 
 .m-label {
-  fill: var(--map-label); font: 600 11px var(--font-text); letter-spacing: .06px;
-  paint-order: stroke; stroke: var(--map-land); stroke-width: 3px; stroke-linejoin: round;
+  fill: var(--map-label); font: 600 calc(.6875rem * var(--k, 1)) var(--font-text); letter-spacing: .06px;
+  dominant-baseline: central;
+  paint-order: stroke; stroke: var(--map-land); stroke-width: calc(3px * var(--k, 1)); stroke-linejoin: round;
 }
 .m-label.on-road { stroke: var(--map-road); }
 .m-label.on-major { stroke: var(--map-road-major); }
 .m-label.on-park { stroke: var(--map-park); }
 .m-label.on-water { stroke: var(--map-water); letter-spacing: 1.6px; }
 
-/* Every dot is full strength (3:1 on every map fill); age shows by size. */
+/* Every dot is full strength; age shows by size (src/map/trail.ts). */
 .m-trail circle { fill: var(--vw-trail); }
+/* Two people: a dashed ink line at 60% (4.1:1 or more on every map fill), the distance at its middle. */
+.m-line { stroke: var(--ink); stroke-opacity: .6; stroke-width: 2; stroke-dasharray: 4 7; stroke-linecap: round; fill: none; }
+.chip {
+  position: absolute; left: 0; top: 0; z-index: 1;
+  padding: 3px var(--space-3); border-radius: var(--radius-pill);
+  background: var(--ink); color: var(--ground); font: var(--t-metric); letter-spacing: -0.1px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+}
+.chip[hidden] { display: none; }
 
-/* ---------- Markers ---------- */
-.mk { position: absolute; width: 0; height: 0; }
+/* Sharing ended: the map stays where it was, quieter. */
+.map.dim .mapsvg, .map.dim .overlay { opacity: .72; filter: saturate(.5); }
+
+/* ---------- Markers (src/map/markers.ts). Each sits at its point; its parts are offset around it. ---------- */
+.mk { position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .mk[hidden] { display: none; }
 .mk .halo, .mk .ripple, .mk .area { position: absolute; border-radius: 50%; pointer-events: none; }
-.mk.sharer .halo { left: -40px; top: -40px; width: 80px; height: 80px; background: var(--lamplight-halo); }
-.mk.sharer .ripple { left: -26px; top: -26px; width: 52px; height: 52px; box-shadow: 0 0 0 2px var(--lamplight); opacity: 0; }
-.mk .disc {
-  position: absolute; left: -26px; top: -26px; width: 52px; height: 52px;
-  display: grid; place-items: center; border-radius: 50%;
-  background: var(--vw-disc); border: 3px solid var(--lamplight);
-  /* The 1px keyline outside the ring holds the marker at 3:1 on every map fill. */
-  box-shadow: 0 0 0 1px var(--vw-keyline), var(--shadow-marker);
-}
-.mk .disc img { width: 42px; height: 42px; object-fit: contain; }
-/* A render that can't load: the flat SVG, then a plain lamplight disc. */
-.mk .disc.no-art { background: var(--lamplight); }
-.mk .disc.no-art img { visibility: hidden; }
-.mk .name { position: absolute; left: -80px; top: 34px; width: 160px; display: flex; justify-content: center; pointer-events: none; }
+.mk .disc { position: absolute; display: grid; place-items: center; border-radius: 50%; }
+.mk .name { position: absolute; left: -80px; width: 160px; display: flex; justify-content: center; pointer-events: none; }
 .mk .name span {
   padding: 2px var(--space-2); border-radius: var(--radius-pill);
   background: var(--surface); color: var(--ink); font: var(--t-caption-1); letter-spacing: 0; white-space: nowrap;
   box-shadow: inset 0 0 0 var(--edge) var(--separator);
 }
-/* Approximate: a soft lamplight circle 1 km across (500 m radius, 83px at 6 m per px), no halo. */
-.mk .area { display: none; left: -83px; top: -83px; width: 166px; height: 166px; background: var(--lamplight-halo); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lamplight) 45%, transparent); }
+
+/* The sharer: a 52px disc with a 3px lamplight ring, the mascot inside, an 80px halo, a name capsule below. */
+.mk.sharer .halo { left: -40px; top: -40px; width: 80px; height: 80px; background: var(--lamplight-halo); }
+.mk.sharer .ripple { left: -26px; top: -26px; width: 52px; height: 52px; box-shadow: 0 0 0 2px var(--lamplight); opacity: 0; }
+.mk.sharer .disc {
+  left: -26px; top: -26px; width: 52px; height: 52px;
+  background: var(--vw-disc); border: 3px solid var(--lamplight);
+  /* The 1px keyline outside the ring holds the marker at 3:1 on every map fill. */
+  box-shadow: 0 0 0 1px var(--vw-keyline), var(--shadow-marker);
+}
+.mk.sharer .disc img { width: 42px; height: 42px; object-fit: contain; }
+/* A render that can't load: the flat SVG, then a plain lamplight disc. */
+.mk.sharer .disc.no-art { background: var(--lamplight); }
+.mk.sharer .disc.no-art img { visibility: hidden; }
+.mk.sharer .name { top: 34px; }
+/* Approximate: a soft lamplight circle 1 km across at the map's scale, no halo, no trail. */
+.mk .area {
+  display: none; width: var(--area-d); height: var(--area-d); left: calc(var(--area-d) / -2); top: calc(var(--area-d) / -2);
+  transform: scale(var(--z, 1));
+  background: var(--lamplight-halo); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lamplight) 45%, transparent);
+}
 .mk.approx .area { display: block; }
 .mk.approx .halo { display: none; }
 
-/* Live animation runs only for a moment: on arrival, after each ping and on Show (about 2.6 s). */
+/* The viewer's own marker: a 48px crossing disc with a person (they have no account), a 72px halo, "You". */
+.mk.viewer .halo { left: -36px; top: -36px; width: 72px; height: 72px; background: var(--crossing-halo); }
+.mk.viewer .disc {
+  left: -24px; top: -24px; width: 48px; height: 48px;
+  background: var(--crossing); color: var(--on-crossing); border: 3px solid var(--surface);
+  box-shadow: var(--shadow-marker);
+}
+.mk.viewer .disc .ic { width: 24px; height: 24px; }
+.mk.viewer .name { top: 32px; }
+
+/* Last seen (stale, or sharing ended): no halo, no shadow, a dashed ring, the mascot dimmed. Never a live-looking pin. */
+.mk.seen .halo, .mk.seen .ripple { display: none; }
+.mk.seen .disc { background: var(--surface); border: 3px dashed var(--ink-tertiary); box-shadow: none; }
+.mk.seen .disc img { opacity: .55; }
+.mk.seen .name span { color: var(--ink-secondary); }
+.mk.seen .area { background: color-mix(in srgb, var(--ink-tertiary) 10%, transparent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-tertiary) 40%, transparent); }
+
+/* Live animation runs only for a moment: on arrival, after each ping and on Show Alex (about 2.6 s). */
 .mk.arrive .disc { animation: mk-in .55s var(--ease-spring) both; }
 .mk.arrive .halo { animation: fade-in .5s ease-out .1s both; }
 .mk.arrive .name { animation: name-in .4s var(--ease-out) .22s both; }

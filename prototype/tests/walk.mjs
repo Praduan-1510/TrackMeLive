@@ -1,6 +1,7 @@
 // The iPhone story end to end, with a screenshot per step.
 // node walk.mjs <out-dir> [light|dark]
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const OUT = process.argv[2];
 const theme = process.argv[3] || 'dark';
@@ -132,3 +133,5 @@ await shot('settings');
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();
+
+await finish(checks, errors);

@@ -1,6 +1,7 @@
 // "Who it's for", Approximate, and the 1-hour limit, on either platform.
 // node walk-sharing-rules.mjs <out-dir> [light|dark] [ios|android]
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const OUT = process.argv[2];
 const theme = process.argv[3] || 'light';
@@ -155,3 +156,5 @@ await shot('sam-both-live-precise');
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await b.close();
+
+await finish(checks, errors);

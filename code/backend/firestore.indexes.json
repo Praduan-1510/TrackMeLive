@@ -55,6 +55,42 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "stop_rule",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "last_ping_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "shareSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ended_at",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "shareSessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleaned_at",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "ended_at",
           "order": "ASCENDING"
         }
@@ -65,6 +101,20 @@
     {
       "collectionGroup": "private",
       "fieldPath": "link_token_hash",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "private",
+      "fieldPath": "user_id",
       "indexes": [
         {
           "order": "ASCENDING",

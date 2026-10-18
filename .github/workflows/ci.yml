@@ -1,0 +1,275 @@
+# Track Me Live CI. Each job sets up one toolchain and runs code/check-all.sh for its codebase,
+# so CI runs exactly the steps of the local gate. Only the iOS job does more than this Mac can
+# today: a real xcodebuild build and test for the iPhone Simulator on GitHub's Xcode 27 runner.
+#
+# Every action is pinned to a full commit SHA; the comment names its release, each published at
+# least two weeks before it was added. Caches are restored on every run and saved only from main,
+# so pull requests can't fill the cache or seed what main restores. Gradle is cached with
+# actions/cache rather than gradle/actions, whose v6 caching needs separate license terms.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  repo:
+    name: Repo hygiene and shared contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The generated-files check compares the change with its base commit.
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.18.0
+      - name: Install actionlint and ShellCheck (pinned, checksum-verified)
+        run: code/qa/install-tools.sh
+      - name: Secrets, generated files, style, shell and workflow lint, shared contracts
+        env:
+          TML_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: code/check-all.sh --only repo,shared
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repo-logs
+          path: ${{ runner.temp }}/tml-check-all/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  backend:
+    name: Backend (Firebase emulators)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # The functions runtime is nodejs22.
+          node-version: 22.23.3
+          cache: npm
+          cache-dependency-path: |
+            code/backend/functions/package-lock.json
+            code/backend/tests/package-lock.json
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          # firebase-tools 15 refuses Java older than 21.
+          distribution: temurin
+          java-version: "21"
+      - name: Restore the Firebase emulator downloads
+        id: emulators
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          # scripts/env.sh pins the firebase-tools version, which pins the emulators.
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('code/backend/scripts/env.sh') }}
+      - name: Lint, typecheck, and the rules and functions tests on the emulators
+        run: code/check-all.sh --only backend
+      - name: Save the Firebase emulator downloads
+        if: github.event_name == 'push' && steps.emulators.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: ${{ steps.emulators.outputs.cache-primary-key }}
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backend-logs
+          path: |
+            ${{ runner.temp }}/tml-check-all/
+            code/backend/*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  viewer:
+    name: Viewer (lint, tests, build, e2e in Chrome)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: code/viewer/package-lock.json
+      - name: Google Chrome (preinstalled on the runner) for the headless e2e tests
+        run: google-chrome --version
+      - name: Lint, typecheck, unit tests, build, e2e
+        run: code/check-all.sh --only viewer
+      - name: Upload the logs and test reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: viewer-logs
+          path: |
+            ${{ runner.temp }}/tml-check-all/
+            code/viewer/test-results/
+            code/viewer/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  android:
+    name: Android (lint, unit tests, assembleDebug)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Verify the Gradle wrapper jar against Gradle's published checksum
+        run: |
+          props=code/android/gradle/wrapper/gradle-wrapper.properties
+          version="$(sed -nE 's#^distributionUrl=.*/gradle-([0-9][^/]*)-(bin|all)\.zip$#\1#p' "${props}")"
+          if [[ -z "${version}" ]]; then
+            echo "::error::can't read the Gradle version from ${props}"
+            exit 1
+          fi
+          expected="$(curl -fsSL --retry 3 "https://services.gradle.org/distributions/gradle-${version}-wrapper.jar.sha256")"
+          echo "${expected}  code/android/gradle/wrapper/gradle-wrapper.jar" | sha256sum -c -
+      - name: Restore the Gradle caches
+        id: gradle-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('code/android/gradle/wrapper/gradle-wrapper.properties', 'code/android/gradle/libs.versions.toml', 'code/android/**/*.gradle.kts', 'code/android/gradle.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - name: Lint, unit tests, assembleDebug
+        run: code/check-all.sh --only android --fast
+      - name: Stop the Gradle daemon before saving its caches
+        if: github.event_name == 'push' && steps.gradle-cache.outputs.cache-hit != 'true'
+        run: code/android/gradlew -p code/android --stop
+      - name: Save the Gradle caches
+        if: github.event_name == 'push' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+      - name: Upload the logs and reports
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-logs
+          path: |
+            ${{ runner.temp }}/tml-check-all/
+            code/android/**/build/reports/
+            code/android/**/build/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  ios:
+    name: iOS (Xcode 27, iPhone Simulator)
+    # GitHub's macOS image with Xcode 27, in preview; move to its GA label once there is one.
+    runs-on: xcode-27
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Xcode and simulators
+        run: |
+          if [[ ! -d "${DEVELOPER_DIR}" ]]; then
+            echo "::error::${DEVELOPER_DIR} isn't on this runner image; update DEVELOPER_DIR in ci.yml"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          xcodebuild -version
+          xcrun simctl list runtimes available
+      - name: Restore XcodeGen
+        id: xcodegen
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: code/ios/tools
+          # bootstrap-xcodegen.sh pins the version and its checksum.
+          key: xcodegen-${{ runner.os }}-${{ hashFiles('code/ios/scripts/bootstrap-xcodegen.sh') }}
+      - name: Restore the Swift packages
+        id: packages
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ios-packages
+          # project.yml and Package.resolved pin the package versions.
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('code/ios/project.yml', 'code/ios/Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+      - name: Typecheck, core tests, xcodebuild build and simulator tests
+        env:
+          TML_IOS_BUILD_DIR: ${{ runner.temp }}/ios
+          TML_IOS_PACKAGES_DIR: ${{ runner.temp }}/ios-packages
+        run: code/check-all.sh --only ios
+      # The first real compile of code/ios/Firebase. Non-blocking until it has been green once;
+      # then it moves into check-all.sh's ios steps.
+      - name: Build the TrackMeLiveFirebase scheme (not blocking yet)
+        if: success() || failure()
+        continue-on-error: true
+        env:
+          TML_IOS_BUILD_DIR: ${{ runner.temp }}/ios
+          TML_IOS_PACKAGES_DIR: ${{ runner.temp }}/ios-packages
+          TML_IOS_SCHEME: TrackMeLiveFirebase
+        run: |
+          if ! grep -q 'TrackMeLiveFirebase' code/ios/project.yml; then
+            echo "project.yml has no TrackMeLiveFirebase scheme yet"
+            exit 0
+          fi
+          code/qa/ios-xcodebuild.sh build
+      - name: Save XcodeGen
+        if: github.event_name == 'push' && steps.xcodegen.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: code/ios/tools
+          key: ${{ steps.xcodegen.outputs.cache-primary-key }}
+      - name: Save the Swift packages
+        if: github.event_name == 'push' && steps.packages.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/ios-packages
+          key: ${{ steps.packages.outputs.cache-primary-key }}
+      - name: Upload the logs and test results
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-logs
+          path: |
+            ${{ runner.temp }}/tml-check-all/
+            ${{ runner.temp }}/ios/*.log
+            ${{ runner.temp }}/ios/*.xcresult/
+          retention-days: 7
+          if-no-files-found: ignore

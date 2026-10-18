@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding pages 2 and 3 (prototype/js/android.js › viewOnboarding). Page 1's strings are ob_* in strings.xml. -->
+<resources>
+    <string name="onboarding_live_together_title">Live Together</string>
+    <string name="onboarding_live_together_body">While you talk, they can share back. You both see one map until the call ends.</string>
+    <string name="onboarding_private_title">Private by default</string>
+    <string name="onboarding_private_share">Nothing is shared until you tap Share.</string>
+    <string name="onboarding_private_stops">Sharing stops when the call ends, or when your timer runs out.</string>
+    <string name="onboarding_private_deleted">Location points are deleted 24 hours after you stop.</string>
+    <string name="onboarding_get_started">Get started</string>
+    <!-- TalkBack's reading of the page dots. -->
+    <string name="onboarding_page_of">Page %1$d of %2$d</string>
+</resources>

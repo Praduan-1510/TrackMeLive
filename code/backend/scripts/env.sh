@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared setup for run.sh and test.sh. Source it; don't run it.
 # Sets: BACKEND_DIR, PROJECT_ID, FIREBASE (array), JAVA_HOME, PATH, JAVA_TOOL_OPTIONS.
 

@@ -1,0 +1,44 @@
+# Track Me Live: shared editor settings (https://editorconfig.org).
+# They describe the code as it's written: UTF-8, LF, a final newline, no trailing whitespace,
+# spaces, 2 wide except where a language's own style says 4.
+# code/qa/check-style.py enforces the whitespace rules (charset, line endings, final newline,
+# trailing whitespace, tabs or spaces) on code/, .github/ and these root files, as the
+# `style` step of code/check-all.sh. Indent width and line length are left to each codebase's
+# formatter.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Kotlin and Gradle Kotlin DSL (Kotlin official style), Swift, Android XML resources, Python.
+[*.{kt,kts,swift,xml,py}]
+indent_size = 4
+
+# Two trailing spaces are a Markdown line break.
+[*.md]
+trim_trailing_whitespace = false
+
+# Property lists, entitlements and Xcode project files: Xcode and XcodeGen write them with tabs.
+[*.{plist,entitlements,pbxproj,xcscheme,xcworkspacedata}]
+indent_style = tab
+
+# Windows batch files, such as the Gradle wrapper's gradlew.bat.
+[*.bat]
+end_of_line = crlf
+
+[{Makefile,*.mk}]
+indent_style = tab
+
+# Kept byte for byte: vendored license texts as published, and recorded test output as captured.
+[{**/licenses/**,**/LICENSE*,**/OFL*,code/spikes/*/results/**}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset

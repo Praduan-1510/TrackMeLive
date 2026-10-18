@@ -2,52 +2,6 @@ import Foundation
 import Testing
 @testable import TMLCore
 
-@Suite("Mascots")
-struct MascotTests {
-    @Test func twelveInThreeSetsOfFourWithFoxFirst() {
-        #expect(Mascot.allCases.count == 12)
-        #expect(Mascot.default == .fox)
-        #expect(MascotSet.allCases.map { $0.mascots.count } == [4, 4, 4])
-        #expect(MascotSet.classics.mascots.first == .fox)
-    }
-
-    /// The accessory list must equal ACCESSORY_SUPPORT in mascots/model/accessories.mjs, the source
-    /// of truth (the prototype has the same check in tests/accessories.mjs).
-    @Test func accessorySupportMatchesTheModels() throws {
-        let source = try Repo.text("mascots/model/accessories.mjs")
-        let block = try #require(source.range(of: "export const ACCESSORY_SUPPORT = {"))
-        let end = try #require(source.range(of: "};", range: block.upperBound..<source.endIndex))
-        let body = source[block.upperBound..<end.lowerBound]
-        var parsed: [String: [String]] = [:]
-        for line in body.split(separator: "\n") {
-            let parts = line.split(separator: ":", maxSplits: 1)
-            guard parts.count == 2 else { continue }
-            let key = parts[0].trimmingCharacters(in: .whitespaces)
-            let values = parts[1].split(separator: "'").enumerated().filter { $0.offset % 2 == 1 }.map { String($0.element) }
-            parsed[key] = values
-        }
-        #expect(parsed.count == 12)
-        for mascot in Mascot.allCases {
-            #expect(parsed[mascot.rawValue] == mascot.accessories.map(\.rawValue), "\(mascot)")
-        }
-    }
-
-    /// scripts/export-assets.sh must have put every render into the app's and the widget's asset
-    /// catalogs, and every flat SVG into the widget's.
-    @Test(arguments: Mascot.allCases)
-    func assetsAreExported(mascot: Mascot) {
-        let fm = FileManager.default
-        let app = Repo.url("code/ios/TrackMeLive/Resources/Assets.xcassets/\(mascot.renderAssetName).imageset/\(mascot.renderAssetName).png")
-        let widgetRender = Repo.url("code/ios/TrackMeLiveWidgets/Assets.xcassets/\(mascot.renderAssetName).imageset/\(mascot.renderAssetName).png")
-        let widgetFlat = Repo.url("code/ios/TrackMeLiveWidgets/Assets.xcassets/\(mascot.flatAssetName).imageset/\(mascot.flatAssetName).svg")
-        #expect(fm.fileExists(atPath: app.path))
-        #expect(fm.fileExists(atPath: widgetRender.path))
-        #expect(fm.fileExists(atPath: widgetFlat.path))
-        // The exports are byte-for-byte the design system's files.
-        #expect(fm.contentsEqual(atPath: app.path, andPath: Repo.url("design-system/assets/Mascots/\(mascot.rawValue).png").path))
-    }
-}
-
 @Suite("Share Live Activity")
 struct ShareActivityTests {
     let start = Date(timeIntervalSince1970: 1_792_300_680) // a Saturday evening

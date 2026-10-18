@@ -14,7 +14,7 @@ The floating Liquid Glass sheet that sits over the map on every sharing screen a
 
 The sheet on the browser page the viewer opens. Custom glass, since the browser has no system glass.
 
-- The heading is one `h1` in `title-3`: "Alex is sharing their location with you".
+- The heading is one `h1` in `title-2` (Gabarito, as in the prototype): "Alex is sharing their location with you".
 - Under it, where Alex is, in words: "Near Harbor Way · 1.2 km north-east of you", in `subheadline`. It names the nearest street or area, and adds the distance and direction only once the viewer shares back. While Alex is approximate it names only the area. The street name is looked up in the viewer's browser and never stored.
 - Beside it, two neutral buttons: Show Alex (centers the map on Alex) and Open in Maps, at least `tap-target-lg` (48px) tall. If the map fails to load, Show Alex goes and Open in Maps stays.
 - This line is the page's text alternative to the map, so it comes before the map in reading order. It isn't a live region; status changes are announced on their own (see Accessibility in the main README).

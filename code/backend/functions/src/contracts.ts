@@ -7,10 +7,12 @@
  * needs on top: parsing untrusted callable input, and building the sharer
  * snapshot from a profile.
  *
- * Request parsing is hand-written rather than the shared validate(), for two
- * reasons: the server trims names before checking them, and it counts
- * characters as people see them (grapheme clusters), so it never rejects a name
- * the app allowed. See README "Open questions".
+ * Request parsing is hand-written rather than the shared validate(), because
+ * the server trims names before checking them and turns a blank one into none.
+ * The trimmed name is then held to the shared PersonName: 1–24 characters as
+ * people see them (grapheme clusters), so it never rejects a name the app
+ * allowed, at least one of them visible, and no control or text-direction
+ * characters (x-decisions Q-NAME-LENGTH, Q-NAME-CHARACTERS).
  */
 import {
   DEFAULT_MASCOT_COLOR,
@@ -26,6 +28,7 @@ import {
   isPrecision,
   isStopMinutes,
   isStopRule,
+  validate,
   type CreateSessionRequest,
   type SharerSnapshot,
 } from "./shared/schema.js";
@@ -55,8 +58,13 @@ export const SESSION_LIMIT_MS = SESSION_LIMIT_MINUTES * 60_000;
 /** Names are 1–24 characters after trimming (FSD §4 "Sign up", "Who it's for"). */
 export const NAME_MAX_CHARS = NAME_MAX_LENGTH;
 
-/** Far above any real 24-character name, even one made of long emoji sequences. */
-const NAME_MAX_UTF16 = 256;
+/**
+ * A bound on the raw name, checked before counting graphemes so a huge string
+ * costs nothing. 32 UTF-16 units per character is above the longest emoji
+ * sequence Unicode defines (a family of four with skin tones is 19), so no
+ * 24-character name an app accepts comes near it.
+ */
+export const NAME_MAX_UTF16 = NAME_MAX_CHARS * 32;
 
 const CALL_ID_MAX = 128;
 
@@ -98,6 +106,9 @@ export function parsePersonName(raw: unknown): { ok: true; value: string | null 
   if (trimmed.length === 0) return { ok: true, value: null };
   if (trimmed.length > NAME_MAX_UTF16 || charCount(trimmed) > NAME_MAX_CHARS) {
     return { ok: false, message: `must be at most ${NAME_MAX_CHARS} characters after trimming` };
+  }
+  if (validate("PersonName", trimmed).length > 0) {
+    return { ok: false, message: "must have a letter, number, symbol or emoji, and no control or text-direction characters" };
   }
   return { ok: true, value: trimmed };
 }

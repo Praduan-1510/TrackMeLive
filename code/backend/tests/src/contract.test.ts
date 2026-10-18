@@ -78,8 +78,37 @@ describe("parseCreateSessionRequest", () => {
     assert.equal(blank.value.viewer_name, null);
   });
 
+  describe("holds names to the shared PersonName", () => {
+    const named = (viewer_name: string) => parseCreateSessionRequest({ ...base, viewer_name });
+    const accepted = (name: string) => {
+      const r = named(name);
+      assert.ok(r.ok, JSON.stringify(name));
+      assert.equal(r.value.viewer_name, name);
+    };
+
+    it("accepts an emoji-only name, an Arabic name, and 24 family emoji", () => {
+      accepted("\u{1F98A}");
+      accepted("مريم");
+      accepted("\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}".repeat(24));
+    });
+
+    it("refuses invisible names, control characters and text-direction overrides", () => {
+      for (const name of ["\u200B\u200D\u2060", "Mom\u202E", "\u202Emo\u043C", "Al\u2066ex\u2069", "Mo\tm", "Mo\u0007m", "..."]) {
+        const r = named(name);
+        assert.ok(!r.ok, JSON.stringify(name));
+        assert.deepEqual(r.errors.map((e) => e.field), ["viewer_name"]);
+      }
+    });
+
+    it("is the same rule saveProfile's schema check uses", () => {
+      for (const name of ["\u{1F98A}", "مريم", "\u200B\u200D\u2060", "Mom\u202E", "Mo\tm"]) {
+        assert.equal(validate("PersonName", name).length === 0, named(name).ok, JSON.stringify(name));
+      }
+    });
+  });
+
   it("counts characters as people see them", () => {
-    assert.equal(charCount("\u{1F469}\u{1F3FD}‍\u{1F9B1}"), 1); // one emoji, four code points
+    assert.equal(charCount("\u{1F469}\u{1F3FD}\u200D\u{1F9B1}"), 1); // one emoji, four code points
     assert.equal(charCount("é"), 1); // e + combining acute
     assert.equal(charCount("Mom"), 3);
   });

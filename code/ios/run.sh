@@ -90,6 +90,15 @@ if [[ ! -f "$IOS_DIR/TrackMeLive/Resources/Assets.xcassets/AppIcon.appiconset/ic
   "$IOS_DIR/scripts/export-assets.sh"
 fi
 "$IOS_DIR/tools/xcodegen/bin/xcodegen" generate --spec "$IOS_DIR/project.yml" --quiet
+# Once code/ios/Package.resolved is committed (README, Xcode day step 8), build exactly those
+# package versions, as CI does. Until then, Xcode resolves from project.yml.
+resolved_flags=()
+if [[ -f "$IOS_DIR/Package.resolved" ]]; then
+  swiftpm_dir="$IOS_DIR/TrackMeLive.xcodeproj/project.xcworkspace/xcshareddata/swiftpm"
+  mkdir -p "$swiftpm_dir"
+  cp "$IOS_DIR/Package.resolved" "$swiftpm_dir/Package.resolved"
+  resolved_flags=(-onlyUsePackageVersionsFromResolvedFile)
+fi
 
 # ---------------------------------------------------------------------------------------------
 # 3. A simulator: the booted one, else an iPhone 17 Pro on the newest iOS runtime (created if
@@ -155,7 +164,7 @@ say "Building $SCHEME for the iOS Simulator"
 build() { # extra build settings...
   xcodebuild -project "$IOS_DIR/TrackMeLive.xcodeproj" -scheme "$SCHEME" -configuration Debug \
     -destination "platform=iOS Simulator,id=$udid" -derivedDataPath "$DERIVED" \
-    "$@" build > "$LOGS/xcodebuild.log" 2>&1
+    ${resolved_flags[@]+"${resolved_flags[@]}"} "$@" build > "$LOGS/xcodebuild.log" 2>&1
 }
 if build CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=; then
   echo "Build succeeded (signed to run locally)."

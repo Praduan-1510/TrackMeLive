@@ -35,6 +35,11 @@ settings:
 packages:
   TMLCore:
     path: Packages/TMLCore
+  # Firebase Apple SDK 12.19.2, published 2026-09-15: the newest release before the Oct 4, 2026
+  # cutoff (13.0.0 came out Oct 7). Only the TrackMeLiveFirebase target uses it; see that target.
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    exactVersion: "12.19.2"
 
 targets:
   TrackMeLive:
@@ -50,6 +55,10 @@ targets:
       - target: TrackMeLiveWidgets
         embed: true
         codeSign: true
+      # Xcode day, once the TrackMeLiveFirebase scheme builds: uncomment this line, run
+      # `tools/xcodegen/bin/xcodegen generate`, and launch with `-backend emulator`
+      # (AppDependencies picks it up through `#if canImport(TrackMeLiveFirebase)`).
+      # - target: TrackMeLiveFirebase
     info:
       path: TrackMeLive/Info.plist
       properties:
@@ -79,6 +88,18 @@ targets:
           - CFBundleURLName: live.trackme.app
             CFBundleURLSchemes:
               - trackmelive
+          # Firebase phone sign-in's reCAPTCHA fallback returns here: "app-" plus the Google app ID
+          # with dashes. This is the demo project's placeholder ID (FirebaseServices.demoOptions);
+          # the real project replaces it with its REVERSED_CLIENT_ID or encoded app ID.
+          - CFBundleURLName: live.trackme.app.firebase-auth
+            CFBundleURLSchemes:
+              - app-1-000000000000-ios-0000000000000000
+        # The app delegate forwards APNs and URLs to Firebase Auth itself (AppDelegate.swift).
+        FirebaseAppDelegateProxyEnabled: false
+        # The Firebase emulators on this Mac are plain HTTP on 127.0.0.1. Local addresses only; every
+        # other connection keeps App Transport Security.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: TrackMeLive/TrackMeLive.entitlements
       properties:
@@ -94,6 +115,32 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+
+  # The Firebase-backed services (phone sign-in, the profile listener, the saveProfile and
+  # deleteAccount callables), in their own static library so nothing in the app depends on the SDK
+  # until it builds. The Command Line Tools can't resolve or build the SDK, so this target is
+  # outside scripts/typecheck.sh and the TrackMeLive scheme; build it with the TrackMeLiveFirebase
+  # scheme once Xcode is installed (README, "Xcode day").
+  TrackMeLiveFirebase:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: Firebase
+        excludes:
+          - "**/*.md"
+    dependencies:
+      - package: TMLCore
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseFunctions
+    settings:
+      base:
+        PRODUCT_NAME: TrackMeLiveFirebase
+        PRODUCT_MODULE_NAME: TrackMeLiveFirebase
+        SKIP_INSTALL: YES
 
   TrackMeLiveWidgets:
     type: app-extension
@@ -129,6 +176,10 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
 
 schemes:
+  TrackMeLiveFirebase:
+    build:
+      targets:
+        TrackMeLiveFirebase: all
   TrackMeLive:
     build:
       targets:
@@ -136,6 +187,9 @@ schemes:
         TrackMeLiveWidgets: all
     run:
       config: Debug
+      commandLineArguments:
+        # Off by default (the fakes). Tick it in the scheme once the app links TrackMeLiveFirebase.
+        "-backend emulator": false
     test:
       config: Debug
       gatherCoverageData: true

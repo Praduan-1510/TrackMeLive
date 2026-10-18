@@ -1,34 +1,60 @@
 rules_version = '2';
 
-// Track Me Live: Firestore security rules.
+// Track Me Live: Firestore security rules (FSD §5, §6, §8).
 //
-// Sprint 0: deny everything by default. A request that matches no allow below
-// is denied. Sessions are created only by the createSession Cloud Function
-// (Admin SDK, which bypasses these rules); clients never create, change or
-// delete a session. Two things are allowed:
-//   1. the sharer reads their own session and its private/meta (FSD §6);
-//   2. the sharer writes pings to their own live session, and while the
-//      session is Approximate a ping's accuracy_m is at least 500 m, so a ping
-//      never reveals more than the viewer sees (decided Oct 18; the app writes
-//      max(raw GPS accuracy, 500)).
+// Deny by default: a request that matches no allow below is refused. Cloud
+// Functions use the Admin SDK and bypass these rules. They alone create, end and
+// delete sessions, and write users, call_active, call_ended_at, cleaned_at, the
+// private/meta owner, token hash and viewer, callLogs and viewerSignIns
+// (x-decisions Q-SESSION-CALLABLES in code/shared/schema/schema.json).
 //
-// Below the live rules is the commented Sprint 1 plan, one block per
-// collection in FSD §6, with §8's retention and deletion.
+// Who is asking:
+//   - a sharer signs in with a phone number (FSD §5);
+//   - a viewer page signs in with a custom token from redeemLinkToken carrying the
+//     claims {sid, role}: role 'viewer' for the first browser (private/meta.viewer_uid),
+//     'watcher' for every later one (shared ViewerClaims).
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---- Helpers --------------------------------------------------------
+    // ---- Who is asking ---------------------------------------------------
 
     function signedIn() {
       return request.auth != null;
     }
 
-    // Sharers sign in with their phone number (FSD §5). Viewers get a custom
-    // one-session sign-in from redeemLinkToken and are never sharers.
     function isSharer() {
       return signedIn() && request.auth.token.firebase.sign_in_provider == 'phone';
     }
+
+    function isUser(userId) {
+      return isSharer() && request.auth.uid == userId;
+    }
+
+    // The sharer still has a profile. A deleted account's ID token stays valid
+    // for up to an hour, and rules can't see Auth; deleteAccount removes the
+    // profile, and only saveProfile (which refuses an ended sign-in) makes one.
+    function hasProfile(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId));
+    }
+
+    // A viewer page signed in for this one session, as viewer or watcher.
+    function isViewerOf(sessionId) {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider == 'custom'
+        && request.auth.token.sid == sessionId
+        && request.auth.token.role in ['viewer', 'watcher'];
+    }
+
+    // The session's viewer: the first browser, the only one that can share back.
+    function isShareBackViewer(sessionId) {
+      return isViewerOf(sessionId)
+        && request.auth.token.role == 'viewer'
+        && exists(metaPath(sessionId))
+        && meta(sessionId).viewer_uid == request.auth.uid;
+    }
+
+    // ---- Sessions --------------------------------------------------------
 
     function sessionPath(sessionId) {
       return /databases/$(database)/documents/shareSessions/$(sessionId);
@@ -38,23 +64,139 @@ service cloud.firestore {
       return /databases/$(database)/documents/shareSessions/$(sessionId)/private/meta;
     }
 
-    // The owner lives only in private/meta.user_id, never on the session doc.
-    function ownsSession(sessionId) {
-      return isSharer()
-        && exists(metaPath(sessionId))
-        && get(metaPath(sessionId)).data.user_id == request.auth.uid;
+    function session(sessionId) {
+      return get(sessionPath(sessionId)).data;
     }
 
-    // The session as it will be after this write. A batch that also updates the
-    // session (Sprint 1: applying precision_next with the next ping) is judged by
-    // the precision it sets.
+    // The session as it will be after this write: a batch that also updates the
+    // session (a check-in, or applying precision_next) is judged by what it sets.
     function sessionAfter(sessionId) {
       return getAfter(sessionPath(sessionId)).data;
     }
 
-    function isLive(s) {
-      return s.status == 'active' && request.time < s.expires_at;
+    function meta(sessionId) {
+      return get(metaPath(sessionId)).data;
     }
+
+    // The owner lives only in private/meta.user_id, never on the session doc.
+    function ownsSession(sessionId) {
+      return isSharer()
+        && exists(metaPath(sessionId))
+        && meta(sessionId).user_id == request.auth.uid;
+    }
+
+    // Live: active and before both its stop time and its 1-hour limit. From
+    // stop_at or expires_at on, it's over, even before the stop job marks it
+    // stopped (x-decisions Q-SESSION-END).
+    function isLive(s) {
+      return s.status == 'active'
+        && request.time < s.expires_at
+        && (s.stop_at == null || request.time < s.stop_at);
+    }
+
+    // SHARE_BACK_FRESHNESS_SECONDS: the sharer's app checked in under 2 minutes ago.
+    function checkedInRecently(s) {
+      return request.time < s.last_ping_at + duration.value(120, 's');
+    }
+
+    // Share back is open: live, allowed for this session, and during its call
+    // (FSD §6 Viewer access).
+    function shareBackOpen(s) {
+      return isLive(s)
+        && s.share_back_allowed == true
+        && s.call_active == true
+        && s.call_ended_at == null
+        && checkedInRecently(s);
+    }
+
+    // ---- Updates ---------------------------------------------------------
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function onlyChanges(keys) {
+      return changedKeys().hasOnly(keys);
+    }
+
+    function changes(key) {
+      return key in changedKeys();
+    }
+
+    // The sharer's app writes only these session fields, and only while the
+    // session is live. Ending it, and call_active / call_ended_at, go through
+    // stopSession, reportCallEnded and reportCallActive.
+    function isSharerSessionUpdate(sessionId) {
+      return ownsSession(sessionId)
+        && isLive(resource.data)
+        && onlyChanges(['last_ping_at', 'ping_interval_s', 'precision', 'precision_next',
+                        'stop_rule', 'stop_minutes', 'stop_at', 'share_back_requested_at'])
+        && validCheckIn(request.resource.data)
+        && validPingInterval(request.resource.data)
+        && validPrecision(request.resource.data)
+        && validStopRule(resource.data, request.resource.data)
+        && validAskToShare(resource.data, request.resource.data);
+    }
+
+    // A check-in carries the server's time, never the phone's.
+    function validCheckIn(after) {
+      return !changes('last_ping_at') || after.last_ping_at == request.time;
+    }
+
+    // MAX_PING_INTERVAL_SECONDS: never fewer than 1 ping per 60 s.
+    function validPingInterval(after) {
+      return !changes('ping_interval_s')
+        || (after.ping_interval_s is number
+            && after.ping_interval_s > 0
+            && after.ping_interval_s <= 60);
+    }
+
+    function validPrecision(after) {
+      return after.precision in ['precise', 'approximate']
+        && (after.precision_next == null || after.precision_next in ['precise', 'approximate']);
+    }
+
+    // The timer sheet (FSD §4 Stop rule): a timer ends in the future and never
+    // after the 1-hour limit; "At the 1-hour limit" is the limit itself; "When the
+    // call ends" only on a call share whose call hasn't ended.
+    function validStopRule(before, after) {
+      return !changedKeys().hasAny(['stop_rule', 'stop_minutes', 'stop_at'])
+        || (after.stop_rule == 'minutes'
+            && after.stop_minutes in [15, 30, 60]
+            && after.stop_at is timestamp
+            && after.stop_at > request.time
+            && after.stop_at <= before.expires_at)
+        || (after.stop_rule == 'limit'
+            && after.stop_minutes == null
+            && after.stop_at == before.expires_at)
+        || (after.stop_rule == 'call'
+            && after.stop_minutes == null
+            && after.stop_at == null
+            && before.call_id != null
+            && before.call_ended_at == null);
+    }
+
+    // Ask to share (FSD §4): once per call, during the call, with share back
+    // allowed, after the viewer has opened the link.
+    function validAskToShare(before, after) {
+      return !changes('share_back_requested_at')
+        || (before.share_back_requested_at == null
+            && after.share_back_requested_at == request.time
+            && before.share_back_allowed == true
+            && before.call_active == true
+            && before.call_ended_at == null
+            && before.first_viewed_at != null);
+    }
+
+    // The viewer turns share back on while it's open, or off at any time.
+    function isViewerSessionUpdate(sessionId) {
+      return isShareBackViewer(sessionId)
+        && onlyChanges(['viewer_sharing'])
+        && request.resource.data.viewer_sharing is bool
+        && (request.resource.data.viewer_sharing == false || shareBackOpen(resource.data));
+    }
+
+    // ---- Shapes ----------------------------------------------------------
 
     // APPROXIMATE_ROUNDING_METERS in the shared schema.
     function minAccuracyFor(precision) {
@@ -73,150 +215,87 @@ service cloud.firestore {
         && d.accuracy_m >= minAccuracyFor(precision);
     }
 
-    // ---- Sprint 0 live rules ---------------------------------------------
+    // An APNs, FCM or Live Activity token.
+    function validToken(t) {
+      return t is string && t.size() > 0 && t.size() <= 4096;
+    }
 
-    match /shareSessions/{sessionId} {
-      allow get: if ownsSession(sessionId);
+    // users/{userId}/devices/{deviceId} (shared Device). Only iOS has a Live
+    // Activity push-to-start token.
+    function validDevice(d) {
+      return d.keys().hasOnly(['platform', 'push_token', 'live_activity_start_token', 'updated_at'])
+        && d.keys().hasAll(['platform', 'push_token', 'live_activity_start_token', 'updated_at'])
+        && d.platform in ['ios', 'android']
+        && validToken(d.push_token)
+        && (d.live_activity_start_token == null
+            || (d.platform == 'ios' && validToken(d.live_activity_start_token)))
+        && d.updated_at == request.time;
+    }
 
-      match /private/{docId} {
-        allow get: if docId == 'meta' && ownsSession(sessionId);
+    // ---- Collections (FSD §6) ----------------------------------------------
+
+    // Profiles: the owner reads; saveProfile and the session functions write.
+    match /users/{userId} {
+      allow get: if isUser(userId);
+
+      // One per signed-in phone, for alerts; deleted at sign-out (FSD §8).
+      // Registered only once the profile exists.
+      match /devices/{deviceId} {
+        allow get, delete: if isUser(userId);
+        allow create, update: if isUser(userId) && hasProfile(userId) && validDevice(request.resource.data);
       }
 
+      // trustedContacts: v2, unused in v1. No rule.
+    }
+
+    // Only what the viewer may see. No client lists, creates or deletes sessions.
+    match /shareSessions/{sessionId} {
+      // The viewer keeps reading the session doc after the end, for the ended state.
+      allow get: if ownsSession(sessionId) || isViewerOf(sessionId);
+      allow update: if isSharerSessionUpdate(sessionId) || isViewerSessionUpdate(sessionId);
+
+      // Sharer-only: never readable by the viewer.
+      match /private/{docId} {
+        allow get: if docId == 'meta' && ownsSession(sessionId);
+        // This session's iOS Live Activity update token.
+        allow update: if docId == 'meta'
+          && ownsSession(sessionId)
+          && isLive(session(sessionId))
+          && onlyChanges(['activity_push_token'])
+          && (request.resource.data.activity_push_token == null
+              || validToken(request.resource.data.activity_push_token));
+      }
+
+      // The sharer's locations. While Approximate, accuracy_m is at least 500 m,
+      // so a ping never reveals more than the viewer sees (decided Oct 18).
+      // Viewer and watcher read them only while the session is live.
       match /pings/{pingId} {
+        allow read: if ownsSession(sessionId)
+          || (isViewerOf(sessionId) && isLive(session(sessionId)));
         allow create: if ownsSession(sessionId)
           && isLive(sessionAfter(sessionId))
           && validPing(request.resource.data, sessionAfter(sessionId).precision);
       }
+
+      // The viewer's shared-back locations: only the viewer writes them, while
+      // share back is open and viewer_sharing is on (as written in the same
+      // batch); only the sharer reads them.
+      match /viewerPings/{pingId} {
+        allow read: if ownsSession(sessionId);
+        allow create: if isShareBackViewer(sessionId)
+          && shareBackOpen(sessionAfter(sessionId))
+          && sessionAfter(sessionId).viewer_sharing == true
+          && validPing(request.resource.data, 'precise');
+      }
+
+      // viewerSignIns: function-only. No rule.
     }
 
-    // Everything else, every other write included, is denied by default.
+    // The character library, seeded from the shared MASCOT_CATALOG.
+    match /mascots/{mascotId} {
+      allow read: if true;
+    }
 
-    // ---- Sprint 1 plan (commented out; not live) --------------------------
-    //
-    // Extra helpers:
-    //
-    //   // redeemLinkToken mints one custom token per browser with the claims
-    //   // {sid, role} (shared ViewerClaims): role 'viewer' for the first
-    //   // browser (private/meta.viewer_uid), 'watcher' for any later one.
-    //   function isViewerOf(sessionId) {
-    //     return signedIn() && request.auth.token.sid == sessionId;
-    //   }
-    //   function isShareBackViewer(sessionId) {
-    //     return isViewerOf(sessionId) && request.auth.token.role == 'viewer'
-    //       && get(metaPath(sessionId)).data.viewer_uid == request.auth.uid;
-    //   }
-    //   function changes(keys) {   // only these fields change
-    //     return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
-    //   }
-    //   function shareBackOpen(s) {
-    //     return isLive(s) && s.share_back_allowed == true && s.call_active == true
-    //       && s.call_ended_at == null
-    //       && request.time < s.last_ping_at + duration.value(2, 'm');
-    //   }
-    //
-    // users/{userId}  (§6, §8 Deletion; no phone: Auth holds it)
-    //   allow get: if isSharer() && request.auth.uid == userId;
-    //   allow create: if isSharer() && request.auth.uid == userId
-    //     && keys are exactly name, mascot_id, mascot_color, mascot_accessory,
-    //        last_viewer_name, settings, active_session_id, created_at, updated_at
-    //     && active_session_id == null
-    //     && created_at == request.time && updated_at == request.time
-    //     && name is a string, size 1-96 (rules can't count graphemes; the app
-    //        and the functions enforce 1-24 graphemes after trimming)
-    //     && mascot_accessory fits the mascot (shared mascotTakes)
-    //     && settings has exactly the UserSettings keys with valid values;
-    //   allow update: if isSharer() && request.auth.uid == userId
-    //     && !changes include active_session_id or created_at   // function-owned
-    //     && request.resource.data.updated_at == request.time;
-    //   allow delete: if false;   // Delete account is a Cloud Function: it stops
-    //                             // any session and deletes everything at once,
-    //                             // overriding the 30-day retention (§8).
-    //
-    // users/{userId}/devices/{deviceId}  (§6; deviceId is a per-install UUID;
-    // §8: deleted at sign-out or when the token stops working)
-    //   allow read, create, update, delete: if isSharer() && request.auth.uid == userId
-    //     && keys only platform, push_token, live_activity_start_token, updated_at
-    //     && platform in ['ios', 'android'] && updated_at == request.time;
-    //
-    // users/{userId}/trustedContacts/{id}  (§6: v2, unused in v1)
-    //   No rule: stays denied.
-    //
-    // shareSessions/{sessionId}  (§6)
-    //   allow get: if ownsSession(sessionId) || isViewerOf(sessionId);
-    //     // The viewer keeps reading the session doc after the end so an open
-    //     // page can show the ended state; never pings after the end (below).
-    //   allow list, create, delete: if false;   // functions only
-    //   allow update (sharer): if ownsSession(sessionId) && isLive(resource.data)
-    //     && changes(['last_ping_at', 'ping_interval_s', 'precision', 'precision_next',
-    //                 'call_active', 'call_ended_at', 'stop_rule', 'stop_minutes',
-    //                 'stop_at', 'share_back_requested_at'])
-    //     && request.resource.data.last_ping_at == request.time
-    //     && ping_interval_s is number, > 0 and <= 60
-    //     && (stop_at unchanged || request.resource.data.stop_at <= resource.data.expires_at)
-    //     // call_ended_at is set once; after that call_active can never be true.
-    //     && (resource.data.call_ended_at == null
-    //         || request.resource.data.call_ended_at == resource.data.call_ended_at)
-    //     && (request.resource.data.call_ended_at == null
-    //         || request.resource.data.call_active == false)
-    //     // Ask to share: once per call, only after the viewer opened the link.
-    //     && (share_back_requested_at unchanged
-    //         || (resource.data.share_back_requested_at == null
-    //             && request.resource.data.share_back_requested_at == request.time
-    //             && resource.data.call_active == true
-    //             && resource.data.first_viewed_at != null));
-    //   Stop sharing: a stopSession callable (it sets status, ended_at,
-    //   end_reason 'stopped', clears users.active_session_id and updates the
-    //   Live Activity in one place), not a client update.
-    //   allow update (viewer): if isShareBackViewer(sessionId)
-    //     && changes(['viewer_sharing'])
-    //     && (request.resource.data.viewer_sharing == false || shareBackOpen(resource.data));
-    //
-    // shareSessions/{sessionId}/private/meta  (§6: sharer and functions only)
-    //   allow get: if ownsSession(sessionId);
-    //   allow update: if ownsSession(sessionId) && changes(['activity_push_token']);
-    //   user_id, link_token_hash, viewer_uid and viewer_name are written by
-    //   functions. The viewer can never read this doc.
-    //
-    // shareSessions/{sessionId}/pings/{pingId}  (§6; §8: deleted 24 h after end)
-    //   allow create: live above (Sprint 0), unchanged.
-    //   allow read: if ownsSession(sessionId)
-    //     || (isViewerOf(sessionId) && get(sessionPath(sessionId)).data.status == 'active');
-    //   allow update, delete: if false;
-    //   Approximate also rounds lat/lng to about 500 m on the phone before the
-    //   write; rules check the accuracy floor but can't verify the rounding.
-    //
-    // shareSessions/{sessionId}/viewerPings/{pingId}  (§6; §8: deleted 24 h after end)
-    //   allow read: if ownsSession(sessionId)
-    //     || (isShareBackViewer(sessionId) && get(sessionPath(sessionId)).data.status == 'active');
-    //   allow create: if isShareBackViewer(sessionId)
-    //     && shareBackOpen(get(sessionPath(sessionId)).data)
-    //     && validPing(request.resource.data, 'precise');
-    //   allow update, delete: if false;
-    //
-    // mascots/{id}  (§6: the character library; character is the MascotId)
-    //   allow read: if isSharer();   // the viewer gets renders from Hosting
-    //   allow write: if false;        // seeded from the shared MASCOT_CATALOG
-    //
-    // callLogs/{id}  (§6; §8: kept 30 days, then purged)
-    //   allow create: if isSharer() && request.resource.data.user_id == request.auth.uid
-    //     && ownsSession(request.resource.data.session_id)
-    //     && keys only user_id, session_id, call_id, call_time
-    //     && request.resource.data.call_time == request.time;   // first seen
-    //   allow get: if isSharer() && resource.data.user_id == request.auth.uid;
-    //   allow update, delete: if false;
-    //
-    // Lifecycle and retention (§8) run in Cloud Functions, not rules:
-    //   - stop sessions at the earlier of stop_at and expires_at, even if the app
-    //     was killed; end_reason is 'limit' when stop_at == expires_at, else
-    //     'timer'; clear users.active_session_id;
-    //   - the watchdog clears call_active when last_ping_at is over 2 min old
-    //     (never touching call_ended_at), and stops call-tied sessions 10 min
-    //     later; when call_active turns false, set viewer_sharing false;
-    //   - delete pings and viewerPings 24 h after ended_at;
-    //   - after 30 days delete the session, private/meta and callLogs;
-    //   - delete the session's viewer Auth users (one per browser) with the
-    //     session's cleanup (§8; whether that's the 24 h or the 30-day pass is
-    //     open, see README);
-    //   - Delete account removes everything at once.
+    // callLogs (createSession): function-only. No rule.
   }
 }

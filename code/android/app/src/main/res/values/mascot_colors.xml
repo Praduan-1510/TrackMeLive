@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+    Mascot color swatches in the picker, from the prototype (prototype/js/app.js COLORS and KEY).
+    These are artwork colors, not UI colors: each one previews a render's color, so they are the same
+    in light and dark and never come from tokens.json. Every color is its own render; nothing in the
+    app is tinted with these.
+    -->
+    <color name="mascot_swatch_moss">#A3B13E</color>
+    <color name="mascot_swatch_lagoon">#33B3A3</color>
+    <!-- Measured from the dusk renders: ΔE 36.5 from crossing blue in light, 21.8 in dark. -->
+    <color name="mascot_swatch_dusk">#7A91C5</color>
+    <color name="mascot_swatch_rose">#DD6A95</color>
+
+    <!-- The Original swatch shows each character's own key color, measured from its renders. -->
+    <color name="mascot_key_fox">#E5AB5B</color>
+    <color name="mascot_key_ghost">#BEC5C6</color>
+    <color name="mascot_key_robot">#909EA4</color>
+    <color name="mascot_key_astronaut">#D9DBDA</color>
+    <color name="mascot_key_hero">#DC9654</color>
+    <color name="mascot_key_star">#E1C2CD</color>
+    <color name="mascot_key_ninja">#424860</color>
+    <color name="mascot_key_neko">#E1DCD3</color>
+    <color name="mascot_key_ace">#4D332B</color>
+    <color name="mascot_key_detective">#D3BD92</color>
+    <color name="mascot_key_cowboy">#E5C69B</color>
+    <color name="mascot_key_agent">#454448</color>
+</resources>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Ghost">
+  <title>Ghost</title>
+  <path d="M20 50 Q20 14 48 14 Q76 14 76 50 L76 80 Q70 73 64 80 Q58 87 52 80 Q48 75 44 80 Q38 87 32 80 Q26 73 20 80 Z" fill="#E4EBE8"/>
+  <ellipse cx="38" cy="45" rx="4.5" ry="6" fill="#11181B"/>
+  <ellipse cx="58" cy="45" rx="4.5" ry="6" fill="#11181B"/>
+  <ellipse cx="48" cy="60" rx="5" ry="3.5" fill="#11181B"/>
+  <ellipse cx="29" cy="56" rx="4.5" ry="2.6" fill="#F4B3A4"/>
+  <ellipse cx="67" cy="56" rx="4.5" ry="2.6" fill="#F4B3A4"/>
+</svg>

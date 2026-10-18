@@ -192,6 +192,30 @@ data class UserSettings(
         const val ALERT_CALL_ENDED = "alert_call_ended"
         const val ALERT_EXPIRY = "alert_expiry"
     }
+
+    /** The callable wire form, with snake_case keys (inside a callable payload). */
+    fun toWireMap(): Map<String, Any?> = buildMap {
+        put("offer_on_call", offerOnCall)
+        put("precision", precision.wire)
+        put("default_stop", defaultStopWire)
+        put("share_back", shareBack)
+        put("alert_link_opened", alertLinkOpened)
+        put("alert_call_ended", alertCallEnded)
+        put("alert_expiry", alertExpiry)
+    }
+
+    companion object {
+        /** Reads the callable wire form (inside a callable result). */
+        fun fromWireMap(map: Map<*, *>): UserSettings = UserSettings(
+            offerOnCall = requireNotNull(map["offer_on_call"] as Boolean?) { "offer_on_call is missing" },
+            precision = requireNotNull(Precision.fromWire(map["precision"] as String?)) { "precision is missing" },
+            defaultStopWire = requireNotNull(DefaultStop.fromWire(map["default_stop"])) { "default_stop is missing" }.wire,
+            shareBack = requireNotNull(map["share_back"] as Boolean?) { "share_back is missing" },
+            alertLinkOpened = requireNotNull(map["alert_link_opened"] as Boolean?) { "alert_link_opened is missing" },
+            alertCallEnded = requireNotNull(map["alert_call_ended"] as Boolean?) { "alert_call_ended is missing" },
+            alertExpiry = requireNotNull(map["alert_expiry"] as Boolean?) { "alert_expiry is missing" },
+        )
+    }
 }
 
 /** shareSessions.sharer: the sharer's name and mascot, taken when the session starts (FSD §6), so the viewer never reads users. A share keeps the mascot it started with. */
@@ -347,7 +371,7 @@ data class ShareSession(
     /** The call that was connected when the session started: a per-device unique id (the CallKit UUID on iOS, a generated UUID on Android). Null for a manual share. The app never knows who is on the call (x-decisions Q-CALL-TIME). */
     @get:PropertyName("call_id") @set:PropertyName("call_id")
     var callId: String? = null,
-    /** True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. The watchdog clears it after 2 minutes without a check-in; the app sets it again if the same call is still connected, unless call_ended_at is set. */
+    /** True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. Function-owned: clients never write it. The watchdog clears it after 2 minutes without a check-in; the app sets it again through reportCallActive if the same call is still connected, unless call_ended_at is set (reportCallEnded sets that). */
     @get:PropertyName("call_active") @set:PropertyName("call_active")
     var callActive: Boolean = false,
     /** When the session's call ended; null while it is connected or for a manual share. Once set, call_active can never become true again for this session, which tells a real call end apart from the watchdog clearing call_active (x-decisions Q-CALL-ENDED-AT). */
@@ -380,6 +404,9 @@ data class ShareSession(
     /** When the sharer tapped Ask to share; null if never. At most once per call (each session has at most one call), so a non-null value means Ask to share is used. */
     @get:PropertyName("share_back_requested_at") @set:PropertyName("share_back_requested_at")
     var shareBackRequestedAt: Timestamp? = null,
+    /** Function-owned: when the 24-hour cleanup deleted this session's pings, viewerPings and viewer sign-ins (FSD §8 Retention); null until then. The cleanup finds stopped sessions with cleaned_at null and ended_at at least 24 hours ago, so a session ended late, with ended_at set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK). */
+    @get:PropertyName("cleaned_at") @set:PropertyName("cleaned_at")
+    var cleanedAt: Timestamp? = null,
 ) {
     /** Firestore field names, for queries and partial updates. */
     object Fields {
@@ -403,6 +430,7 @@ data class ShareSession(
         const val FIRST_VIEWED_AT = "first_viewed_at"
         const val VIEWER_SHARING = "viewer_sharing"
         const val SHARE_BACK_REQUESTED_AT = "share_back_requested_at"
+        const val CLEANED_AT = "cleaned_at"
     }
 }
 
@@ -434,7 +462,7 @@ data class SessionPrivateMeta(
     }
 }
 
-/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before expires_at. Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. */
+/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at. Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. */
 data class Ping(
     /** Latitude, WGS 84 degrees. */
     @get:PropertyName("lat") @set:PropertyName("lat")
@@ -482,7 +510,23 @@ data class Mascot(
     }
 }
 
-/** Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8). Firestore: callLogs/{callLogId}. */
+/** One per browser sign-in that redeemLinkToken minted for this session (the doc id is that Auth uid), viewer and watchers alike, written in the transaction that decides the role. Function-only: clients can't read or write it. The 24-hour cleanup deletes these Auth users, then these docs (FSD §8 Retention; x-decisions Q-VIEWER-SIGNINS). Firestore: shareSessions/{sessionId}/viewerSignIns/{viewerUid}. */
+data class ViewerSignIn(
+    /** The role minted for this uid: viewer for the first browser, watcher for any later one. */
+    @get:PropertyName("role") @set:PropertyName("role")
+    var role: ViewerRole = ViewerRole.VIEWER,
+    /** Server timestamp of the first redeem by this uid. */
+    @get:PropertyName("created_at") @set:PropertyName("created_at")
+    var createdAt: Timestamp = Timestamp(0, 0),
+) {
+    /** Firestore field names, for queries and partial updates. */
+    object Fields {
+        const val ROLE = "role"
+        const val CREATED_AT = "created_at"
+    }
+}
+
+/** Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8). createSession writes it for a call-triggered share, in the same transaction, with callLogId = the session id (each session has at most one call), and the 30-day purge deletes it with the session. Clients can't read or write it (x-decisions Q-CALLLOG-ID). Firestore: callLogs/{callLogId}. */
 data class CallLog(
     /** The sharer's userId. */
     @get:PropertyName("user_id") @set:PropertyName("user_id")
@@ -573,7 +617,7 @@ data class RedeemLinkTokenRequest(
     }
 }
 
-/** Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc. Callable: redeemLinkToken (response). */
+/** Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc. Errors: not-found for any token that matches no session (malformed or unknown, with the same message). A session that has stopped, or passed stop_at or expires_at, fails with failed-precondition and details {reason: 'session_ended', sharer: SharerSnapshot}; no custom token is minted, so nothing can read pings, and the page shows 'This location is no longer being shared' with the mascot. A browser that redeems again with its own viewer sign-in (sid claim for this session) keeps its uid and role. A new browser once the session already has MAX_VIEWER_SIGN_INS sign-ins gets resource-exhausted with details {reason: 'too_many_viewers'}; the page shows 'This link can't be opened right now'. Callable: redeemLinkToken (response). */
 data class RedeemLinkTokenResponse(
     /** Firebase custom token for signInWithCustomToken, minted per browser, with the ViewerClaims {sid, role}. */
     val customToken: String,
@@ -595,10 +639,218 @@ data class RedeemLinkTokenResponse(
     }
 }
 
+/** Callable saveProfile, request: creates or updates the caller's users/{uid} (FSD §4 Sign up, Settings; §6). Phone sign-in only. The app sends the whole profile it shows; the server trims name. settings is optional: omitted, it keeps the stored settings, or DEFAULT_USER_SETTINGS for a new profile. last_viewer_name, active_session_id, created_at and updated_at are server-owned and rejected here. Errors: unauthenticated (signed out), permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}. Callable: saveProfile (request). */
+data class SaveProfileRequest(
+    /** The user's name. The server trims it, then it must be 1–24 grapheme clusters. */
+    val name: String,
+    /** The chosen mascot; fox for a new account that hasn't picked one. */
+    val mascotId: MascotId,
+    /** The chosen color; original by default. */
+    val mascotColor: MascotColor,
+    /** The chosen accessory, or null for none. Must be one the mascot takes (MASCOT_CATALOG); the server rejects any other. */
+    val mascotAccessory: MascotAccessory?,
+    /** The whole settings object. Omitted, the stored settings stay; a new profile gets DEFAULT_USER_SETTINGS. */
+    val settings: UserSettings? = null,
+) {
+    /** The callable payload, with snake_case keys. */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("name", name)
+        put("mascot_id", mascotId.wire)
+        put("mascot_color", mascotColor.wire)
+        put("mascot_accessory", mascotAccessory?.wire)
+        if (settings != null) put("settings", settings.toWireMap())
+    }
+}
+
+/** Callable saveProfile, response: the profile as stored in users/{uid}, with created_at and updated_at in epoch ms. Callable: saveProfile (response). */
+data class SaveProfileResponse(
+    /** The stored name, trimmed. */
+    val name: String,
+    /** The stored mascot. */
+    val mascotId: MascotId,
+    /** The stored color. */
+    val mascotColor: MascotColor,
+    /** The stored accessory, or null for none. */
+    val mascotAccessory: MascotAccessory?,
+    /** The last "who it's for" name (set by createSession), or null. */
+    val lastViewerName: String?,
+    /** The stored settings. */
+    val settings: UserSettings,
+    /** The active shareSessions id (function-owned), or null when not sharing. */
+    val activeSessionId: String?,
+    /** created_at, epoch ms. */
+    val createdAt: Long,
+    /** updated_at, epoch ms. */
+    val updatedAt: Long,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): SaveProfileResponse = SaveProfileResponse(
+            name = requireNotNull(map["name"] as String?) { "name is missing" },
+            mascotId = requireNotNull(MascotId.fromWire(map["mascot_id"] as String?)) { "mascot_id is missing" },
+            mascotColor = requireNotNull(MascotColor.fromWire(map["mascot_color"] as String?)) { "mascot_color is missing" },
+            mascotAccessory = MascotAccessory.fromWire(map["mascot_accessory"] as String?),
+            lastViewerName = map["last_viewer_name"] as String?,
+            settings = UserSettings.fromWireMap(requireNotNull(map["settings"] as Map<*, *>?) { "settings is missing" }),
+            activeSessionId = map["active_session_id"] as String?,
+            createdAt = requireNotNull((map["created_at"] as Number?)?.toLong()) { "created_at is missing" },
+            updatedAt = requireNotNull((map["updated_at"] as Number?)?.toLong()) { "updated_at is missing" },
+        )
+    }
+}
+
+/** Callable deleteAccount, request: no fields. Settings › Delete account and all data (FSD §4 Settings, §8 Deletion). Phone sign-in only. Stops any active session (end_reason stopped), then deletes users/{uid} with its devices, every session the caller owns with private/meta, pings, viewerPings and viewerSignIns (and those viewer Auth users), the caller's callLogs, and last the caller's Auth user. Idempotent: calling it again finishes anything a failed run left. The app signs out afterwards. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument (any field sent). Callable: deleteAccount (request). */
+data object DeleteAccountRequest {
+    /** The callable payload: no fields. */
+    fun toMap(): Map<String, Any?> = emptyMap()
+}
+
+/** Callable deleteAccount, response. Callable: deleteAccount (response). */
+data class DeleteAccountResponse(
+    /** How many of the caller's sessions this call deleted (0 on a repeat call). */
+    val sessionsDeleted: Int,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): DeleteAccountResponse = DeleteAccountResponse(
+            sessionsDeleted = requireNotNull((map["sessions_deleted"] as Number?)?.toInt()) { "sessions_deleted is missing" },
+        )
+    }
+}
+
+/** Callable stopSession, request: the sharer taps Stop (FSD §4 Stop sharing). Phone sign-in, owner only. Ends the session now with end_reason stopped, sets viewer_sharing false and clears users.active_session_id, in one transaction. Idempotent: a session that has already ended (or is past stop_at or expires_at, which ends it as timer or limit) returns how it ended. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}, not-found (no such session, or not the caller's). Callable: stopSession (request). */
+data class StopSessionRequest(
+    /** The shareSessions doc id from createSession. */
+    val sessionId: String,
+) {
+    /** The callable payload, with snake_case keys. */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("session_id", sessionId)
+    }
+}
+
+/** Callable stopSession, response: how the session ended. Callable: stopSession (response). */
+data class StopSessionResponse(
+    /** The session. */
+    val sessionId: String,
+    /** ended_at, epoch ms. */
+    val endedAt: Long,
+    /** stopped, unless it had already ended another way. */
+    val endReason: EndReason,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): StopSessionResponse = StopSessionResponse(
+            sessionId = requireNotNull(map["session_id"] as String?) { "session_id is missing" },
+            endedAt = requireNotNull((map["ended_at"] as Number?)?.toLong()) { "ended_at is missing" },
+            endReason = requireNotNull(EndReason.fromWire(map["end_reason"] as String?)) { "end_reason is missing" },
+        )
+    }
+}
+
+/** Callable reportCallEnded, request: the app saw the session's call end (FSD §4 Auto-expiry, §9 Call drops mid-share). Phone sign-in, owner only, and call_id must be the session's call_id. Sets call_ended_at, call_active false and viewer_sharing false; when stop_rule is call it also ends the session (end_reason call) and clears users.active_session_id. After this, call_active can never be true again for the session. Idempotent: a second report, or one for a session that has already ended, changes nothing and returns the state. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason: 'no_call'} (a manual share) or {reason: 'call_mismatch'} (another call). Callable: reportCallEnded (request). */
+data class ReportCallEndedRequest(
+    /** The shareSessions doc id. */
+    val sessionId: String,
+    /** The call that ended: the same per-device id sent to createSession. */
+    val callId: String,
+) {
+    /** The callable payload, with snake_case keys. */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("session_id", sessionId)
+        put("call_id", callId)
+    }
+}
+
+/** Callable reportCallEnded, response: the session after the report. Callable: reportCallEnded (response). */
+data class ReportCallEndedResponse(
+    /** The session. */
+    val sessionId: String,
+    /** stopped when the stop rule was the call (or the session had already ended); active when a timer keeps it going. */
+    val status: SessionStatus,
+    /** call_ended_at, epoch ms; null only when the session had already ended before the call did. */
+    val callEndedAt: Long?,
+    /** ended_at, epoch ms, when stopped; null while active. */
+    val endedAt: Long?,
+    /** Why it ended, when stopped; null while active. */
+    val endReason: EndReason?,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): ReportCallEndedResponse = ReportCallEndedResponse(
+            sessionId = requireNotNull(map["session_id"] as String?) { "session_id is missing" },
+            status = requireNotNull(SessionStatus.fromWire(map["status"] as String?)) { "status is missing" },
+            callEndedAt = (map["call_ended_at"] as Number?)?.toLong(),
+            endedAt = (map["ended_at"] as Number?)?.toLong(),
+            endReason = EndReason.fromWire(map["end_reason"] as String?),
+        )
+    }
+}
+
+/** Callable reportCallActive, request: pings have resumed and the platform still reports the session's call connected, after the watchdog cleared call_active (FSD §6: a signal gap must not end share back for the rest of the call). Phone sign-in, owner only. Succeeds only while the session is active and before stop_at and expires_at, call_id matches and call_ended_at is null; it sets call_active true and last_ping_at to server time. Idempotent. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason}: 'session_ended', 'no_call' (a manual share), 'call_mismatch', or 'call_ended' (call_ended_at is set, so call_active never comes back). Callable: reportCallActive (request). */
+data class ReportCallActiveRequest(
+    /** The shareSessions doc id. */
+    val sessionId: String,
+    /** The connected call: the same per-device id sent to createSession. */
+    val callId: String,
+) {
+    /** The callable payload, with snake_case keys. */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("session_id", sessionId)
+        put("call_id", callId)
+    }
+}
+
+/** Callable reportCallActive, response. Callable: reportCallActive (response). */
+data class ReportCallActiveResponse(
+    /** The session. */
+    val sessionId: String,
+    /** The check-in time it wrote, epoch ms (server time). */
+    val lastPingAt: Long,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): ReportCallActiveResponse = ReportCallActiveResponse(
+            sessionId = requireNotNull(map["session_id"] as String?) { "session_id is missing" },
+            lastPingAt = requireNotNull((map["last_ping_at"] as Number?)?.toLong()) { "last_ping_at is missing" },
+        )
+    }
+}
+
+/** Callable discardSession, request: the share sheet closed without a choice, so the session is deleted before anyone can see it (FSD §4 Live map link). Phone sign-in, owner only, and only while first_viewed_at is null. Deletes the session, private/meta, its pings and its callLogs entry, and clears users.active_session_id. Errors: unauthenticated, permission-denied, invalid-argument, not-found (no such session, not the caller's, or already discarded: treat not-found on a retry as done), and failed-precondition with details {reason: 'link_opened'} once the link has been opened. Callable: discardSession (request). */
+data class DiscardSessionRequest(
+    /** The shareSessions doc id from createSession. */
+    val sessionId: String,
+) {
+    /** The callable payload, with snake_case keys. */
+    fun toMap(): Map<String, Any?> = buildMap {
+        put("session_id", sessionId)
+    }
+}
+
+/** Callable discardSession, response. Callable: discardSession (response). */
+data class DiscardSessionResponse(
+    /** The deleted session. */
+    val sessionId: String,
+) {
+    companion object {
+        /** Reads the callable result (`HttpsCallableResult.getData()`). */
+        fun fromMap(map: Map<*, *>): DiscardSessionResponse = DiscardSessionResponse(
+            sessionId = requireNotNull(map["session_id"] as String?) { "session_id is missing" },
+        )
+    }
+}
+
 /** Callable function names. */
 object TmlCallables {
     const val CREATE_SESSION = "createSession"
     const val REDEEM_LINK_TOKEN = "redeemLinkToken"
+    const val SAVE_PROFILE = "saveProfile"
+    const val DELETE_ACCOUNT = "deleteAccount"
+    const val STOP_SESSION = "stopSession"
+    const val REPORT_CALL_ENDED = "reportCallEnded"
+    const val REPORT_CALL_ACTIVE = "reportCallActive"
+    const val DISCARD_SESSION = "discardSession"
 }
 
 // ---------- Firestore paths ----------
@@ -633,6 +885,10 @@ object TmlPaths {
     fun viewerPing(sessionId: String, pingId: String): String = "shareSessions/$sessionId/viewerPings/$pingId"
     /** The collection holding shareSessions/{sessionId}/viewerPings/{pingId}. */
     fun viewerPingCollection(sessionId: String): String = "shareSessions/$sessionId/viewerPings"
+    /** shareSessions/{sessionId}/viewerSignIns/{viewerUid} */
+    fun viewerSignIn(sessionId: String, viewerUid: String): String = "shareSessions/$sessionId/viewerSignIns/$viewerUid"
+    /** The collection holding shareSessions/{sessionId}/viewerSignIns/{viewerUid}. */
+    fun viewerSignInCollection(sessionId: String): String = "shareSessions/$sessionId/viewerSignIns"
     /** mascots/{mascotId} */
     fun mascot(mascotId: String): String = "mascots/$mascotId"
     /** The collection holding mascots/{mascotId}. */
@@ -698,6 +954,8 @@ object TmlSchemaConstants {
     const val LINK_TOKEN_BITS = 128
     /** …in base64url without padding: 22 characters. (FSD §6 Viewer access; x-decisions Q-TOKEN-HASH) */
     const val LINK_TOKEN_LENGTH = 22
+    /** redeemLinkToken mints at most 10 browser sign-ins per session (viewer plus watchers, counted from viewerSignIns). A new browser past that gets resource-exhausted {reason: 'too_many_viewers'}; a browser that already has a sign-in can still refresh. (FSD §6 Viewer access; lead decision Oct 18 (abuse cap)) */
+    const val MAX_VIEWER_SIGN_INS = 10
     /** Share links are <viewer origin>/s/<token>; the apps never claim this path for universal links or App Links. (FSD §4 Live map link; x-decisions Q-LINK-FORMAT) */
     const val SHARE_LINK_PATH = "/s/"
 }

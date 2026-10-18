@@ -1,0 +1,6 @@
+# actionlint settings for .github/workflows (code/check-all.sh passes this file with -config-file).
+self-hosted-runner:
+  # GitHub-hosted labels newer than actionlint 1.7.12 knows. xcode-27 is the macOS image with
+  # Xcode 27, in preview (https://github.com/actions/runner-images/issues/14404).
+  labels:
+    - xcode-27

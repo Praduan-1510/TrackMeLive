@@ -3,13 +3,23 @@
 # source of truth: re-run this after a mascot render, a flat SVG or an app icon changes.
 #
 #   design-system/assets/Mascots/<id>.png  (512px renders)  -> app + widget catalogs, "mascot-<id>"
-#   design-system/assets/Mascots/<id>.svg  (flat, 96pt box)  -> widget catalog, "mascot-<id>-flat"
+#   design-system/assets/Mascots/<id>.svg  (flat, 96pt box)  -> app + widget catalogs, "mascot-<id>-flat"
+#   Mascots/colors/<id>-<color>.png                           -> app catalog, "mascot-<id>-<color>"
+#   Mascots/accessories/<id>-<accessory>.png                  -> app catalog, "accessory-<id>-<accessory>"
+#   every render and accessory layer, again at avatar size    -> app catalog, "avatar-<id>[-<color>]",
+#                                                                "avatar-accessory-<id>-<accessory>"
 #   brand/logo/mark.svg                                       -> app catalog, "brand-mark" (vector)
 #   brand/logo/app-icon-{default,dark,tinted}.svg             -> AppIcon (1024px PNGs, via Chrome)
 #
-# The design system README: ship 512px renders only for onboarding and the picker; use the flat
-# SVGs at 20pt and below (the compact Live Activity). Marker and avatar exports at 40/32pt come
-# later with the map.
+# Sizes (design-system README, "Asset pipeline"). The Original renders stay the 512px masters,
+# since onboarding draws the fox up to 250pt. Color renders and accessory layers are exported for
+# the largest place they're drawn, the picker's 152pt stage, at 2x and 3x (304 and 456px). The
+# avatar set is 40pt at 2x and 3x (80 and 120px) for markers, rows and the glass bar. iPhones on
+# iOS 26 are all 2x or 3x, so there's no 1x, and app thinning installs one scale per device.
+# Every image is downscaled from its master with sips, never upscaled. The flat SVGs are the last
+# fallback in the app (TMLCore MascotAssets) and the 20pt-and-below art in the widget.
+# The names and sizes live in TMLCore's MascotAssets; TMLCore's tests check this script's output
+# against them.
 #
 # Usage: scripts/export-assets.sh [--skip-icons]
 set -euo pipefail
@@ -22,6 +32,10 @@ APP_CAT="$IOS_DIR/TrackMeLive/Resources/Assets.xcassets"
 WID_CAT="$IOS_DIR/TrackMeLiveWidgets/Assets.xcassets"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 IDS=(fox ghost robot astronaut hero star ninja neko ace detective cowboy agent)
+COLORS=(moss lagoon dusk rose)
+ACCESSORIES=(headphones glasses headlamp)
+STAGE_PT=152
+AVATAR_PT=40
 
 INFO='"info" : { "author" : "xcode", "version" : 1 }'
 
@@ -38,6 +52,33 @@ png_set() { # <catalog> <name> <src.png>
 {
   "images" : [
     { "filename" : "$2.png", "idiom" : "universal", "scale" : "2x" }
+  ],
+  $INFO
+}
+JSON
+}
+
+folder() { # <dir>: an asset catalog folder (no namespace), emptied first
+  rm -rf "$1"; mkdir -p "$1"
+  printf '{\n  %s\n}\n' "$INFO" > "$1/Contents.json"
+}
+
+scaled_set() { # <dir> <name> <src.png> <points>: the 2x and 3x images for a point size
+  local dir="$1/$2.imageset" px want
+  mkdir -p "$dir"
+  for scale in 2 3; do
+    want=$(( $4 * scale ))
+    px=$(sips -g pixelWidth "$3" | awk '/pixelWidth/ {print $2}')
+    (( px >= want )) || { echo "error: $3 is ${px}px, too small for ${4}pt at ${scale}x" >&2; exit 1; }
+    sips -Z "$want" "$3" --out "$dir/$2@${scale}x.png" >/dev/null
+    px=$(sips -g pixelWidth "$dir/$2@${scale}x.png" | awk '/pixelWidth/ {print $2}')
+    [[ "$px" == "$want" ]] || { echo "error: $2@${scale}x.png is ${px}px, expected $want" >&2; exit 1; }
+  done
+  cat > "$dir/Contents.json" <<JSON
+{
+  "images" : [
+    { "filename" : "$2@2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "$2@3x.png", "idiom" : "universal", "scale" : "3x" }
   ],
   $INFO
 }
@@ -65,7 +106,32 @@ catalog_root "$WID_CAT"
 for id in "${IDS[@]}"; do
   png_set "$APP_CAT" "mascot-$id" "$MASCOTS/$id.png"
   png_set "$WID_CAT" "mascot-$id" "$MASCOTS/$id.png"
+  svg_set "$APP_CAT" "mascot-$id-flat" "$MASCOTS/$id.svg"
   svg_set "$WID_CAT" "mascot-$id-flat" "$MASCOTS/$id.svg"
+done
+
+# Colors, accessories and avatars, each in a folder named for its design-system asset group.
+COLOR_DIR="$APP_CAT/Mascot colors"
+ACC_DIR="$APP_CAT/Mascot accessories"
+AVATAR_DIR="$APP_CAT/Mascot avatars"
+folder "$COLOR_DIR"; folder "$ACC_DIR"; folder "$AVATAR_DIR"
+layers=0
+for id in "${IDS[@]}"; do
+  scaled_set "$AVATAR_DIR" "avatar-$id" "$MASCOTS/$id.png" "$AVATAR_PT"
+  for color in "${COLORS[@]}"; do
+    src="$MASCOTS/colors/$id-$color.png"
+    [[ -f "$src" ]] || { echo "error: missing $src" >&2; exit 1; }
+    scaled_set "$COLOR_DIR" "mascot-$id-$color" "$src" "$STAGE_PT"
+    scaled_set "$AVATAR_DIR" "avatar-$id-$color" "$src" "$AVATAR_PT"
+  done
+  # Each character ships layers only for the accessories it takes (mascots/model/accessories.mjs).
+  for acc in "${ACCESSORIES[@]}"; do
+    src="$MASCOTS/accessories/$id-$acc.png"
+    [[ -f "$src" ]] || continue
+    scaled_set "$ACC_DIR" "accessory-$id-$acc" "$src" "$STAGE_PT"
+    scaled_set "$AVATAR_DIR" "avatar-accessory-$id-$acc" "$src" "$AVATAR_PT"
+    layers=$((layers + 1))
+  done
 done
 # The Callout mark, with mark-on-dark.svg for dark appearance (onboarding's "Private by default").
 dir="$APP_CAT/brand-mark.imageset"
@@ -106,7 +172,8 @@ with open(os.path.join(out, "Contents.json"), "w") as f:
                "info": {"author": "xcode", "version": 1}}, f, indent=2)
     f.write("\n")
 PY
-echo "Exported ${#IDS[@]} mascot renders, ${#IDS[@]} flat mascots, the brand mark and the launch color."
+echo "Exported ${#IDS[@]} mascot renders, $(( ${#IDS[@]} * ${#COLORS[@]} )) color renders, $layers accessory layers," \
+  "their avatars, ${#IDS[@]} flat mascots, the brand mark and the launch color."
 
 if [[ "${1:-}" == "--skip-icons" ]]; then exit 0; fi
 

@@ -1,17 +1,21 @@
-/* The person's settings win: more contrast, less transparency, forced colors and reduced motion.
-   Ported from the prototype's rules for Mom's page (prototype/css/app.css). */
+/* The person's settings win: more contrast, less transparency, forced colors and reduced motion
+   (design-system/README.md, Accessibility; ported from the prototype's Mom page). */
 
 @media (prefers-contrast: more) {
   :root { --edge: 2px; }
-  /* Solid glass, a firmer edge. */
+  /* Solid glass with a firmer edge, and separators in ink-tertiary. */
   .glassbar, .sheet {
     background: var(--surface);
     box-shadow: inset 0 0 0 2px var(--glass-edge);
     -webkit-backdrop-filter: none; backdrop-filter: none;
   }
-  /* Markers: a 2px keyline and a firmer name capsule. */
-  .mk .disc { box-shadow: 0 0 0 2px var(--vw-keyline); }
+  .person + .person { border-top-color: var(--ink-tertiary); }
+  /* Markers: a 2px keyline; a firmer name capsule, connector line and distance chip. */
+  .mk.sharer .disc { box-shadow: 0 0 0 2px var(--vw-keyline); }
+  .mk.viewer .disc { box-shadow: 0 0 0 2px var(--ink); }
   .mk .name span { box-shadow: inset 0 0 0 2px var(--ink-tertiary); }
+  .m-line { stroke-opacity: .9; }
+  .chip { box-shadow: 0 0 0 2px var(--ground); }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -19,18 +23,20 @@
 }
 
 @media (forced-colors: active) {
-  .glassbar, .sheet, .btn, .mk .disc, .pill, .shareback, .mk .name span { border: 1px solid CanvasText; }
-  /* The map keeps its marks in system colors; status is never color alone. */
-  .mk .disc { border: 3px solid Highlight; }
-  .m-trail circle { fill: Highlight; }
-  .glassbar .t2 .d, .pill .d { forced-color-adjust: none; background: CanvasText; }
+  /* Backgrounds drop out: everything that was a surface gets a CanvasText border. */
+  .glassbar, .sheet, .btn, .pill, .badge, .shareback, .people, .chip, .dlg, .mk .name span { border: 1px solid CanvasText; }
+  /* The map keeps its own colors, so people stay told apart; status is never color alone. */
+  .map { forced-color-adjust: none; }
+  .glassbar .t2 .d, .pill .d, .st .d { forced-color-adjust: none; }
   .skel .sk { forced-color-adjust: none; background: GrayText; }
 }
 
-/* Reduce Motion: nothing bobs, breathes, pans or slides in. */
+/* Reduce Motion: nothing bobs, breathes, pans or slides in; a moved marker cross-fades into place. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; }
-  .mk .halo, .mk .ripple, .mk .disc, .mk .name, .skel .sk, .vp.enter .glassbar > *, .vp.enter .sheet > * { animation: none !important; }
-  .world, .map-pan, .btn { transition: none !important; }
+  /* transition: none, not a tiny duration: a duration would give every property of every element a transition. */
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition: none !important; }
+  .mk .halo, .mk .ripple, .mk .disc, .mk .name, .skel .sk, .vp.enter *, .vp.enter .body, .dlg[open] { animation: none !important; }
   .btn:active { transform: none; }
+  .mk.xfade { animation: mk-xfade .4s ease both !important; }
 }
+@keyframes mk-xfade { from { opacity: 0; } }

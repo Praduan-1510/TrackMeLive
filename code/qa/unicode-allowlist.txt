@@ -1,0 +1,4 @@
+# Source files allowed to contain a literal invisible or bidi control character
+# (code/qa/scan-unicode.py). One per line: "path U+XXXX  # why it can't be an escape".
+# Prefer an escape in the source (\u200D, or \u{200D} in Swift); add a line here only when the
+# file format has no escapes.

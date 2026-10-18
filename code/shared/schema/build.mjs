@@ -43,7 +43,12 @@ const isEnumDef = (d) => Array.isArray(d.enum);
 const enumKind = (d) => (d.enum.every((v) => typeof v === 'string') ? 'string' : d.enum.every((v) => Number.isInteger(v)) ? 'int' : 'mixed');
 const swCase = (v) => (typeof v === 'number' ? `minutes${v}` : camel(v));
 const kCase = (v) => (typeof v === 'number' ? `MINUTES_${v}` : upperSnake(v));
-const allDefaulted = (defName) => Object.values(defs[defName].properties ?? {}).every((p) => p.default !== undefined);
+const allDefaulted = (defName) => {
+  const props = Object.values(defs[defName].properties ?? {});
+  return props.length > 0 && props.every((p) => p.default !== undefined);
+};
+// A struct with no fields (e.g. DeleteAccountRequest): `{}` on the wire.
+const isEmptyDef = (defName) => Object.keys(defs[defName].properties ?? {}).length === 0;
 const isTimeDef = (d) => d['x-tml-kind'] === 'timestamp';
 const isMillisDef = (d) => d['x-tml-kind'] === 'epoch-millis';
 const isMapDef = (d) => d.type === 'object' && !d.properties && d.additionalProperties === true;
@@ -195,6 +200,11 @@ function buildTs() {
     if (d['x-version']) lines.push(`${d['x-version']} only.`);
     if (time) lines.push('TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing.');
     L.push(`/** ${lines.join(' ')} */`);
+    if (isEmptyDef(n)) {
+      L.push(`export type ${n} = Record<string, never>;`);
+      L.push('');
+      continue;
+    }
     L.push(`export interface ${n}${time ? '<TTime = FirestoreTimestamp>' : ''} {`);
     for (const f of fieldsOf(n)) {
       jsdoc('  ', f.description);
@@ -519,6 +529,12 @@ function buildSwift() {
     if (d['x-collection']) L.push(`/// Firestore: \`${d['x-collection']}\`.`);
     if (d['x-api']) L.push(`/// Callable: \`${d['x-api']}\` (${d['x-api-role']}).`);
     L.push(`public struct ${S(n)}: Codable, Hashable, Sendable {`);
+    if (isEmptyDef(n)) {
+      L.push('    public init() {}');
+      L.push('}');
+      L.push('');
+      continue;
+    }
     for (const f of fs_) {
       sdoc('    ', f.description);
       L.push(`    public var ${swiftId(camel(f.name))}: ${swiftType(f)}`);
@@ -710,11 +726,59 @@ function buildKotlin() {
       default: throw new Error(f.kind);
     }
   };
+  // Callable payloads travel as plain maps. A document struct used inside a payload (UserSettings in
+  // saveProfile) gets toWireMap() / fromWireMap(), and payload fields of that type go through them.
+  const wireStructs = new Set();
+  const addWireStruct = (ref) => {
+    if (wireStructs.has(ref)) return;
+    wireStructs.add(ref);
+    for (const f of fieldsOf(ref)) if (f.kind === 'struct') addWireStruct(f.ref);
+  };
+  for (const n of apiDefs) for (const f of fieldsOf(n)) if (f.kind === 'struct') addWireStruct(f.ref);
+  // inDoc: f is a Firestore data class field, where a mixed enum is held as its raw wire value (xWire).
+  const toWire = (f, expr, inDoc) => {
+    const q = f.nullable || f.optional ? '?' : '';
+    switch (f.kind) {
+      case 'string': case 'boolean': case 'integer': case 'number': case 'millis': return expr;
+      case 'enum':
+        if (f.enumKind === 'int') return `${expr}${q}.minutes`;
+        return f.enumKind === 'mixed' && inDoc ? expr : `${expr}${q}.wire`;
+      case 'struct': return `${expr}${q}.toWireMap()`;
+      default: throw new Error(`toMap: unsupported ${f.kind}`);
+    }
+  };
+  const fromWire = (f, expr, inDoc) => {
+    const nul = f.nullable || f.optional;
+    const req = (v) => (nul ? v : `requireNotNull(${v}) { ${JSON.stringify(`${f.name} is missing`)} }`);
+    switch (f.kind) {
+      case 'string': return req(`${expr} as String?`);
+      case 'boolean': return req(`${expr} as Boolean?`);
+      case 'integer': return req(`(${expr} as Number?)?.toInt()`);
+      case 'number': return req(`(${expr} as Number?)?.toDouble()`);
+      case 'millis': return req(`(${expr} as Number?)?.toLong()`);
+      case 'enum':
+        if (f.enumKind === 'int') return req(`${f.ref}.fromMinutes((${expr} as Number?)?.toInt())`);
+        if (f.enumKind === 'mixed') return inDoc ? (nul ? `${f.ref}.fromWire(${expr})?.wire` : `${req(`${f.ref}.fromWire(${expr})`)}.wire`) : req(`${f.ref}.fromWire(${expr})`);
+        return req(`${f.ref}.fromWire(${expr} as String?)`);
+      case 'struct': return nul ? `(${expr} as Map<*, *>?)?.let { ${f.ref}.fromWireMap(it) }` : `${f.ref}.fromWireMap(${req(`${expr} as Map<*, *>?`)})`;
+      default: throw new Error(`fromMap: unsupported ${f.kind}`);
+    }
+  };
+  // The Kotlin property (constructor parameter) holding a field.
+  const kProp = (f, inDoc) => (inDoc && f.kind === 'enum' && f.enumKind === 'mixed' ? `${camel(f.name)}Wire` : kId(camel(f.name)));
+  // An optional field is put only when set; inside that check it is smart-cast to non-null.
+  const putLine = (f, inDoc) => {
+    const value = toWire(f.optional ? { ...f, optional: false, nullable: false } : f, kProp(f, inDoc), inDoc);
+    const line = `put(${JSON.stringify(f.name)}, ${value})`;
+    return f.optional ? `        if (${kProp(f, inDoc)} != null) ${line}` : `        ${line}`;
+  };
+
   L.push('// ---------- Firestore documents ----------');
   L.push('');
   for (const n of docDefs) {
     const d = defs[n];
     const fs_ = fieldsOf(n);
+    if (isEmptyDef(n)) throw new Error(`${n}: a Firestore document needs at least one field`);
     kdoc('', `${doc(d.description)}${d['x-collection'] ? ` Firestore: ${d['x-collection']}.` : ''}`);
     L.push(`data class ${n}(`);
     for (const f of fs_) {
@@ -735,6 +799,20 @@ function buildKotlin() {
     L.push('    object Fields {');
     for (const f of fs_) L.push(`        const val ${upperSnake(f.name)} = ${JSON.stringify(f.name)}`);
     L.push('    }');
+    if (wireStructs.has(n)) {
+      L.push('');
+      L.push('    /** The callable wire form, with snake_case keys (inside a callable payload). */');
+      L.push('    fun toWireMap(): Map<String, Any?> = buildMap {');
+      for (const f of fs_) L.push(putLine(f, true));
+      L.push('    }');
+      L.push('');
+      L.push('    companion object {');
+      L.push('        /** Reads the callable wire form (inside a callable result). */');
+      L.push(`        fun fromWireMap(map: Map<*, *>): ${n} = ${n}(`);
+      for (const f of fs_) L.push(`            ${kProp(f, true)} = ${fromWire(f, `map[${JSON.stringify(f.name)}]`, true)},`);
+      L.push('        )');
+      L.push('    }');
+    }
     L.push('}');
     L.push('');
   }
@@ -743,29 +821,24 @@ function buildKotlin() {
   L.push('');
   L.push('// ---------- Callable payloads ----------');
   L.push('');
-  const toWire = (f, expr) => {
-    const q = f.nullable || f.optional ? '?' : '';
-    if (f.kind === 'enum') return f.enumKind === 'int' ? `${expr}${q}.minutes` : `${expr}${q}.wire`;
-    if (['string', 'boolean', 'integer', 'number', 'millis'].includes(f.kind)) return expr;
-    throw new Error(`toMap: unsupported ${f.kind}`);
-  };
-  const fromWire = (f, expr) => {
-    const nul = f.nullable || f.optional;
-    const req = (v) => (nul ? v : `requireNotNull(${v}) { ${JSON.stringify(`${f.name} is missing`)} }`);
-    switch (f.kind) {
-      case 'string': return req(`${expr} as String?`);
-      case 'boolean': return req(`${expr} as Boolean?`);
-      case 'integer': return req(`(${expr} as Number?)?.toInt()`);
-      case 'number': return req(`(${expr} as Number?)?.toDouble()`);
-      case 'millis': return req(`(${expr} as Number?)?.toLong()`);
-      case 'enum': return f.enumKind === 'int' ? req(`${f.ref}.fromMinutes((${expr} as Number?)?.toInt())`) : req(`${f.ref}.fromWire(${expr} as String?)`);
-      default: throw new Error(`fromMap: unsupported ${f.kind}`);
-    }
-  };
   for (const n of apiDefs) {
     const d = defs[n];
     const fs_ = fieldsOf(n);
     kdoc('', `${doc(d.description)} Callable: ${d['x-api']} (${d['x-api-role']}).`);
+    if (isEmptyDef(n)) {
+      // A data class needs a field; an empty payload is a single value.
+      L.push(`data object ${n} {`);
+      if (d['x-api-role'] === 'request') {
+        L.push('    /** The callable payload: no fields. */');
+        L.push('    fun toMap(): Map<String, Any?> = emptyMap()');
+      } else {
+        L.push('    /** Reads the callable result (`HttpsCallableResult.getData()`): no fields. */');
+        L.push(`    @Suppress("UNUSED_PARAMETER") fun fromMap(map: Map<*, *>): ${n} = ${n}`);
+      }
+      L.push('}');
+      L.push('');
+      continue;
+    }
     L.push(`data class ${n}(`);
     for (const f of fs_) {
       kdoc('    ', f.description);
@@ -775,16 +848,13 @@ function buildKotlin() {
     if (d['x-api-role'] === 'request') {
       L.push('    /** The callable payload, with snake_case keys. */');
       L.push('    fun toMap(): Map<String, Any?> = buildMap {');
-      for (const f of fs_) {
-        const line = `put(${JSON.stringify(f.name)}, ${toWire(f, kId(camel(f.name)))})`;
-        L.push(f.optional ? `        if (${kId(camel(f.name))} != null) ${line}` : `        ${line}`);
-      }
+      for (const f of fs_) L.push(putLine(f, false));
       L.push('    }');
     } else {
       L.push('    companion object {');
       L.push('        /** Reads the callable result (`HttpsCallableResult.getData()`). */');
       L.push(`        fun fromMap(map: Map<*, *>): ${n} = ${n}(`);
-      for (const f of fs_) L.push(`            ${kId(camel(f.name))} = ${fromWire(f, `map[${JSON.stringify(f.name)}]`)},`);
+      for (const f of fs_) L.push(`            ${kProp(f, false)} = ${fromWire(f, `map[${JSON.stringify(f.name)}]`, false)},`);
       L.push('        )');
       L.push('    }');
     }

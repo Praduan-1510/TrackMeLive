@@ -1,11 +1,9 @@
 /* Fonts for the viewer page, served from public/fonts/ (same origin; the page makes no network
-   requests to anyone else). Copied from prototype/fonts/, unicode ranges kept.
+   requests to anyone else). Copied from prototype/fonts/, unicode ranges kept, and every face is
+   font-display: swap, so text is never invisible while a font loads.
    Gabarito and Figtree: SIL Open Font License 1.1 (public/fonts/OFL-Gabarito.txt, OFL-Figtree.txt).
-   Material Symbols Rounded: Apache License 2.0 (public/fonts/LICENSE-Material-Symbols.txt), a
-   subset; public/fonts/material-symbols-icons.txt lists the icons it has. An icon that isn't listed
-   needs a rebuilt subset, or a small inline SVG (src/icons.ts).
    Text uses the token stack (--font-text): SF Pro on Apple devices via -apple-system, so Figtree is
-   only fetched where it's actually used. */
+   only fetched where it's actually used. Icons are inline SVG (src/ui/icons.ts), not a font. */
 
 @font-face {
   font-family: "Gabarito";
@@ -38,12 +36,4 @@
   font-display: swap;
   src: url("/fonts/figtree-latin-ext.woff2") format("woff2");
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-/* Axes in the subset: FILL 0-1, opsz 20-48, wght 100-700. */
-@font-face {
-  font-family: "Material Symbols Rounded";
-  font-style: normal;
-  font-weight: 100 700;
-  font-display: block;
-  src: url("/fonts/material-symbols-rounded-subset.woff2") format("woff2");
 }

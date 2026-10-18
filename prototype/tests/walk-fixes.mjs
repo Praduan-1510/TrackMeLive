@@ -1,6 +1,7 @@
 // Round 1 fixes (spec, design and asset reviews), on either platform.
 // node walk-fixes.mjs <out-dir> [light|dark] [ios|android]
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 import { readFileSync } from 'node:fs';
 
 const OUT = process.argv[2];
@@ -382,3 +383,5 @@ check('X-08 works offline: no requests leave the page', external.size === 0, [..
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await b.close();
+
+await finish(checks, errors);

@@ -2,6 +2,7 @@
 // and every listed icon renders as one glyph (the ligature resolved), not as its name.
 // node icons.mjs <out-dir>
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 import { readFileSync } from 'node:fs';
 
 const OUT = process.argv[2] || '.';
@@ -89,3 +90,5 @@ await page.screenshot({ path: `${OUT}/icons-android-settings.png` });
 await b.close();
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
+
+await finish(checks, errors);

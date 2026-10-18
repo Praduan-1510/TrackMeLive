@@ -1,6 +1,7 @@
 // Reduce Motion: nothing bobs, breathes or slides in; markers cross-fade to a new position.
 // node reduced-motion.mjs
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const URL = process.env.PROTO_URL || new globalThis.URL('../index.html', import.meta.url).href;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -49,3 +50,5 @@ for (const platform of ['ios', 'android']) {
 }
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();
+
+await finish([], errors);

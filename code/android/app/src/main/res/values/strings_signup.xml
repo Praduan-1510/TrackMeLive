@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sign-up (FSD §4 Sign up; design-system README › Errors › Sign-up code; prototype › viewSignup). -->
+<resources>
+    <string name="signup_back">Back</string>
+
+    <string name="signup_title">Create your account</string>
+    <string name="signup_lede">Your name goes on your live map. Your number keeps the account yours.</string>
+    <!-- A sign-up interrupted after the number was confirmed: only the name is left. -->
+    <string name="signup_lede_confirmed">Your number is confirmed. Add the name that goes on your live map.</string>
+    <string name="signup_continue">Continue</string>
+    <string name="signup_name">Name</string>
+    <string name="signup_name_help">Up to 24 characters.</string>
+    <string name="signup_name_error">Enter your name. It’s what people see when you share.</string>
+    <string name="signup_name_too_long">Your name can be up to 24 characters.</string>
+    <string name="signup_name_no_letters">Use at least one letter or number in your name.</string>
+    <string name="signup_number">Mobile number</string>
+    <string name="signup_number_help">People you share with see your name and mascot, never your number.</string>
+    <!-- %1$s: the country's example mobile number, e.g. (201) 555-0123. -->
+    <string name="signup_number_error">Enter your full mobile number, like %1$s.</string>
+    <string name="signup_number_error_plain">Enter your full mobile number.</string>
+    <string name="signup_send">Send code</string>
+    <string name="signup_try_again">Try again</string>
+    <string name="signup_fine">We’ll text you a 6-digit code. Message and data rates may apply.</string>
+    <string name="signup_send_failed">We couldn’t send the code. Check your connection, then try again.</string>
+    <string name="signup_too_many">We couldn’t send a code just now. Wait a few minutes, then try again.</string>
+    <!-- The server ended the sign-in (account deleted elsewhere, disabled or revoked). Shown once. -->
+    <string name="signup_sign_in_ended">Your sign-in has ended. Sign in again.</string>
+    <string name="signup_finish_failed">We couldn’t finish setting up your account. Check your connection, then try again.</string>
+
+    <!-- The country button inside the number field. %1$s: region code (US); %2$d: calling code (1). -->
+    <string name="signup_country_value">%1$s +%2$d</string>
+    <!-- TalkBack. %1$s: country name; %2$d: calling code. -->
+    <string name="signup_country_description">Country: %1$s, +%2$d</string>
+    <string name="signup_country_action">Change country</string>
+    <string name="signup_country_title">Choose your country</string>
+    <string name="signup_country_search">Search countries</string>
+    <!-- %1$s: what was typed. -->
+    <string name="signup_country_none">No country matches “%1$s”.</string>
+    <!-- %1$d: calling code. -->
+    <string name="signup_calling_code">+%1$d</string>
+
+    <string name="code_title">Enter the code</string>
+    <!-- %1$s: the number, international format: +1 415-555-0142. -->
+    <string name="code_lede">Sent by text to %1$s.</string>
+    <string name="code_field">6-digit code</string>
+    <!-- TalkBack. %1$d: digits typed so far. -->
+    <string name="code_progress">%1$d of 6 digits</string>
+    <string name="code_checking">Checking the code…</string>
+    <string name="code_wrong">That code didn’t work. Check the text and try again.</string>
+    <string name="code_expired">That code has expired. Send a new one.</string>
+    <string name="code_new_sent">New code sent.</string>
+    <!-- %1$s: the countdown, 0:30 down to 0:01. -->
+    <string name="code_resend_in">You can send a new code in %1$s.</string>
+    <string name="code_resend">Send a new code</string>
+    <string name="code_check_failed">We couldn’t check the code. Check your connection, then try again.</string>
+    <string name="code_too_many_tries">Too many tries for now. Wait a few minutes, then send a new code.</string>
+</resources>

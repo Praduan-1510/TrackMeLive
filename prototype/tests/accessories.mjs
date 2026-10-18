@@ -2,6 +2,7 @@
 // (mascots/model/accessories.mjs). No browser.
 // node accessories.mjs
 import { readFileSync } from 'node:fs';
+import { finish } from './finish.mjs';
 
 const block = (src, start) => {
   const i = src.indexOf(start);
@@ -30,3 +31,5 @@ for (const id of ids) {
 checks.push(`${ids.length === 12 ? 'PASS' : 'FAIL'} twelve characters (${ids.length})`);
 console.log(checks.join('\n'));
 console.log('no errors');
+
+await finish(checks);

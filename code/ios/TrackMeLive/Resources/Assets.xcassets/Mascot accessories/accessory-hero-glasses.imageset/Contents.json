@@ -1,0 +1,7 @@
+{
+  "images" : [
+    { "filename" : "accessory-hero-glasses@2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "accessory-hero-glasses@3x.png", "idiom" : "universal", "scale" : "3x" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

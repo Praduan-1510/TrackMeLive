@@ -63,11 +63,15 @@ strip_previews() { # <src-dir> <dst-dir>
 echo "App target…"
 strip_previews "$IOS_DIR/TrackMeLive" "$OUT/app"
 strip_previews "$IOS_DIR/Shared" "$OUT/app-shared"
-swiftc "${common[@]}" -typecheck -I "$OUT" "$OUT"/app/*.swift $(ls "$OUT"/app-shared/*.swift | grep -v _TypecheckShims)
+shared_files=()
+for f in "$OUT"/app-shared/*.swift; do [[ "$(basename "$f")" == _TypecheckShims.swift ]] || shared_files+=("$f"); done
+swiftc "${common[@]}" -typecheck -I "$OUT" "$OUT"/app/*.swift ${shared_files[@]+"${shared_files[@]}"}
 
 echo "Widget extension…"
 strip_previews "$IOS_DIR/TrackMeLiveWidgets" "$OUT/widgets"
 strip_previews "$IOS_DIR/Shared" "$OUT/widgets-shared"
-swiftc "${common[@]}" -typecheck -application-extension -I "$OUT" "$OUT"/widgets/*.swift $(ls "$OUT"/widgets-shared/*.swift | grep -v _TypecheckShims)
+shared_files=()
+for f in "$OUT"/widgets-shared/*.swift; do [[ "$(basename "$f")" == _TypecheckShims.swift ]] || shared_files+=("$f"); done
+swiftc "${common[@]}" -typecheck -application-extension -I "$OUT" "$OUT"/widgets/*.swift ${shared_files[@]+"${shared_files[@]}"}
 
 echo "Type-check passed (Mac Catalyst stand-in for iOS)."

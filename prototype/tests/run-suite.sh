@@ -13,14 +13,28 @@ if [ "$SNAP" = 1 ]; then
   export PROTO_URL="file://$(cd $O/snap/prototype && pwd -P)/index.html"
   echo "testing a snapshot: $PROTO_URL"
 fi
+# Each test gets at most TEST_TIMEOUT_S seconds (default 600); a stuck one is killed and counts as failed.
+TEST_TIMEOUT_S=${TEST_TIMEOUT_S:-600}
+# limited <log> <script> [args...]: run one test with the time limit; returns its exit code (143 if killed)
+limited() {
+  local log=$1; shift
+  node "$@" > "$log" 2>&1 &
+  local pid=$!
+  ( sleep $TEST_TIMEOUT_S && kill $pid 2>/dev/null && echo "Timeout: killed after ${TEST_TIMEOUT_S}s" >> "$log" ) &
+  local watchdog=$!
+  wait $pid
+  local rc=$?
+  kill $watchdog 2>/dev/null; wait $watchdog 2>/dev/null
+  return $rc
+}
 # run <log-name> <script> [args...]: one test, retried once if it fails or times out
 run() {
   local name=$1; shift
-  node "$@" > $O/$name.log 2>&1
-  if [ $? -ne 0 ] || grep -qE '^FAIL |Timeout|pageerror|^console:' $O/$name.log; then
-    mv $O/$name.log $O/$name.try1.log
-    node "$@" > $O/$name.log 2>&1
-    echo "(retried; first try in $name.try1.log)" >> $O/$name.log
+  limited "$O/$name.log" "$@"
+  if [ $? -ne 0 ] || grep -qE '^FAIL |Timeout|pageerror|^console:' "$O/$name.log"; then
+    mv "$O/$name.log" "$O/$name.try1.log"
+    limited "$O/$name.log" "$@"
+    echo "(retried; first try in $name.try1.log)" >> "$O/$name.log"
   fi
 }
 lane1() {

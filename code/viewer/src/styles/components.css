@@ -1,0 +1,176 @@
+/* The parts of the viewer page (src/ui/templates.ts). Colors follow design-system/README.md:
+   lamplight is the sharer, crossing is the viewer (Share my location), flare only stops, connected
+   only means the call; everything else is the neutrals. Every state has a word, never color alone. */
+
+/* ---------- The bar: who, and whether they're live ---------- */
+.glassbar .txt { flex: 1 1 5em; min-width: 0; display: flex; flex-direction: column; }
+.glassbar .t1 { font: var(--t-subheadline); font-weight: 600; letter-spacing: -0.23px; overflow-wrap: anywhere; }
+.glassbar .t2 {
+  display: flex; align-items: flex-start; gap: var(--space-2);
+  font: var(--t-caption-1); letter-spacing: 0; color: var(--ink-secondary); font-variant-numeric: tabular-nums;
+}
+.glassbar .t2 > :not(.d) { min-width: 0; }
+/* The dot stays with the first line when the status wraps. Live: lamplight. Last seen or ended: a hollow ring. */
+.glassbar .t2 .d { width: 8px; height: 8px; margin-top: calc((1rem - 8px) / 2); border-radius: 50%; flex: none; }
+.glassbar .t2 .d.live { background: var(--lamplight); }
+.glassbar .t2 .d.seen { border: 2px solid var(--ink-secondary); }
+
+.av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; }
+.av.sharer { background: var(--vw-disc); border: 2px solid var(--lamplight); }
+.av.sharer img { width: 32px; height: 32px; object-fit: contain; }
+.av.sharer.no-art { background: var(--lamplight); }
+.av.sharer.no-art img { visibility: hidden; }
+.av.viewer { background: var(--crossing); color: var(--on-crossing); }
+.av.viewer .ic { width: 21px; height: 21px; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: 28px; padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill);
+  font: var(--t-footnote); font-weight: 600; letter-spacing: -0.08px;
+}
+.pill .d { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.pill.call { background: var(--connected-wash); color: var(--connected); }
+.pill.call .d { background: var(--connected); }
+.pill.neutral { background: var(--surface-raised); color: var(--ink-secondary); }
+.pill.neutral .d { border: 2px solid var(--ink-secondary); }
+.pill.ended { background: var(--surface-raised); color: var(--ink); }
+.pill.ended .d { border-radius: 1px; background: var(--ink); }
+
+.badge {
+  flex: none; display: inline-flex; align-items: center; gap: var(--space-2);
+  min-height: 22px; padding: 0 var(--space-2); border-radius: var(--radius-pill);
+  font: var(--t-badge); letter-spacing: .6px; white-space: nowrap;
+}
+.badge.together { background: var(--crossing-wash); color: var(--crossing-text); }
+.badge.seen { background: var(--surface-raised); color: var(--ink-secondary); }
+
+/* ---------- The sheet's head: the heading, where in words, until when, and the two where buttons ---------- */
+.head { display: flex; flex-direction: column; gap: var(--space-1); }
+.title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.sheet h1 { font: var(--t-title-2); letter-spacing: -0.3px; text-wrap: balance; overflow-wrap: anywhere; }
+
+/* Where the sharer is, in words: the page's text alternative to the map. */
+.where { display: flex; align-items: flex-start; gap: var(--space-2); margin-top: var(--space-1); font: var(--t-callout); font-weight: 600; letter-spacing: -0.31px; font-variant-numeric: tabular-nums; }
+.where .wi { flex: none; width: 1.25em; height: 1.3125em; display: grid; place-items: center; color: var(--lamplight-text); }
+.where .wi .ic { width: 1.1em; height: 1.1em; }
+.where .wt { min-width: 0; overflow-wrap: anywhere; text-wrap: pretty; }
+.sub { font: var(--t-callout); letter-spacing: -0.31px; color: var(--ink-secondary); }
+/* The 1-hour warning: a quiet line that says when sharing stops. */
+.sub.warning { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--ink); font-weight: 600; }
+.sub.warning .ic { width: 1.25em; height: 1.3125em; color: var(--ink-secondary); }
+.where-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.where-btns .btn { flex: 1 1 9em; }
+
+/* ---------- Buttons: 48px or taller, text in rem ---------- */
+.btn {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--target); min-width: var(--target); padding: var(--space-2) var(--space-6);
+  border: 0; border-radius: var(--radius-pill);
+  font: var(--t-headline); letter-spacing: -0.43px; text-align: center; text-decoration: none;
+  transition: transform var(--dur-press) ease, background-color .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn.small { padding: var(--space-2) var(--space-4); font: var(--t-subheadline); font-weight: 600; letter-spacing: -0.23px; }
+.btn.block { width: 100%; }
+.btn.grow { flex: 1 1 8em; }
+.btn .ic { width: 1.25em; height: 1.25em; margin-inline-start: -2px; }
+.btn.neutral { background: var(--surface-raised); color: var(--ink); }
+.btn.viewer { background: var(--crossing); color: var(--on-crossing); }
+.btn.plain { background: transparent; color: var(--crossing-text); }
+.btn.destructive { background: var(--flare-wash); color: var(--flare-text); }
+/* Waiting for the browser's answer: still focusable and announced, it just doesn't act. */
+.btn[aria-disabled="true"] { cursor: progress; }
+.btn[aria-disabled="true"]:active { transform: none; }
+@media (hover: hover) and (pointer: fine) {
+  .btn.neutral:hover { background: color-mix(in srgb, var(--ink) 7%, var(--surface-raised)); }
+  .btn.viewer:hover { background: color-mix(in srgb, var(--ink) 12%, var(--crossing)); }
+  .btn.plain:hover { background: color-mix(in srgb, var(--crossing) 10%, transparent); }
+  .btn.destructive:hover { background: color-mix(in srgb, var(--flare) 14%, var(--flare-wash)); }
+  .shareback.off .btn.neutral:hover { background: color-mix(in srgb, var(--ink) 7%, var(--surface)); }
+}
+
+/* ---------- Share back: only during the call, only when the sharer allows it ---------- */
+.shareback { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-md); background: var(--crossing-wash); }
+.shareback.off { background: var(--surface-raised); }
+/* On the raised card, a neutral button steps up to the surface, so it still reads as a button. */
+.shareback.off .btn.neutral { background: var(--surface); }
+.shareback .row { display: flex; align-items: center; gap: var(--space-4); }
+.shareback .ico { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--crossing); color: var(--on-crossing); }
+.shareback .ico .ic { width: 22px; height: 22px; }
+.shareback .ico.muted { background: var(--surface); color: var(--ink-secondary); }
+.shareback .t1 { font: var(--t-callout); font-weight: 700; letter-spacing: -0.31px; }
+.shareback .t2 { font: var(--t-subheadline); letter-spacing: -0.23px; color: var(--ink-secondary); }
+.shareback.asked { box-shadow: inset 0 0 0 2px var(--crossing); }
+.sb-btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.sb-btns .btn.plain { flex: 0 1 auto; }
+.fine { text-align: center; font: var(--t-caption-1); letter-spacing: 0; color: var(--ink-secondary); }
+
+/* "Alex asked to see where you are", above Share my location. */
+.ask-line { display: flex; align-items: center; gap: var(--space-2); font: var(--t-subheadline); font-weight: 700; letter-spacing: -0.23px; color: var(--crossing-text); }
+.ask-line .av { width: 28px; height: 28px; border-width: 1.5px; }
+.ask-line .av img { width: 20px; height: 20px; }
+.ask-solo { padding: 0 var(--space-1); }
+
+/* ---------- Both live: the two people, then Stop sharing my location ---------- */
+.people { border-radius: var(--radius-md); background: var(--surface-raised); overflow: hidden; }
+.person { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); min-height: 56px; padding: var(--space-2) var(--space-4); }
+.person + .person { border-top: var(--edge) solid var(--separator); }
+.person .txt { flex: 1 1 8em; min-width: 0; display: flex; flex-direction: column; }
+.person .t1 { font: var(--t-headline); letter-spacing: -0.43px; }
+.person .t2 { font: var(--t-footnote); letter-spacing: -0.08px; color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+.st { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: var(--space-2); font: var(--t-footnote); font-weight: 600; letter-spacing: -0.08px; }
+.st .d { width: 8px; height: 8px; border-radius: 50%; }
+.st.sharer { color: var(--lamplight-text); }
+.st.sharer .d { background: var(--lamplight); }
+.st.viewer { color: var(--crossing-text); }
+.st.viewer .d { background: var(--crossing); }
+.st.idle { color: var(--ink-secondary); }
+.st.idle .d { border: 2px solid var(--ink-secondary); }
+
+/* ---------- The map didn't load: say so, keep where in words, offer to try again ---------- */
+.map-failed {
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2); max-width: 22rem;
+  padding: var(--space-4) var(--space-6); text-align: center;
+  color: var(--ink-secondary); font: var(--t-subheadline); letter-spacing: -0.23px;
+}
+.map-failed .mf-t { color: var(--ink); font: var(--t-headline); }
+.map-failed .mf-ic { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-raised); color: var(--ink-secondary); }
+.map-failed .mf-ic .ic { width: 26px; height: 26px; }
+.map-failed .btn { margin-top: var(--space-2); }
+
+/* The sheet's layout follows its own text size: at large sizes, side-by-side buttons stack full
+   width and a person's status moves under their name. */
+@container (max-width: 17em) {
+  .sb-btns, .where-btns { flex-direction: column; }
+  .sb-btns .btn, .sb-btns .btn.plain, .where-btns .btn { flex: none; width: 100%; }
+  .shareback .row { flex-direction: column; align-items: flex-start; gap: var(--space-3); }
+  .person .st { width: 100%; margin-left: 0; padding-left: calc(38px + var(--space-3)); }
+  .title { flex-direction: column; align-items: flex-start; }
+}
+/* Very narrow viewports (small phones, or 200% zoom): give the words the room. */
+@media (max-width: 22.5em) {
+  .sheet { padding-inline: var(--space-4); }
+  .shareback { padding: var(--space-3); }
+}
+
+/* ---------- Loading: a skeleton, never a blank map ---------- */
+/* Ink at low strength reads on glass in both themes (surface-raised nearly matches dark glass). */
+.skel .sk { display: block; height: 14px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 10%, transparent); animation: sk-pulse 1.6s ease-in-out infinite; }
+.skel .sk.av { width: 38px; height: 38px; border-radius: 50%; }
+.skel .sk-lines { flex: 1; display: flex; flex-direction: column; gap: var(--space-2); }
+.skel .w40 { width: 40%; } .skel .w50 { width: 50%; } .skel .w60 { width: 60%; } .skel .w70 { width: 70%; } .skel .w90 { width: 90%; }
+.skel .tall { height: 22px; }
+.skel .sk-lines .sk:nth-child(2), .sheet.skel .sk:nth-of-type(2) { animation-delay: .12s; }
+.sheet.skel .sk:nth-of-type(3) { animation-delay: .24s; }
+.sheet.skel { gap: var(--space-4); padding-bottom: var(--space-8); }
+@keyframes sk-pulse { 50% { opacity: .55; } }
+
+/* ---------- Arrival: one orchestrated entrance when the page goes live ---------- */
+.vp.enter .glassbar > * { animation: rise var(--dur-enter) var(--ease-out) both; }
+.vp.enter .glassbar > :nth-child(2) { animation-delay: 40ms; }
+.vp.enter .glassbar > :nth-child(3) { animation-delay: 80ms; }
+.vp.enter .head > * { animation: rise var(--dur-enter) var(--ease-out) both; }
+.vp.enter .head > :nth-child(2) { animation-delay: 60ms; }
+.vp.enter .head > :nth-child(3) { animation-delay: 120ms; }
+.vp.enter .head > :nth-child(4), .vp.enter .body { animation: rise var(--dur-enter) var(--ease-out) 180ms both; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }

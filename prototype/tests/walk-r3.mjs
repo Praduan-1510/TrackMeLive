@@ -1,6 +1,7 @@
 // Round 3: spec, design and asset review fixes, on either platform (iPhone-only checks skip on Android).
 // node walk-r3.mjs <out-dir> [light|dark] [ios|android]
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 import { readFileSync } from 'node:fs';
 
 const OUT = process.argv[2] || '.';
@@ -341,3 +342,5 @@ if (!android) {
 await b.close();
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
+
+await finish(checks, errors);

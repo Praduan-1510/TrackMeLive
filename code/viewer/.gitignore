@@ -1,0 +1,3 @@
+# Test output (CI uploads these when a run fails)
+test-results/
+playwright-report/

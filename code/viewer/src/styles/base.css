@@ -1,16 +1,19 @@
 /* Base for the viewer page. Every color, space and radius comes from the shared tokens
-   (code/shared/tokens/generated/css/tokens.css); this file adds no color values of its own.
-   Type styles are the token styles in rem (as the prototype's `.screen[data-device="mom"]`), so
-   the whole page follows the browser's text size. */
+   (code/shared/tokens/generated/css/tokens.css); this file adds no color values of its own, only
+   aliases of tokens. Type styles are the token styles in rem (as the prototype's Mom page), so the
+   whole page follows the browser's text size. */
 
 :root {
+  --t-title-1: 700 1.75rem/2.125rem var(--font-display);
   --t-title-2: 700 1.375rem/1.75rem var(--font-display);
+  --t-title-3: 600 1.25rem/1.5625rem var(--font-text);
   --t-headline: 600 1.0625rem/1.375rem var(--font-text);
   --t-body: 400 1.0625rem/1.375rem var(--font-text);
   --t-callout: 400 1rem/1.3125rem var(--font-text);
   --t-subheadline: 400 .9375rem/1.25rem var(--font-text);
   --t-footnote: 400 .8125rem/1.125rem var(--font-text);
   --t-caption-1: 500 .75rem/1rem var(--font-text);
+  /* caption-2 is for map labels only (src/styles/map.css). */
   --t-metric: 700 .9375rem/1.25rem var(--font-display);
   --t-badge: 800 .6875rem/.8125rem var(--font-display);
 
@@ -21,29 +24,31 @@
   /* Motion: one rhythm for the page. Exits are faster than entrances. */
   --ease-out: cubic-bezier(.2, .9, .2, 1);
   --ease-spring: cubic-bezier(.3, 1.45, .5, 1);
-  --ease-pan: cubic-bezier(.3, .7, .3, 1);
   --dur-press: .12s;
   --dur-enter: .45s;
-  --dur-pan: .6s;
 
   /* Theme-dependent choices, as aliases of tokens (no new colors):
      trail dots are lamplight-text in light and lamplight in dark; dark characters keep their
      silhouette on a lighter disc in dark; the ring's keyline is on-lamplight in light and the
-     ground color in dark, so the marker holds 3:1 on every map fill. */
+     ground color in dark, so the marker holds 3:1 on every map fill; the dialog scrim is ink in
+     light and ground in dark, a dark veil in both. */
   --vw-trail: var(--lamplight-text);
   --vw-disc: var(--surface);
   --vw-keyline: var(--on-lamplight);
+  --vw-scrim: color-mix(in srgb, var(--ink) 45%, transparent);
 }
 [data-theme="dark"] {
   --vw-trail: var(--lamplight);
   --vw-disc: color-mix(in srgb, var(--ink) 18%, var(--surface-raised));
   --vw-keyline: var(--ground);
+  --vw-scrim: color-mix(in srgb, var(--ground) 72%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --vw-trail: var(--lamplight);
     --vw-disc: color-mix(in srgb, var(--ink) 18%, var(--surface-raised));
     --vw-keyline: var(--ground);
+    --vw-scrim: color-mix(in srgb, var(--ground) 72%, transparent);
   }
 }
 
@@ -62,7 +67,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
 }
-h1, h2, h3, p { margin: 0; }
+h1, h2, h3, p, ol { margin: 0; }
 img { display: block; }
 button, a { font: inherit; letter-spacing: inherit; color: inherit; touch-action: manipulation; }
 button { cursor: pointer; }
@@ -77,14 +82,7 @@ h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 
-/* Material Symbols Rounded, from the vendored subset. Always aria-hidden: the words carry the meaning. */
-.ms {
-  font-family: "Material Symbols Rounded";
-  font-weight: normal; font-style: normal; font-size: 1.25em; line-height: 1;
-  letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr;
-  display: inline-block; flex: none; width: 1em; height: 1em; overflow: hidden;
-  font-feature-settings: "liga"; font-variation-settings: "FILL" 0, "wght" 400, "opsz" 20;
-  -webkit-font-smoothing: antialiased; user-select: none;
-}
-.ms.fill { font-variation-settings: "FILL" 1, "wght" 400, "opsz" 20; }
-.ic-svg { display: block; flex: none; width: 1.2em; height: 1.2em; }
+/* Inline SVG icons (src/ui/icons.ts): sized in em, so they grow with the text beside them. */
+.ic { display: block; flex: none; width: 1.2em; height: 1.2em; }
+
+.noscript { position: fixed; inset: auto var(--space-4) var(--space-4); z-index: 2; padding: var(--space-4) var(--space-5); border-radius: var(--radius-lg); background: var(--surface); color: var(--ink); font: var(--t-callout); }

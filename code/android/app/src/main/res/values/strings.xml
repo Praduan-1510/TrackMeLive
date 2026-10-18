@@ -20,16 +20,4 @@
     <string name="home_not_on_call_body">When you’re on a call with Track Me Live open, we’ll offer to share your location. You can also add a one-tap control.</string>
     <string name="home_marker">Your marker on the map.</string>
     <string name="status_not_sharing">Not sharing</string>
-
-    <string name="mascot_fox">Fox</string>
-    <string name="mascot_set_classics">Classics</string>
-    <string name="mascot_body">Your fox stands for you on the map, and on the screen of the person you share with.</string>
-
-    <string name="settings_appearance">Appearance</string>
-    <string name="settings_theme_system">System</string>
-    <string name="settings_theme_light">Light</string>
-    <string name="settings_theme_dark">Dark</string>
-    <string name="settings_about">About</string>
-    <string name="settings_version">Version</string>
-    <string name="settings_fonts">Gabarito and Figtree are used under the SIL Open Font License. Icons are Material Symbols, Apache License 2.0.</string>
 </resources>

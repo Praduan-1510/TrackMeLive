@@ -1,6 +1,7 @@
 // Narrow windows: one phone at a time with a switch; both phones reachable.
 // node narrow.mjs <out-dir>
 import { chromium } from 'playwright-core';
+import { finish } from './finish.mjs';
 
 const OUT = process.argv[2];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -40,3 +41,5 @@ check('no sideways scroll', fits);
 console.log(checks.join('\n'));
 console.log(errors.length ? errors.join('\n') : 'no errors');
 await browser.close();
+
+await finish(checks, errors);

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { after, before, beforeEach, describe, it } from "node:test";
 import { deleteApp, initializeApp, type App } from "firebase-admin/app";
-import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import {
   DEFAULT_USER_SETTINGS,
   INITIAL_PING_INTERVAL_SECONDS,
@@ -61,7 +61,7 @@ function ok<T>(r: CallableResult<T>): T {
 const sessionOf = async (id: string) => (await db.doc(`shareSessions/${id}`).get()).data()!;
 const userOf = async (uid: string) => (await db.doc(`users/${uid}`).get()).data()!;
 
-/** Stands in for the Sprint 1 stop function: stops the user's active session and clears the pointer. */
+/** Ends the user's active session directly, as stopSession would, so each test starts with none. */
 async function endActiveSession(uid: string): Promise<void> {
   const activeId = (await userOf(uid)).active_session_id as string | null;
   if (!activeId) return;
@@ -133,6 +133,8 @@ describe("createSession: input validation", () => {
     ["an unknown precision", { ...manualShare, precision: "exact" }],
     ["a 25-character viewer name", { ...manualShare, viewer_name: "x".repeat(25) }],
     ["a viewer name that isn't a string", { ...manualShare, viewer_name: 7 }],
+    ["a viewer name with a text-direction override", { ...manualShare, viewer_name: "Mom\u202E" }],
+    ["a viewer name of only zero-width characters", { ...manualShare, viewer_name: "\u200B\u200D" }],
     ["a missing call_id", { stop_rule: "limit", stop_minutes: null, share_back_allowed: false, precision: "precise" }],
   ];
   for (const [label, data] of bad) {
@@ -149,7 +151,7 @@ describe("createSession: input validation", () => {
   });
 
   it("accepts a 24-character name, counting an emoji as one character", async () => {
-    const name = "\u{1F469}\u{1F3FD}‍\u{1F9B1}" + "a".repeat(23);
+    const name = "\u{1F469}\u{1F3FD}\u200D\u{1F9B1}" + "a".repeat(23);
     const res = ok(await create({ ...manualShare, viewer_name: `  ${name}  ` }));
     const meta = await db.doc(`shareSessions/${res.session_id}/private/meta`).get();
     assert.equal(meta.get("viewer_name"), name);
@@ -199,6 +201,7 @@ describe("createSession: what it writes", () => {
     assert.equal(s.first_viewed_at, null);
     assert.equal(s.viewer_sharing, false);
     assert.equal(s.share_back_requested_at, null);
+    assert.equal(s.cleaned_at, null);
     assert.deepEqual(s.sharer, { name: "Alex", mascot_id: "ninja", mascot_color: "dusk", mascot_accessory: "headphones" });
 
     // private/meta: owner from the auth token, token stored only as a hash.
@@ -233,6 +236,22 @@ describe("createSession: what it writes", () => {
     assert.equal(s.share_back_allowed, true);
     assert.equal(s.precision, "approximate");
     assert.equal(s.expires_at.toMillis() - s.started_at.toMillis(), HOUR_MS);
+  });
+
+  it("logs the call for a call-triggered share, under the session's id", async () => {
+    const t0 = Date.now();
+    const res = ok(await create(callShare));
+    const log = (await db.doc(`callLogs/${res.session_id}`).get()).data()!;
+    assert.deepEqual(validate("CallLog", log), []);
+    assert.equal(log.user_id, alex.uid);
+    assert.equal(log.session_id, res.session_id);
+    assert.equal(log.call_id, "call-123");
+    assert.ok(log.call_time.toMillis() >= t0 - 1000 && log.call_time.toMillis() <= Date.now() + 1000);
+  });
+
+  it("logs no call for a manual share", async () => {
+    const res = ok(await create(manualShare));
+    assert.equal((await db.doc(`callLogs/${res.session_id}`).get()).exists, false);
   });
 
   it("forces share back off for a manual share", async () => {
@@ -274,19 +293,62 @@ describe("createSession: one session at a time", () => {
     ok(await create(manualShare));
   });
 
-  it("isn't blocked by a stale pointer: a session past its limit, stopped, or gone", async () => {
-    const expired = ok(await create(manualShare));
-    // Still "active", but past expires_at: the scheduled stop just hasn't run yet.
-    await db.doc(`shareSessions/${expired.session_id}`).update({ expires_at: Timestamp.fromMillis(Date.now() - 1000) });
+  it("ends a session past its limit on the spot, in the same transaction, as limit at expires_at", async () => {
+    const overdue = ok(await create(callShare));
+    // Still "active", but past expires_at: the stop job just hasn't run yet.
+    const expiresAt = Timestamp.fromMillis(Date.now() - 1000);
+    await db.doc(`shareSessions/${overdue.session_id}`).update({ expires_at: expiresAt, viewer_sharing: true });
     const next = ok(await create(manualShare));
-    assert.equal((await userOf(alex.uid)).active_session_id, next.session_id);
 
-    // Stopped, but the pointer wasn't cleared.
-    await db.doc(`shareSessions/${next.session_id}`).update({ status: "stopped", ended_at: Timestamp.now(), end_reason: "timer" });
-    const third = ok(await create(manualShare));
+    const old = await sessionOf(overdue.session_id);
+    assert.deepEqual(validate("ShareSession", old), []);
+    assert.equal(old.status, "stopped");
+    assert.equal(old.end_reason, "limit");
+    assert.equal(old.ended_at.toMillis(), expiresAt.toMillis());
+    assert.equal(old.viewer_sharing, false);
+    assert.equal(old.cleaned_at, null);
+    assert.equal((await userOf(alex.uid)).active_session_id, next.session_id);
+  });
+
+  it("ends a session past its timer on the spot as timer, at stop_at", async () => {
+    const overdue = ok(await create(manualShare));
+    const stopAt = Timestamp.fromMillis(Date.now() - 1000);
+    await db.doc(`shareSessions/${overdue.session_id}`).update({ stop_at: stopAt });
+    ok(await create(manualShare));
+
+    const old = await sessionOf(overdue.session_id);
+    assert.equal(old.status, "stopped");
+    assert.equal(old.end_reason, "timer");
+    assert.equal(old.ended_at.toMillis(), stopAt.toMillis());
+  });
+
+  it("force-ends a session behind the pointer that doesn't match the schema, instead of leaving it active", async () => {
+    const broken = ok(await create(manualShare));
+    await db.doc(`shareSessions/${broken.session_id}`).update({ sharer: FieldValue.delete(), ping_interval_s: "fast", viewer_sharing: true });
+    const t0 = Date.now();
+    const next = ok(await create(manualShare));
+
+    const old = await sessionOf(broken.session_id);
+    assert.equal(old.status, "stopped");
+    // Its timer and limit are still ahead, so it ends now, as limit.
+    assert.equal(old.end_reason, "limit");
+    assert.ok(old.ended_at.toMillis() >= t0 - 1000 && old.ended_at.toMillis() <= Date.now() + 1000);
+    assert.equal(old.viewer_sharing, false);
+    assert.equal(old.cleaned_at, null);
+    assert.equal((await userOf(alex.uid)).active_session_id, next.session_id);
+  });
+
+  it("isn't blocked by a pointer at a session that stopped or is gone, and leaves a stopped one as it was", async () => {
+    const stopped = ok(await create(manualShare));
+    const endedAt = Timestamp.fromMillis(Date.now() - 5000);
+    await db.doc(`shareSessions/${stopped.session_id}`).update({ status: "stopped", ended_at: endedAt, end_reason: "timer" });
+    const next = ok(await create(manualShare));
+    const old = await sessionOf(stopped.session_id);
+    assert.equal(old.end_reason, "timer");
+    assert.equal(old.ended_at.toMillis(), endedAt.toMillis());
 
     // Points at a session that no longer exists.
-    await db.doc(`shareSessions/${third.session_id}`).delete();
+    await db.doc(`shareSessions/${next.session_id}`).delete();
     ok(await create(manualShare));
   });
 

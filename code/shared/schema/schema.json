@@ -12,6 +12,7 @@
     { "name": "sessionPrivateMeta", "path": "shareSessions/{sessionId}/private/meta", "def": "SessionPrivateMeta" },
     { "name": "ping", "path": "shareSessions/{sessionId}/pings/{pingId}", "def": "Ping" },
     { "name": "viewerPing", "path": "shareSessions/{sessionId}/viewerPings/{pingId}", "def": "Ping" },
+    { "name": "viewerSignIn", "path": "shareSessions/{sessionId}/viewerSignIns/{viewerUid}", "def": "ViewerSignIn", "x-access": "functions-only" },
     { "name": "mascot", "path": "mascots/{mascotId}", "def": "Mascot" },
     { "name": "callLog", "path": "callLogs/{callLogId}", "def": "CallLog" }
   ],
@@ -34,12 +35,12 @@
       "minimum": 0
     },
     "PersonName": {
-      "description": "A person's name: 1–24 characters after trimming; typing stops at 24 (FSD §4 Sign up, Who it's for). Stored trimmed, so no leading or trailing whitespace. Length counts grapheme clusters (what a person sees as one character): Swift String.count, Kotlin/Java BreakIterator.getCharacterInstance, JS Intl.Segmenter. minLength/maxLength below are those grapheme counts (x-tml-length; x-decisions Q-NAME-LENGTH).",
+      "description": "A person's name: 1–24 characters after trimming; typing stops at 24 (FSD §4 Sign up, Who it's for). Stored trimmed, so no leading or trailing whitespace. Length counts grapheme clusters (what a person sees as one character): Swift String.count, Kotlin/Java BreakIterator.getCharacterInstance, JS Intl.Segmenter. minLength/maxLength below are those grapheme counts (x-tml-length; x-decisions Q-NAME-LENGTH). The pattern (a Unicode regex) also refuses control characters (Cc, tab and newline included) and the bidi overrides and isolates U+202A–U+202E and U+2066–U+2069, which could reverse how a name displays, and needs at least one visible character: a letter, number, symbol or emoji (\\p{L}, \\p{N}, \\p{S}), so a name of only zero-width characters is refused. Clients show names direction-isolated: <bdi> on the web, FSI…PDI (U+2068…U+2069) or the platform equivalent in the apps (x-decisions Q-NAME-CHARACTERS).",
       "x-tml-length": "graphemes",
       "type": "string",
       "minLength": 1,
       "maxLength": 24,
-      "pattern": "^\\S(?:.*\\S)?$"
+      "pattern": "^(?!.*[\\p{Cc}\\u202A-\\u202E\\u2066-\\u2069])(?=.*[\\p{L}\\p{N}\\p{S}])\\S(?:.*\\S)?$"
     },
     "LinkToken": {
       "description": "The share link's token: 128 random bits in base64url without padding (22 characters). Plaintext only in the createSession response, the link itself and the redeemLinkToken request (x-decisions Q-TOKEN-HASH).",
@@ -203,7 +204,7 @@
         "ended_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When it actually stopped; null while active." },
         "end_reason": { "anyOf": [{ "$ref": "#/$defs/EndReason" }, { "type": "null" }], "description": "Why it stopped; null while active. The viewer shows \"Alex stopped sharing at …\" for stopped, otherwise \"Sharing ended at …\"." },
         "call_id": { "type": ["string", "null"], "description": "The call that was connected when the session started: a per-device unique id (the CallKit UUID on iOS, a generated UUID on Android). Null for a manual share. The app never knows who is on the call (x-decisions Q-CALL-TIME)." },
-        "call_active": { "type": "boolean", "description": "True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. The watchdog clears it after 2 minutes without a check-in; the app sets it again if the same call is still connected, unless call_ended_at is set." },
+        "call_active": { "type": "boolean", "description": "True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. Function-owned: clients never write it. The watchdog clears it after 2 minutes without a check-in; the app sets it again through reportCallActive if the same call is still connected, unless call_ended_at is set (reportCallEnded sets that)." },
         "call_ended_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the session's call ended; null while it is connected or for a manual share. Once set, call_active can never become true again for this session, which tells a real call end apart from the watchdog clearing call_active (x-decisions Q-CALL-ENDED-AT)." },
         "share_back_allowed": { "type": "boolean", "description": "The Let them share back switch for this session (on by default from Settings). When false the viewer's page never offers Share my location." },
         "last_ping_at": { "$ref": "#/$defs/Timestamp", "description": "The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING)." },
@@ -213,9 +214,10 @@
         "sharer": { "$ref": "#/$defs/SharerSnapshot", "description": "Snapshot of the sharer's name and mascot, taken when the session starts." },
         "first_viewed_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "Set by redeemLinkToken on the first open (which sends the one view notification); null until then. Link previews never set it." },
         "viewer_sharing": { "type": "boolean", "description": "True while the viewer shares back. Written only by the viewer (role viewer, viewer_uid) while the session is active, before expires_at, with share_back_allowed and call_active true and last_ping_at under 2 minutes old; a Cloud Function sets it false when call_active turns false." },
-        "share_back_requested_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the sharer tapped Ask to share; null if never. At most once per call (each session has at most one call), so a non-null value means Ask to share is used." }
+        "share_back_requested_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the sharer tapped Ask to share; null if never. At most once per call (each session has at most one call), so a non-null value means Ask to share is used." },
+        "cleaned_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "Function-owned: when the 24-hour cleanup deleted this session's pings, viewerPings and viewer sign-ins (FSD §8 Retention); null until then. The cleanup finds stopped sessions with cleaned_at null and ended_at at least 24 hours ago, so a session ended late, with ended_at set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK)." }
       },
-      "required": ["status", "started_at", "expires_at", "stop_rule", "stop_minutes", "stop_at", "ended_at", "end_reason", "call_id", "call_active", "call_ended_at", "share_back_allowed", "last_ping_at", "ping_interval_s", "precision", "precision_next", "sharer", "first_viewed_at", "viewer_sharing", "share_back_requested_at"],
+      "required": ["status", "started_at", "expires_at", "stop_rule", "stop_minutes", "stop_at", "ended_at", "end_reason", "call_id", "call_active", "call_ended_at", "share_back_allowed", "last_ping_at", "ping_interval_s", "precision", "precision_next", "sharer", "first_viewed_at", "viewer_sharing", "share_back_requested_at", "cleaned_at"],
       "additionalProperties": false
     },
     "SessionPrivateMeta": {
@@ -234,7 +236,7 @@
     },
     "Ping": {
       "x-collection": "shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}",
-      "description": "One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before expires_at.",
+      "description": "One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at.",
       "type": "object",
       "properties": {
         "lat": { "type": "number", "minimum": -90, "maximum": 90, "description": "Latitude, WGS 84 degrees." },
@@ -258,9 +260,21 @@
       "required": ["character", "set", "default_color", "accessories"],
       "additionalProperties": false
     },
+    "ViewerSignIn": {
+      "x-collection": "shareSessions/{sessionId}/viewerSignIns/{viewerUid}",
+      "x-access": "functions-only",
+      "description": "One per browser sign-in that redeemLinkToken minted for this session (the doc id is that Auth uid), viewer and watchers alike, written in the transaction that decides the role. Function-only: clients can't read or write it. The 24-hour cleanup deletes these Auth users, then these docs (FSD §8 Retention; x-decisions Q-VIEWER-SIGNINS).",
+      "type": "object",
+      "properties": {
+        "role": { "$ref": "#/$defs/ViewerRole", "description": "The role minted for this uid: viewer for the first browser, watcher for any later one." },
+        "created_at": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp of the first redeem by this uid." }
+      },
+      "required": ["role", "created_at"],
+      "additionalProperties": false
+    },
     "CallLog": {
       "x-collection": "callLogs/{callLogId}",
-      "description": "Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8).",
+      "description": "Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8). createSession writes it for a call-triggered share, in the same transaction, with callLogId = the session id (each session has at most one call), and the 30-day purge deletes it with the session. Clients can't read or write it (x-decisions Q-CALLLOG-ID).",
       "type": "object",
       "properties": {
         "user_id": { "type": "string", "description": "The sharer's userId." },
@@ -317,7 +331,7 @@
     "RedeemLinkTokenResponse": {
       "x-api": "redeemLinkToken",
       "x-api-role": "response",
-      "description": "Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc.",
+      "description": "Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc. Errors: not-found for any token that matches no session (malformed or unknown, with the same message). A session that has stopped, or passed stop_at or expires_at, fails with failed-precondition and details {reason: 'session_ended', sharer: SharerSnapshot}; no custom token is minted, so nothing can read pings, and the page shows 'This location is no longer being shared' with the mascot. A browser that redeems again with its own viewer sign-in (sid claim for this session) keeps its uid and role. A new browser once the session already has MAX_VIEWER_SIGN_INS sign-ins gets resource-exhausted with details {reason: 'too_many_viewers'}; the page shows 'This link can't be opened right now'.",
       "type": "object",
       "properties": {
         "custom_token": { "type": "string", "description": "Firebase custom token for signInWithCustomToken, minted per browser, with the ViewerClaims {sid, role}." },
@@ -326,6 +340,156 @@
         "can_share_back": { "type": "boolean", "description": "True when role is viewer and the session allows share back right now (share_back_allowed and call_active). The page keeps following the session doc for later changes." }
       },
       "required": ["custom_token", "session_id", "role", "can_share_back"],
+      "additionalProperties": false
+    },
+    "SaveProfileRequest": {
+      "x-api": "saveProfile",
+      "x-api-role": "request",
+      "description": "Callable saveProfile, request: creates or updates the caller's users/{uid} (FSD §4 Sign up, Settings; §6). Phone sign-in only. The app sends the whole profile it shows; the server trims name. settings is optional: omitted, it keeps the stored settings, or DEFAULT_USER_SETTINGS for a new profile. last_viewer_name, active_session_id, created_at and updated_at are server-owned and rejected here. Errors: unauthenticated (signed out), permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/PersonName", "description": "The user's name. The server trims it, then it must be 1–24 grapheme clusters." },
+        "mascot_id": { "$ref": "#/$defs/MascotId", "description": "The chosen mascot; fox for a new account that hasn't picked one." },
+        "mascot_color": { "$ref": "#/$defs/MascotColor", "description": "The chosen color; original by default." },
+        "mascot_accessory": { "anyOf": [{ "$ref": "#/$defs/MascotAccessory" }, { "type": "null" }], "description": "The chosen accessory, or null for none. Must be one the mascot takes (MASCOT_CATALOG); the server rejects any other." },
+        "settings": { "$ref": "#/$defs/UserSettings", "description": "The whole settings object. Omitted, the stored settings stay; a new profile gets DEFAULT_USER_SETTINGS." }
+      },
+      "required": ["name", "mascot_id", "mascot_color", "mascot_accessory"],
+      "additionalProperties": false
+    },
+    "SaveProfileResponse": {
+      "x-api": "saveProfile",
+      "x-api-role": "response",
+      "description": "Callable saveProfile, response: the profile as stored in users/{uid}, with created_at and updated_at in epoch ms.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/PersonName", "description": "The stored name, trimmed." },
+        "mascot_id": { "$ref": "#/$defs/MascotId", "description": "The stored mascot." },
+        "mascot_color": { "$ref": "#/$defs/MascotColor", "description": "The stored color." },
+        "mascot_accessory": { "anyOf": [{ "$ref": "#/$defs/MascotAccessory" }, { "type": "null" }], "description": "The stored accessory, or null for none." },
+        "last_viewer_name": { "anyOf": [{ "$ref": "#/$defs/PersonName" }, { "type": "null" }], "description": "The last \"who it's for\" name (set by createSession), or null." },
+        "settings": { "$ref": "#/$defs/UserSettings", "description": "The stored settings." },
+        "active_session_id": { "type": ["string", "null"], "description": "The active shareSessions id (function-owned), or null when not sharing." },
+        "created_at": { "$ref": "#/$defs/EpochMillis", "description": "created_at, epoch ms." },
+        "updated_at": { "$ref": "#/$defs/EpochMillis", "description": "updated_at, epoch ms." }
+      },
+      "required": ["name", "mascot_id", "mascot_color", "mascot_accessory", "last_viewer_name", "settings", "active_session_id", "created_at", "updated_at"],
+      "additionalProperties": false
+    },
+    "DeleteAccountRequest": {
+      "x-api": "deleteAccount",
+      "x-api-role": "request",
+      "description": "Callable deleteAccount, request: no fields. Settings › Delete account and all data (FSD §4 Settings, §8 Deletion). Phone sign-in only. Stops any active session (end_reason stopped), then deletes users/{uid} with its devices, every session the caller owns with private/meta, pings, viewerPings and viewerSignIns (and those viewer Auth users), the caller's callLogs, and last the caller's Auth user. Idempotent: calling it again finishes anything a failed run left. The app signs out afterwards. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument (any field sent).",
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "DeleteAccountResponse": {
+      "x-api": "deleteAccount",
+      "x-api-role": "response",
+      "description": "Callable deleteAccount, response.",
+      "type": "object",
+      "properties": {
+        "sessions_deleted": { "type": "integer", "minimum": 0, "description": "How many of the caller's sessions this call deleted (0 on a repeat call)." }
+      },
+      "required": ["sessions_deleted"],
+      "additionalProperties": false
+    },
+    "StopSessionRequest": {
+      "x-api": "stopSession",
+      "x-api-role": "request",
+      "description": "Callable stopSession, request: the sharer taps Stop (FSD §4 Stop sharing). Phone sign-in, owner only. Ends the session now with end_reason stopped, sets viewer_sharing false and clears users.active_session_id, in one transaction. Idempotent: a session that has already ended (or is past stop_at or expires_at, which ends it as timer or limit) returns how it ended. Errors: unauthenticated, permission-denied (not a phone sign-in), invalid-argument with details.errors[] {field, message}, not-found (no such session, or not the caller's).",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "description": "The shareSessions doc id from createSession." }
+      },
+      "required": ["session_id"],
+      "additionalProperties": false
+    },
+    "StopSessionResponse": {
+      "x-api": "stopSession",
+      "x-api-role": "response",
+      "description": "Callable stopSession, response: how the session ended.",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "description": "The session." },
+        "ended_at": { "$ref": "#/$defs/EpochMillis", "description": "ended_at, epoch ms." },
+        "end_reason": { "$ref": "#/$defs/EndReason", "description": "stopped, unless it had already ended another way." }
+      },
+      "required": ["session_id", "ended_at", "end_reason"],
+      "additionalProperties": false
+    },
+    "ReportCallEndedRequest": {
+      "x-api": "reportCallEnded",
+      "x-api-role": "request",
+      "description": "Callable reportCallEnded, request: the app saw the session's call end (FSD §4 Auto-expiry, §9 Call drops mid-share). Phone sign-in, owner only, and call_id must be the session's call_id. Sets call_ended_at, call_active false and viewer_sharing false; when stop_rule is call it also ends the session (end_reason call) and clears users.active_session_id. After this, call_active can never be true again for the session. Idempotent: a second report, or one for a session that has already ended, changes nothing and returns the state. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason: 'no_call'} (a manual share) or {reason: 'call_mismatch'} (another call).",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "description": "The shareSessions doc id." },
+        "call_id": { "type": "string", "minLength": 1, "description": "The call that ended: the same per-device id sent to createSession." }
+      },
+      "required": ["session_id", "call_id"],
+      "additionalProperties": false
+    },
+    "ReportCallEndedResponse": {
+      "x-api": "reportCallEnded",
+      "x-api-role": "response",
+      "description": "Callable reportCallEnded, response: the session after the report.",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "description": "The session." },
+        "status": { "$ref": "#/$defs/SessionStatus", "description": "stopped when the stop rule was the call (or the session had already ended); active when a timer keeps it going." },
+        "call_ended_at": { "anyOf": [{ "$ref": "#/$defs/EpochMillis" }, { "type": "null" }], "description": "call_ended_at, epoch ms; null only when the session had already ended before the call did." },
+        "ended_at": { "anyOf": [{ "$ref": "#/$defs/EpochMillis" }, { "type": "null" }], "description": "ended_at, epoch ms, when stopped; null while active." },
+        "end_reason": { "anyOf": [{ "$ref": "#/$defs/EndReason" }, { "type": "null" }], "description": "Why it ended, when stopped; null while active." }
+      },
+      "required": ["session_id", "status", "call_ended_at", "ended_at", "end_reason"],
+      "additionalProperties": false
+    },
+    "ReportCallActiveRequest": {
+      "x-api": "reportCallActive",
+      "x-api-role": "request",
+      "description": "Callable reportCallActive, request: pings have resumed and the platform still reports the session's call connected, after the watchdog cleared call_active (FSD §6: a signal gap must not end share back for the rest of the call). Phone sign-in, owner only. Succeeds only while the session is active and before stop_at and expires_at, call_id matches and call_ended_at is null; it sets call_active true and last_ping_at to server time. Idempotent. Errors: unauthenticated, permission-denied, invalid-argument, not-found, and failed-precondition with details {reason}: 'session_ended', 'no_call' (a manual share), 'call_mismatch', or 'call_ended' (call_ended_at is set, so call_active never comes back).",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "description": "The shareSessions doc id." },
+        "call_id": { "type": "string", "minLength": 1, "description": "The connected call: the same per-device id sent to createSession." }
+      },
+      "required": ["session_id", "call_id"],
+      "additionalProperties": false
+    },
+    "ReportCallActiveResponse": {
+      "x-api": "reportCallActive",
+      "x-api-role": "response",
+      "description": "Callable reportCallActive, response.",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "description": "The session." },
+        "last_ping_at": { "$ref": "#/$defs/EpochMillis", "description": "The check-in time it wrote, epoch ms (server time)." }
+      },
+      "required": ["session_id", "last_ping_at"],
+      "additionalProperties": false
+    },
+    "DiscardSessionRequest": {
+      "x-api": "discardSession",
+      "x-api-role": "request",
+      "description": "Callable discardSession, request: the share sheet closed without a choice, so the session is deleted before anyone can see it (FSD §4 Live map link). Phone sign-in, owner only, and only while first_viewed_at is null. Deletes the session, private/meta, its pings and its callLogs entry, and clears users.active_session_id. Errors: unauthenticated, permission-denied, invalid-argument, not-found (no such session, not the caller's, or already discarded: treat not-found on a retry as done), and failed-precondition with details {reason: 'link_opened'} once the link has been opened.",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1, "description": "The shareSessions doc id from createSession." }
+      },
+      "required": ["session_id"],
+      "additionalProperties": false
+    },
+    "DiscardSessionResponse": {
+      "x-api": "discardSession",
+      "x-api-role": "response",
+      "description": "Callable discardSession, response.",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "description": "The deleted session." }
+      },
+      "required": ["session_id"],
       "additionalProperties": false
     }
   },
@@ -377,6 +541,7 @@
     { "name": "otp-resend-seconds", "value": 30, "fsd": "§4 Sign up", "description": "A new code can be sent after 30 seconds." },
     { "name": "link-token-bits", "value": 128, "fsd": "§6 Viewer access; x-decisions Q-TOKEN-HASH", "description": "The link token is 128 random bits…" },
     { "name": "link-token-length", "value": 22, "fsd": "§6 Viewer access; x-decisions Q-TOKEN-HASH", "description": "…in base64url without padding: 22 characters." },
+    { "name": "max-viewer-sign-ins", "value": 10, "fsd": "§6 Viewer access; lead decision Oct 18 (abuse cap)", "description": "redeemLinkToken mints at most 10 browser sign-ins per session (viewer plus watchers, counted from viewerSignIns). A new browser past that gets resource-exhausted {reason: 'too_many_viewers'}; a browser that already has a sign-in can still refresh." },
     { "name": "share-link-path", "value": "/s/", "fsd": "§4 Live map link; x-decisions Q-LINK-FORMAT", "description": "Share links are <viewer origin>/s/<token>; the apps never claim this path for universal links or App Links." }
   ],
 
@@ -406,7 +571,16 @@
     { "id": "Q-APPEARANCE", "question": "Is Appearance (System, Light, Dark) part of users.settings?", "decision": "No. Appearance stays on the device.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
     { "id": "Q-TIMESTAMPS-SCOPE", "question": "Which docs get created_at/updated_at?", "decision": "users only.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
     { "id": "Q-ACCURACY-APPROX", "question": "accuracy_m while the sharer is approximate.", "decision": "max(raw accuracy, 500) meters, matching the rounded point.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
-    { "id": "Q-NAME-LENGTH", "question": "Do name lengths count code points or what people see?", "decision": "1–24 grapheme clusters after trimming (Swift String.count, Kotlin BreakIterator, JS Intl.Segmenter), so the server never rejects a name an app let someone type.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" }
+    { "id": "Q-NAME-LENGTH", "question": "Do name lengths count code points or what people see?", "decision": "1–24 grapheme clusters after trimming (Swift String.count, Kotlin BreakIterator, JS Intl.Segmenter), so the server never rejects a name an app let someone type.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-NAME-CHARACTERS", "question": "Which characters may a name hold?", "decision": "No control characters (Cc) and no bidi overrides or isolates (U+202A–U+202E, U+2066–U+2069), and at least one letter, number, symbol or emoji after trimming, so a name can't be invisible or reverse how it displays to the viewer. Every client shows names direction-isolated (<bdi> on the web, FSI…PDI in the apps).", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-SESSION-END", "question": "When exactly does a session end, and what is ended_at?", "decision": "A session is live while status is active and the time is before stop_at (when set) and expires_at; from that moment the rules refuse pings, viewer reads of pings and share back. The stop job (every minute) and createSession end a due session with ended_at = the earlier of stop_at and expires_at, and end_reason limit when that is expires_at (stop_at == expires_at included), otherwise timer. stopSession, reportCallEnded and the watchdog end it at the time they act.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-SESSION-CALLABLES", "question": "Which session changes go through functions?", "decision": "Clients never write status, ended_at, end_reason, call_active or call_ended_at. Stop is stopSession, a call end is reportCallEnded, a call still connected after a signal gap is reportCallActive, and a share sheet closed without a choice is discardSession. The sharer's app writes only last_ping_at (= request.time), ping_interval_s, precision, precision_next, the stop rule fields and share_back_requested_at; the viewer writes only viewer_sharing.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-WATCHDOG", "question": "How does the watchdog work?", "decision": "Every 2 minutes: an active session with call_active true and last_ping_at more than 2 minutes old gets call_active false and viewer_sharing false. A session with the call stop rule and last_ping_at more than 12 minutes old (2 minutes plus the 10-minute grace) ends with end_reason call.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-VIEWER-PING-SHARING", "question": "Does a viewer ping need viewer_sharing?", "decision": "Yes. A viewerPings write needs viewer_sharing true on the session as written in the same batch, so the page sets viewer_sharing true with (or before) its first ping, and nothing is written once a function or the page sets it false.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-VIEWER-SIGNINS", "question": "How does the cleanup find every viewer and watcher Auth user?", "decision": "redeemLinkToken mints uid v_<sessionId>_<96 random bits, base64url> per browser and writes shareSessions/{sessionId}/viewerSignIns/{uid} {role, created_at} in the transaction that decides the role. The 24-hour cleanup deletes those Auth users, then the docs.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-CLEANUP-MARK", "question": "How does the 24-hour cleanup find what's due without revisiting every ended session?", "decision": "A function-owned shareSessions.cleaned_at, null until the cleanup has deleted the session's pings, viewerPings and viewer sign-ins. Each run takes stopped sessions with cleaned_at null and ended_at at least 24 hours ago, then sets cleaned_at. A session ended late, with ended_at set back to when it was due, is still found. (Replaces the jobState/cleanup high-water mark, which could skip those.)", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-MALFORMED-SESSION", "question": "What happens to a session doc that doesn't match the schema?", "decision": "It is never left active. When createSession finds it behind users.active_session_id, or the stop job finds it due, it is force-ended from its raw fields: status stopped, ended_at = the earliest of its stop_at and expires_at (where they are timestamps) and now, end_reason timer when stop_at came first, otherwise limit, viewer_sharing false, cleaned_at null. Logged as an error.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-CALLLOG-ID", "question": "Who writes callLogs, and with what id?", "decision": "createSession, for a call-triggered share, in its transaction; callLogId = the session id (each session has at most one call). Clients have no access. The 30-day purge deletes it with the session.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" }
   ],
 
   "x-open-questions": [

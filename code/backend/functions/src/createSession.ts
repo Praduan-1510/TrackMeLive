@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp, type DocumentReference } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/https";
 import { defineString } from "firebase-functions/params";
+import { requireCurrentSharer } from "./auth.js";
 import {
   INITIAL_PING_INTERVAL_SECONDS,
   LINK_TOKEN_BITS,
@@ -17,6 +18,9 @@ import {
   type SessionPrivateMeta,
   type ShareSession,
 } from "./contracts.js";
+import { dueEnd, endFields, forcedEnd, type SessionEnd } from "./sessions/end.js";
+import { sessionDocFrom } from "./sessions/read.js";
+import { docPaths, type CallLog } from "./shared/schema.js";
 
 /**
  * Where the viewer page is served, e.g. https://trackmelive.web.app. Set per
@@ -64,31 +68,32 @@ function viewerOrigin(): string {
  * Starts a share (FSD §4 "Live map link", "Manual sharing", §5, §6).
  *
  * In one transaction:
- *  - checks users/{uid}.active_session_id: only one session runs at a time;
+ *  - checks users/{uid}.active_session_id: only one session runs at a time.
+ *    A pointer at a session that is already over doesn't block. One that is
+ *    stopped or gone is simply replaced; one still marked active but past
+ *    stop_at or expires_at is ended here, as timer or limit at that time, so
+ *    its end isn't left to the next stop-job run (x-decisions Q-SESSION-END).
+ *    One that doesn't match the shared schema is never left active either: it
+ *    is ended from its raw fields and logged (x-decisions Q-MALFORMED-SESSION);
  *  - creates shareSessions/{id} (only what the viewer may see) and
- *    shareSessions/{id}/private/meta (sharer-only);
+ *    shareSessions/{id}/private/meta (sharer-only), plus callLogs/{id} for a
+ *    call-triggered share (x-decisions Q-CALLLOG-ID);
  *  - points users/{uid}.active_session_id at the new session, and remembers
  *    "who it's for" in last_viewer_name when a name is given.
  * The owner is the caller's uid; the request can't name one.
  *
- * Sprint 1 TODO: App Check, and a callLogs entry for call-triggered shares.
+ * Sprint 1 TODO: App Check.
  */
 export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(async (request) => {
-  const auth = request.auth;
-  if (!auth) {
-    throw new HttpsError("unauthenticated", "Sign in to share your location.");
-  }
-  // Viewers get a one-session custom sign-in; only phone-number sharers start shares.
-  if (auth.token.firebase?.sign_in_provider !== "phone") {
-    throw new HttpsError("permission-denied", "Only a signed-in sharer can start a share.");
-  }
+  // Only a phone-number sharer whose account still exists starts a share; a
+  // viewer's one-session custom sign-in never does.
+  const uid = await requireCurrentSharer(request.auth);
 
   const parsed = parseCreateSessionRequest(request.data);
   if (!parsed.ok) {
     throw new HttpsError("invalid-argument", "The share request isn't valid.", { errors: parsed.errors });
   }
   const input = parsed.value;
-  const uid = auth.uid;
   const origin = viewerOrigin();
 
   const db = getFirestore();
@@ -106,21 +111,27 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
     }
 
     const startedAtMs = Date.now();
+    const startedAt = Timestamp.fromMillis(startedAtMs);
 
-    // One session at a time. A stale pointer (the session stopped, passed its
-    // limit, or is gone) doesn't block; the scheduled stop cleans those up.
+    // One session at a time; a session that is over doesn't block (above).
+    let overdue: { ref: DocumentReference; end: SessionEnd; malformed: boolean } | null = null;
     const activeId = profile.active_session_id;
     if (typeof activeId === "string" && activeId.length > 0) {
-      const active = (await tx.get(db.doc(`shareSessions/${activeId}`))).data();
-      const expiresAt = active?.expires_at as Timestamp | undefined;
-      if (active?.status === "active" && expiresAt instanceof Timestamp && expiresAt.toMillis() > startedAtMs) {
-        throw new HttpsError("already-exists", "You're already sharing.", { reason: "active_session", session_id: activeId });
+      const activeRef = db.doc(docPaths.shareSession(activeId));
+      const active = sessionDocFrom(await tx.get(activeRef));
+      if (active.state === "valid" && active.session.status === "active") {
+        const end = dueEnd(active.session, startedAt);
+        if (!end) {
+          throw new HttpsError("already-exists", "You're already sharing.", { reason: "active_session", session_id: activeId });
+        }
+        overdue = { ref: activeRef, end, malformed: false };
+      } else if (active.state === "malformed" && active.raw.status !== "stopped") {
+        overdue = { ref: activeRef, end: forcedEnd(active.raw, startedAt), malformed: true };
       }
     }
 
     const expiresAtMs = startedAtMs + SESSION_LIMIT_MS;
     const stopAtMs = stopAtFor(input, startedAtMs, expiresAtMs);
-    const startedAt = Timestamp.fromMillis(startedAtMs);
 
     const session: ShareSession<Timestamp> = {
       status: "active",
@@ -145,6 +156,7 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
       first_viewed_at: null,
       viewer_sharing: false,
       share_back_requested_at: null,
+      cleaned_at: null,
     };
     const meta: SessionPrivateMeta = {
       user_id: uid,
@@ -154,16 +166,29 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
       activity_push_token: null,
     };
 
+    if (overdue) tx.update(overdue.ref, endFields(overdue.end));
     tx.create(sessionRef, session);
     tx.create(metaRef, meta);
+    if (input.call_id !== null) {
+      const callLog: CallLog<FieldValue> = {
+        user_id: uid,
+        session_id: sessionRef.id,
+        call_id: input.call_id,
+        call_time: FieldValue.serverTimestamp(),
+      };
+      tx.create(db.doc(docPaths.callLog(sessionRef.id)), callLog);
+    }
     tx.update(userRef, {
       active_session_id: sessionRef.id,
       updated_at: FieldValue.serverTimestamp(),
       ...(input.viewer_name ? { last_viewer_name: input.viewer_name } : {}),
     });
-    return { startedAtMs, expiresAtMs };
+    const ended = overdue && { session_id: overdue.ref.id, end_reason: overdue.end.reason, malformed: overdue.malformed };
+    return { startedAtMs, expiresAtMs, ended };
   });
 
+  if (times.ended?.malformed) logger.error("force-ended a session that doesn't match the shared schema", times.ended);
+  else if (times.ended) logger.info("overdue session ended", times.ended);
   logger.info("session created", {
     session_id: sessionRef.id,
     stop_rule: input.stop_rule,
