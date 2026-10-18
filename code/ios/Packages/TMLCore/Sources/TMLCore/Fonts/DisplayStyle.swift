@@ -95,12 +95,13 @@ public extension DisplayStyle {
         )
     }
 
-    /// Resolves the style for a SwiftUI Dynamic Type size.
-    func resolve(dynamicTypeSize: DynamicTypeSize, boldText: Bool = false) -> ResolvedDisplayFont {
+    /// Resolves the style for a SwiftUI Dynamic Type size. Large, the default, is the style's own
+    /// size. Same signature on both platforms, so one call site compiles for iOS and for macOS.
+    func resolve(dynamicTypeSize: DynamicTypeSize = .large, boldText: Bool = false) -> ResolvedDisplayFont {
         resolve(sizeCategory: UIContentSizeCategory(dynamicTypeSize), boldText: boldText)
     }
     #else
-    /// macOS has no Dynamic Type; the style resolves at its default size. (Used by tests.)
+    /// macOS has no Dynamic Type; the style resolves at its default size. Same signature as on iOS.
     func resolve(dynamicTypeSize: DynamicTypeSize = .large, boldText: Bool = false) -> ResolvedDisplayFont {
         ResolvedDisplayFont(
             ctFont: Gabarito.ctFont(size: size, weight: weight(boldText: boldText)),
