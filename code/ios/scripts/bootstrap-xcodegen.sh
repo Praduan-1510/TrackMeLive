@@ -27,7 +27,7 @@ fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-echo "Downloading XcodeGen $VERSION…"
+echo "Downloading XcodeGen ${VERSION}…"
 curl -fsSL -o "$tmp/xcodegen.zip" "$URL"
 echo "$SHA256  $tmp/xcodegen.zip" | shasum -a 256 -c - >/dev/null || {
   echo "error: XcodeGen checksum mismatch; not installing it." >&2

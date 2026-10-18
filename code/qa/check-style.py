@@ -8,6 +8,7 @@ the new ones git doesn't ignore. The properties it enforces: charset (utf-8: val
 BOM), end_of_line (lf or crlf), insert_final_newline (true), trim_trailing_whitespace (true) and
 indent_style (space: no tab in a line's indent; tab: no line indented with spaces). Indent width
 and line length are left to each codebase's formatter. Binary files and symlinks are skipped.
+One rule isn't from .editorconfig: in .sh files, no bare $NAME directly before a non-ASCII byte.
 Exit status: 0 clean, 1 with findings, 2 on a usage or setup error.
 """
 import os
@@ -19,6 +20,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 DEFAULT_SCOPE = ["code/", ".github/", ".editorconfig", ".gitignore"]
 MAX_BYTES = 4 * 1024 * 1024
 MAX_PER_FILE = 3
+# In shell scripts, "$NAME…" breaks under macOS's bash 3.2 in a UTF-8 locale (as on CI): bash reads
+# the character's first byte as part of the name, and under set -u dies on an unbound variable.
+BARE_VAR_BEFORE_NON_ASCII = re.compile(rb"\$[A-Za-z_][A-Za-z0-9_]*[\x80-\xff]")
 BINARY_EXT = {
     ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".icns", ".pdf", ".ttf", ".otf", ".woff",
     ".woff2", ".jar", ".zip", ".gz", ".xz", ".apk", ".aab", ".keystore", ".jks", ".mp4", ".mov",
@@ -145,6 +149,8 @@ def check(rel, props):
                 problems.append((number, "indented with a tab (indent_style = space)"))
             elif style == "tab" and indent.startswith(b" "):
                 problems.append((number, "indented with spaces (indent_style = tab)"))
+        if rel.endswith(".sh") and BARE_VAR_BEFORE_NON_ASCII.search(line):
+            problems.append((number, "a bare $NAME right before a non-ASCII character: write ${NAME}"))
     return problems
 
 
