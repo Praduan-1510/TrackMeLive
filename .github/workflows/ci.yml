@@ -10,7 +10,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # ci/** branches run the same checks on work in progress, e.g. iOS fixes that only a real Xcode can verify.
+    branches: [main, "ci/**"]
   pull_request:
     branches: [main]
 
@@ -101,6 +102,7 @@ jobs:
           path: |
             ${{ runner.temp }}/tml-check-all/
             code/backend/*.log
+            code/backend/test-logs/*.log
           retention-days: 7
           if-no-files-found: ignore
 
