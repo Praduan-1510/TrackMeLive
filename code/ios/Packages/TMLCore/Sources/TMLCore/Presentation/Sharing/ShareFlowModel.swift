@@ -55,6 +55,8 @@ public final class ShareFlowModel {
             path = [.live]
             return
         }
+        // An ended share nobody dismissed yet (the control or a link during the ended screen).
+        if sharing.state.ended != nil { sharing.dismissEnded() }
         guard let user = profile() else { return }
         await gate.begin(wanting: user.settings.precision) { [weak self] precision, _ in
             self?.showSetup(for: user, precision: precision)

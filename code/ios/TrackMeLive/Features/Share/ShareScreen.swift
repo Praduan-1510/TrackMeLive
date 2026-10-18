@@ -244,14 +244,16 @@ private struct SharePreviewScreen: View {
     init(lastViewerName: String? = "Mom", precise: Bool = true, error: SharingError? = nil, prompt: LocationPrompt? = nil) {
         let sharing = FixedSharingService()
         let access = FakeLocationAccess(authorization: LocationAuthorization(status: .whenInUse, precise: precise, hasAsked: true))
-        model = ShareSetupModel(settings: .defaults, lastViewerName: lastViewerName, sharerName: "Alex",
-                                gatePrecision: precise ? .precise : .approximate, sharing: sharing, access: access,
-                                onShared: { _ in })
+        // A local, so the task below captures the model rather than `self` mid-initialization.
+        let model = ShareSetupModel(settings: .defaults, lastViewerName: lastViewerName, sharerName: "Alex",
+                                    gatePrecision: precise ? .precise : .approximate, sharing: sharing, access: access,
+                                    onShared: { _ in })
+        model.prompt = prompt
         if let error {
             sharing.nextError = error
             Task { await model.share() }
         }
-        model.prompt = prompt
+        self.model = model
     }
 
     var body: some View {

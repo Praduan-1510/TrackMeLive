@@ -2,6 +2,7 @@ import FirebaseAuth
 import FirebaseCore
 import FirebaseFirestore
 import FirebaseFunctions
+import FirebaseMessaging
 import Foundation
 import TMLCore
 
@@ -24,6 +25,8 @@ public final class FirebaseServices: AppLifecycleHooks {
     public let profiles: FirebaseProfileBackend
     /// The share session: callables, listener and ping writes, on the same Firestore as `profiles`.
     public let sessions: FirebaseSessionBackend
+    /// FCM's token and this phone's device doc, for alerts.
+    public let pushTokens: FirebasePushTokens
     private let firebaseAuth: Auth
 
     private init(auth: Auth, makeFirestore: @escaping @MainActor () -> Firestore, functions: Functions) {
@@ -32,6 +35,7 @@ public final class FirebaseServices: AppLifecycleHooks {
         let profiles = FirebaseProfileBackend(makeFirestore: makeFirestore, functions: functions)
         self.profiles = profiles
         sessions = FirebaseSessionBackend(firestore: { profiles.firestore }, functions: functions)
+        pushTokens = FirebasePushTokens(firestore: { profiles.firestore }, messaging: Messaging.messaging())
     }
 
     /// Configures Firebase for the emulators: Auth 9099, Firestore 8080, Functions 5001. Call once, at
@@ -72,6 +76,8 @@ public final class FirebaseServices: AppLifecycleHooks {
     public func didRegisterForRemoteNotifications(deviceToken: Data) {
         // .unknown lets Auth tell the sandbox from production by the provisioning profile.
         firebaseAuth.setAPNSToken(deviceToken, type: .unknown)
+        // The proxy is off, so FCM gets APNs' token from here; it then issues its own.
+        pushTokens.setAPNSToken(deviceToken)
     }
 
     public func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) -> Bool {

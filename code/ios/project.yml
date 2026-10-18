@@ -157,6 +157,10 @@ targets:
       - package: Firebase
         product: FirebaseFunctions
         link: true
+      # The FCM registration token for alerts (FirebasePushTokens).
+      - package: Firebase
+        product: FirebaseMessaging
+        link: true
     settings:
       base:
         PRODUCT_NAME: TrackMeLiveFirebase

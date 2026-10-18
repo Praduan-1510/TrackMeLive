@@ -230,6 +230,16 @@ struct ShareFlowModelTests {
         #expect(f.path.isEmpty)
     }
 
+    @Test func aNewShareAfterAnUndismissedEndStartsClean() async {
+        sharing.state = .ended(EndedShare(sessionId: "s1", reason: .timer, startedAt: ShareTime.start,
+                                          endedAt: ShareTime.at(30), confirmed: true))
+        let f = flow()
+        await f.open(.share)
+        #expect(sharing.state == .idle)
+        #expect(sharing.calls == [.dismissEnded])
+        #expect(f.path == [.share])
+    }
+
     @Test func theControlOpensTheShareScreen() async {
         let f = flow()
         await f.open(.share)

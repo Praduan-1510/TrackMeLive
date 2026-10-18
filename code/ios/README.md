@@ -8,6 +8,12 @@ Sprint 1 status:
 - The Firebase implementations exist in their own target and wait for Xcode (see Xcode day).
 - Calls, location, sessions and the map come next.
 
+Sprint 2 (core sharing, manual shares only):
+- Share live location runs the location step (explainer, then the system prompt; Off, Location Services off, restricted and Precise Location off each explain the way to Settings), then pushes the share screen.
+- Share creates the session and opens the system share sheet; closing it without a choice discards the session, Copy link counts as sent. The live screen replaces the share screen; Home pops back to Home and shows the live card.
+- The live screen: the map with your mascot marker at the shared point (the 1 km circle while Approximate), the status, the tiles, the 1-hour warning, Change timer, Send link again, the Location control and Stop sharing (confirmed first). The ended screen follows for Stop, the timer and the limit (Share again).
+- The call, "When the call ends" and share back are Sprint 3 seams (`ShareFeatures.liveTogether`, off).
+
 ## Run it
 
 Once Xcode 27 is installed:
@@ -26,7 +32,7 @@ Once Xcode 27 is installed:
 4. It builds the `TrackMeLive` scheme, signed "to run locally". If that signing is refused, it falls back to an unsigned build.
 5. It installs, launches, and saves a screenshot to `build/screenshots/`.
 
-The full build log goes to `build/logs/xcodebuild.log`. Deep links can be tried with `xcrun simctl openurl booted trackmelive://share`.
+The full build log goes to `build/logs/xcodebuild.log`. Deep links can be tried with `xcrun simctl openurl booted trackmelive://share` (also `://live` and `://stop`). On the fakes a share walks a simulated route; with `-backend emulator`, add `-location simulated` (debug builds) to walk the same route instead of the simulator's location, so a viewer page in Chrome follows a moving marker.
 
 Once Xcode exists, the **MobileBuildMCP** server (already configured) can run the same loop from an agent session: build, install, launch and screenshot, on `TrackMeLive.xcodeproj` and the `TrackMeLive` scheme.
 
@@ -64,18 +70,28 @@ TrackMeLive/                the app
   Features/Onboarding/      three pages (OnboardingModel): Share where you are, Live Together, Private by default
   Features/SignUp/          SignUpView (details, then the code pushed on one stack), the details and
                             code screens, OneTimeCodeField, CountryPickerView (SignUpModel)
-  Features/Home/            the Home tab: greeting, not-on-a-call card, mascot card (+ the share stub)
+  Features/Home/            the Home tab: greeting, not-on-a-call card (the live card while sharing),
+                            mascot card, Share live location; its stack holds the sharing screens
+  Features/Permission/      the location step before sharing: explainer sheet, Off / Location Services
+                            off / restricted / Precise Location off alerts (LocationGateModel)
+  Features/Share/           Share where you are: preview, Who it's for, Stops, Location (ShareSetupModel)
+  Features/Live/            the live map (MapKit, PersonMarker), glass bar, map sheet (LiveSessionModel)
+  Features/Ended/           the ended screen for each end reason, Share again at the limit
   Features/Mascot/          the mascot picker (MascotPickerScreen; its model is TMLCore's MascotPickerModel)
   Features/Settings/        Settings (SettingsScreen; TMLCore's SettingsModel and permissions)
   Components/               the design-system components: buttons (.tmlProminent, .tmlNeutral,
                             .tmlDestructive, .tmlGlass), StatusPill and StatusBadge, PersonRow,
                             PersonMarker, MapSheet, StatTile, GlassBar, MascotImage (color, accessory
-                            and fallbacks), ChoicePicker, FlowLayout. Each file ends with its previews
+                            and fallbacks), ChoicePicker and PermissionExplainer, FlowLayout,
+                            RowGroup / ValueRowLabel / SummaryLine, TimerSheet, Toast (+ polite
+                            announcements), ShareSheet (UIActivityViewController, reports sent or
+                            cancelled). Each file ends with its previews
   DesignSystem/             Gabarito large navigation titles
   Resources/Assets.xcassets AppIcon (default, dark, tinted), mascot renders, brand mark, LaunchBackground
 TrackMeLiveWidgets/         widget extension: ShareLiveActivity, ShareLocationControl, flat mascots
 Shared/                     compiled into both targets: OpenShareIntent (the control's action)
-Firebase/                   the TrackMeLiveFirebase target (needs the Firebase SDK, so Xcode): FirebaseServices
+Firebase/                   the TrackMeLiveFirebase target (needs the Firebase SDK, so Xcode): FirebaseSessionBackend,
+                            FirebasePushTokens (FCM), FirebaseServices
                             (emulator setup, app-delegate hooks), FirebaseAuthService, FirebaseProfileBackend
 Packages/TMLCore/           the shared package
   Sources/TMLCore/Tokens    → ../../../../../shared/tokens/generated/swift   (symlink: TMLColor, TMLSpacing, TMLRadius, TMLShadow, TMLType)
@@ -84,9 +100,15 @@ Packages/TMLCore/           the shared package
   Sources/TMLCore/Validation PersonName (graphemes, the schema's characters), PhoneNumber + PhoneRegion
                             (E.164), OneTimeCode + ResendCountdown
   Sources/TMLCore/Services  AuthService, ProfileService + ProfileBackend, SettingsStore (protocols),
-                            ProfileStore (optimistic profile), AppLifecycleHooks, Fakes/
+                            ProfileStore (optimistic profile), AppLifecycleHooks, Fakes/;
+                            Location/ (LocationAccess, LocationStream, Core Location), Sharing/ (SharingService,
+                            ShareController, PingUploader, ShareCountdown, SessionBackend), Push/ (DeviceRegistrar)
   Sources/TMLCore/SignUp    SignUpModel (the state machine) and its copy
   Sources/TMLCore/App       AccountModel (the route: launch, onboarding, sign-up, picker, tabs)
+  Sources/TMLCore/Presentation/Sharing  the sharing screens' view models and words: ShareFlowModel
+                            (Home's stack: share → live → ended), LocationGateModel, ShareSetupModel,
+                            LiveSessionModel, LivePresentation, EndedPresentation, TimerSheetPresentation,
+                            ShareAudience (they/them copy), ShareLinkMessage, StopChoice's options
   Sources/TMLCore/…         ShareActivityAttributes, DistanceText, presentation names for schema enums
 ```
 
@@ -127,6 +149,29 @@ The view models live in TMLCore, where the tests drive them; the views only bind
   - The code is **482913**; **000000** acts as an expired code; any other code is wrong.
   - A national number ending in **0000** is refused as invalid. One ending in **9999** fails to send once, then works. One ending in **8888** hits the rate limit.
   - The same number signs in as the same account.
+
+## Sharing, location and pings (Sprint 2)
+
+The non-UI sharing layer is in `TMLCore/Services`. The screens use `SharingService` and `LocationAccess`, and the Firebase wire is in `Firebase/`.
+
+- **Location** (`Services/Location`).
+  - `LocationAccess` + `LocationAuthorization.gate(wanting:)`: explain, ask, Settings, restricted or ready. The app asks only for While Using (FSD §8); Always is handled only if the person picks it in Settings. With Precise Location off, shares are Approximate, and `requestPreciseOnce()` makes the one-time request (Info.plist `SharePrecise`).
+  - `LiveLocationStream` reads `CLLocationUpdate.liveUpdates`. Each stream holds a `CLServiceSession` and, for a share, a `CLBackgroundActivitySession`, both invalidated when it ends: location runs in the background only while sharing.
+- **The session** (`ShareController`, behind `SharingService`).
+  - `createSession`, then location, pings and a listener on `shareSessions/{id}`. Pings start at once: nobody has the link yet, and `discardSession` deletes them with the session.
+  - Every deadline runs on `ServerClock`, the server's clock estimated from `started_at`. At `stop_at` or `expires_at` the share ends locally (reason timer or limit, at the due time) and writes stop. The `stopped` snapshot confirms it, or `stopSession` (idempotent) does after a minute.
+  - Stop and discard retry in the background. The timer sheet's math is `ShareCountdown`.
+- **Pings** (`PingUploader`).
+  - Cadence: 3–5 s by speed above 20% battery, 15 s to 10%, 60 s below (`PingCadence`). A check-in at least every 30 s.
+  - Which fixes go: better than 100 m and newest only, at least 2 s apart. A fix is dropped if it is under 2 s after the last ping sent, or if it is 15 s old when its turn comes.
+  - Approximate snaps to a 500 m grid with accuracy ≥ 500 m (`ApproximateLocation`).
+  - Each ping is one batch with `last_ping_at` and `last_fix_at` (x-decisions Q-PING-WRITE).
+  - One write in flight; retries back off 2, 4, 8, 16, then 30 s.
+  - A refused retry counts as written when the session's `last_fix_at` already covers it. Nothing is written after Stop or the due time.
+- **Alerts** (`Services/Push`): `DeviceRegistrar` keeps `users/{uid}/devices/{deviceId}` current with FCM's token (none on the Simulator, which is fine). `PushAlert` parses `link_opened`.
+- **Fakes**:
+  - `FakeSessionBackend` enforces the rules' write checks, so tests catch any write the server would refuse.
+  - The test clock is `ManualShareClock`. The others are `FakeLocationStream`, `SimulatedRouteStream` (a looping walk, for the app on fakes), `FakeLocationAccess`, `FixedSharingService` (previews) and `FakePushTokens`.
 
 ## Xcode day: turning on Firebase
 

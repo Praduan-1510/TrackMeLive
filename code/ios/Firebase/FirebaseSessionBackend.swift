@@ -127,11 +127,21 @@ public final class FirebaseSessionBackend: SessionBackend {
             Field.stopMinutes.rawValue: change.stopMinutes.map { $0.rawValue as Any } ?? NSNull(),
             Field.stopAt.rawValue: change.stopAt.map { Timestamp(date: $0) as Any } ?? NSNull(),
         ]
-        try await update(sessionId, fields)
+        do {
+            try await update(sessionId, fields)
+        } catch .sessionEnded {
+            // Refused: the change didn't apply, e.g. it waited offline past the rules' 60 s window
+            // for stop_at. If the session is over, the listener says so.
+            throw .rejected(field: Field.stopAt.rawValue)
+        }
     }
 
     public func requestPrecision(sessionId: String, _ precision: TMLPrecision) async throws(SharingError) {
-        try await update(sessionId, [TMLShareSession.Field.precisionNext.rawValue: precision.rawValue])
+        do {
+            try await update(sessionId, [TMLShareSession.Field.precisionNext.rawValue: precision.rawValue])
+        } catch .sessionEnded {
+            throw .rejected(field: TMLShareSession.Field.precisionNext.rawValue)
+        }
     }
 
     public func writePing(sessionId: String, _ write: PingWrite) async throws(SharingError) {

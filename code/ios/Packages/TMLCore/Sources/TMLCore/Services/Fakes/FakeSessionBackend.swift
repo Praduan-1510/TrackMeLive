@@ -174,7 +174,16 @@ public final class FakeSessionBackend: SessionBackend {
         let now = serverNow
         let valid: Bool = switch change.stopRule {
         case .minutes:
-            change.stopMinutes != nil && change.stopAt.map { $0 > now && $0 <= session.expiresAt } == true
+            // stop_at = min(now + minutes, expires_at) by the server's clock, within the clock skew;
+            // exactly expires_at once now + minutes passes it.
+            if let minutes = change.stopMinutes, let stopAt = change.stopAt, stopAt > now, stopAt <= session.expiresAt {
+                now.addingTimeInterval(TimeInterval(minutes.rawValue * 60)) >= session.expiresAt
+                    ? stopAt == session.expiresAt
+                    : abs(stopAt.timeIntervalSince(now.addingTimeInterval(TimeInterval(minutes.rawValue * 60))))
+                        <= TimeInterval(TMLSchemaConstants.pingClockSkewSeconds)
+            } else {
+                false
+            }
         case .limit:
             change.stopMinutes == nil && change.stopAt == session.expiresAt
         case .call:

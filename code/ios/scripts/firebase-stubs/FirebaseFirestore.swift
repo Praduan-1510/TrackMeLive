@@ -26,6 +26,12 @@ open class DocumentReference: NSObject, @unchecked Sendable {
     open func addSnapshotListener(_ listener: @escaping (DocumentSnapshot?, Error?) -> Void) -> ListenerRegistration {
         fatalError()
     }
+    open func setData(_ documentData: [String: Any]) {}
+    open func setData(_ documentData: [String: Any], completion: ((Error?) -> Void)? = nil) {}
+    open func setData(_ documentData: [String: Any]) async throws {}
+    open func delete() {}
+    open func delete(completion: ((Error?) -> Void)? = nil) {}
+    open func delete() async throws {}
     open func updateData(_ fields: [AnyHashable: Any]) {}
     open func updateData(_ fields: [AnyHashable: Any], completion: ((Error?) -> Void)? = nil) {}
     open func updateData(_ fields: [AnyHashable: Any]) async throws {}

@@ -30,7 +30,7 @@ common=(-sdk "$SDK" -target "$TARGET" -parse-as-library -module-cache-path "$OUT
   -I "$OUT" -I "$OUT/patched" -Fsystem "$CATALYST/System/Library/Frameworks" -I "$CATALYST/usr/lib/swift" -L "$CATALYST/usr/lib")
 
 echo "Firebase stubs…"
-for module in FirebaseCore FirebaseAuth FirebaseFirestore FirebaseFunctions; do
+for module in FirebaseCore FirebaseAuth FirebaseFirestore FirebaseFunctions FirebaseMessaging; do
   swiftc "${common[@]}" -swift-version 5 -module-name "$module" -emit-module -emit-module-path "$OUT/$module.swiftmodule" "$STUBS/$module.swift"
 done
 

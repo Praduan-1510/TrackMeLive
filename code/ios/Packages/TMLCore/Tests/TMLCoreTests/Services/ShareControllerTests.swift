@@ -384,6 +384,16 @@ struct ShareControllerTests {
         #expect(rig.ended?.reason == .timer)
     }
 
+    @Test func timersCloseToTheLimitAreCappedAtItAndTheRulesAgree() async throws {
+        let rig = ControllerRig(serverOffset: -45)
+        try await rig.start(ShareOptions(stop: .minutes(.minutes60), shareBack: false, precision: .precise))
+        await rig.walk(50 * 60)
+        try await rig.controller.changeStop(to: .minutes(.minutes15))
+        #expect(rig.live?.stopAt == rig.live?.expiresAt)
+        #expect(rig.live?.stopRule == .minutes)
+        #expect(rig.backend.refusedWrites == 0)
+    }
+
     @Test func theLimitChoiceRunsToTheHour() async throws {
         let rig = ControllerRig()
         try await rig.start()
