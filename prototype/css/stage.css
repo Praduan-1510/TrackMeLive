@@ -1,0 +1,139 @@
+/* The presentation stage around the two phones. Always night, whatever the phones' theme. */
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: #070A0C;
+  color: #EEF2F1;
+  font: 400 15px/1.45 "Figtree", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #8CC4FF; outline-offset: 2px; }
+
+.stage { position: relative; height: 100%; display: flex; flex-direction: column; isolation: isolate; }
+.stage-map { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -3; opacity: .9; }
+.stage::before {
+  content: ""; position: absolute; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(520px 420px at 58% 18%, rgba(247, 174, 69, .14), transparent 70%),
+    radial-gradient(480px 400px at 84% 22%, rgba(90, 169, 255, .08), transparent 70%);
+}
+.stage::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .35; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E");
+}
+
+/* Header */
+.stage-head {
+  flex: none; display: flex; align-items: center; gap: 16px;
+  padding: 14px max(20px, env(safe-area-inset-right, 0px)) 10px max(20px, env(safe-area-inset-left, 0px));
+}
+.stage-head .logo { height: 26px; width: auto; display: block; }
+.proto-tag { padding: 4px 10px; border-radius: 999px; background: rgba(247, 174, 69, .14); color: #FFC266; font: 800 11px/1.3 "Gabarito", sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.stage-head .spacer { flex: 1; }
+.seg-ctl { display: inline-flex; padding: 3px; border-radius: 999px; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.seg-ctl button { border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #A2AEB2; cursor: pointer; }
+.seg-ctl button[aria-pressed="true"] { background: #EEF2F1; color: #11181B; }
+.ghost-btn { border: 0; cursor: pointer; padding: 8px 14px; border-radius: 999px; background: rgba(255, 255, 255, .07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); font-size: 13px; font-weight: 600; color: #EEF2F1; }
+.ghost-btn:hover { background: rgba(255, 255, 255, .12); }
+
+/* Body */
+.stage-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 8px; padding: 0 max(20px, env(safe-area-inset-right, 0px)) 16px max(20px, env(safe-area-inset-left, 0px)); }
+
+/* Story panel */
+.story { min-height: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; border-radius: 28px; background: rgba(21, 27, 30, .72); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); align-self: center; max-height: 100%; }
+/* The steps scroll; the Simulate controls stay pinned at the bottom of the panel. */
+.story-steps { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 18px 18px 12px; scrollbar-width: thin; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.story h2 { margin: 0 0 4px; font: 800 20px/1.2 "Gabarito", sans-serif; letter-spacing: -.01em; }
+.story .lede { margin: 0 0 14px; color: #A2AEB2; font-size: 13px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; counter-reset: step; }
+.steps li { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 9px 10px; border-radius: 14px; color: #85919A; font-size: 13.5px; line-height: 1.35; }
+.steps li::before { counter-increment: step; content: counter(step); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font: 800 11px "Gabarito", sans-serif; background: rgba(255, 255, 255, .06); color: #85919A; }
+.steps li.done { color: #A2AEB2; }
+.steps li.done::before { content: "✓"; background: rgba(238, 242, 241, .1); color: #EEF2F1; }
+.steps li.now { background: rgba(247, 174, 69, .12); color: #EEF2F1; box-shadow: inset 0 0 0 1px rgba(247, 174, 69, .3); }
+.steps li.now::before { background: #F7AE45; color: #1F1405; }
+.steps b { color: #EEF2F1; font-weight: 700; }
+.who { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 800; letter-spacing: .04em; margin-right: 4px; vertical-align: 1px; }
+.who.a { background: rgba(247, 174, 69, .16); color: #FFC266; }
+.who.m { background: rgba(90, 169, 255, .16); color: #8CC4FF; }
+.controls { flex: none; padding: 12px 14px 14px; border-top: 1px solid rgba(255, 255, 255, .08); display: grid; gap: 8px; background: rgba(13, 18, 20, .55); }
+.ctl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ctl-grid .wide { grid-column: span 2; }
+.ctl-grid .ctl { min-height: 44px; padding: 6px 10px; gap: 8px; font-size: 12.5px; line-height: 1.25; }
+.ctl-grid .ctl:not(.wide) small { display: none; }
+.ctl-grid .ctl .ic { width: 24px; height: 24px; }
+.text-size { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 600; color: #A2AEB2; }
+.text-size .seg-ctl button { padding: 6px 12px; min-height: 32px; }
+.more { border-radius: 14px; background: rgba(255, 255, 255, .04); }
+.more summary { cursor: pointer; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: #A2AEB2; list-style-position: inside; }
+.more[open] { padding-bottom: 10px; }
+.more-h { margin: 4px 12px 6px; font: 800 11px "Gabarito", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #85919A; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 10px; }
+.mini { min-height: 36px; padding: 6px 10px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .07); color: #EEF2F1; font-size: 12px; font-weight: 600; cursor: pointer; }
+.mini:disabled { opacity: .4; cursor: default; }
+.mini[aria-pressed="true"] { box-shadow: inset 0 0 0 1px rgba(247, 174, 69, .6); background: rgba(247, 174, 69, .14); }
+.controls h3 { margin: 0 0 2px; font: 800 12px "Gabarito", sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #85919A; }
+.ctl { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, .06); color: #EEF2F1; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; }
+.ctl:hover:not(:disabled) { background: rgba(255, 255, 255, .1); }
+.ctl:disabled { opacity: .4; cursor: default; }
+.ctl .ic { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.ctl .ic svg { width: 14px; height: 14px; }
+.ctl.call .ic { background: rgba(78, 209, 136, .18); color: #4ED188; }
+.ctl.end .ic { background: rgba(255, 107, 94, .18); color: #FF8A7F; }
+.ctl.sig .ic { background: rgba(255, 255, 255, .1); color: #EEF2F1; }
+.ctl.on { box-shadow: inset 0 0 0 1px rgba(247, 174, 69, .45); }
+.ctl small { margin-left: auto; color: #85919A; font-weight: 600; font-size: 12px; }
+
+/* Devices */
+.devices { position: relative; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; gap: clamp(24px, 4vw, 64px); }
+.device { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; }
+.dev-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #A2AEB2; white-space: nowrap; }
+.dev-label b { color: #EEF2F1; font: 800 14px "Gabarito", sans-serif; }
+.dev-label .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dev-label .dot.a { background: #F7AE45; }
+.dev-label .dot.m { background: #5AA9FF; }
+.dev-scale { position: relative; }
+.phone {
+  position: absolute; left: 0; top: 0; width: 414px; height: 868px; transform-origin: 0 0;
+  border-radius: 64px; padding: 12px; background: #050708;
+  box-shadow: 0 0 0 1.5px #2A3438, 0 0 0 7px #0E1316, 0 0 0 8px #33403f55, 0 40px 80px rgba(0, 0, 0, .65), 0 0 120px rgba(247, 174, 69, .05);
+}
+.device.mom .phone { box-shadow: 0 0 0 1.5px #2A3438, 0 0 0 7px #0E1316, 0 0 0 8px #33403f55, 0 40px 80px rgba(0, 0, 0, .65), 0 0 120px rgba(90, 169, 255, .05); }
+.phone::before { content: ""; position: absolute; right: -10px; top: 210px; width: 4px; height: 96px; border-radius: 0 3px 3px 0; background: #1A2226; }
+.phone::after { content: ""; position: absolute; left: -10px; top: 180px; width: 4px; height: 60px; border-radius: 3px 0 0 3px; background: #1A2226; box-shadow: 0 84px 0 #1A2226; }
+
+/* Android: a Pixel-like frame. Flatter, slightly smaller corners, a centered punch-hole camera
+   (drawn inside the screen) and both buttons on the right: power above the volume rocker. */
+body[data-platform="android"] .phone { border-radius: 54px; box-shadow: 0 0 0 1.5px #2C3639, 0 0 0 6px #121719, 0 0 0 7px #3B4644aa, 0 40px 80px rgba(0, 0, 0, .65), 0 0 120px rgba(247, 174, 69, .05); }
+body[data-platform="android"] .device.mom .phone { box-shadow: 0 0 0 1.5px #2C3639, 0 0 0 6px #121719, 0 0 0 7px #3B4644aa, 0 40px 80px rgba(0, 0, 0, .65), 0 0 120px rgba(90, 169, 255, .05); }
+body[data-platform="android"] .phone::before { right: -9px; top: 196px; height: 62px; }
+body[data-platform="android"] .phone::after { left: auto; right: -9px; top: 296px; height: 112px; border-radius: 0 3px 3px 0; box-shadow: none; }
+
+.dev-switch { display: none; }
+
+@media (max-width: 1180px) {
+  body { overflow: auto; }
+  .stage { height: auto; min-height: 100%; }
+  .stage-body { grid-template-columns: 1fr; }
+  .story { order: 2; align-self: stretch; }
+  .devices { flex-direction: column; gap: 14px; padding-block: 8px; }
+  .dev-switch { display: inline-flex; }
+  .devices[data-show="alex"] .device.mom, .devices[data-show="mom"] .device.alex { display: none; }
+  .dev-switch .badge { width: 8px; height: 8px; border-radius: 50%; background: #F7AE45; display: inline-block; margin-left: 6px; vertical-align: 1px; }
+  .dev-switch .badge[hidden] { display: none; }
+}
+.narrow-switches { display: none; }
+@media (max-width: 640px) {
+  .stage-head .seg-ctl { display: none; }
+  .narrow-switches { display: flex; flex-direction: column; gap: 8px; }
+  .proto-tag { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
+}

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Share screen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap">
+<style>
+body{margin:0}
+a{color:#222222}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 24px 20px; display: flex; flex-direction: column; gap: 12px; background: #FFFFFF; color: #222222; font-family: 'Balsamiq Sans', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px">
+    <a href="Home.dc.html" style="display: flex; align-items: center; min-height: 44px; padding-right: 8px; color: #222222; font-weight: 700">‹ Home</a>
+    <div style="display: flex; align-items: center; gap: 6px; padding: 3px 10px; border: 2px solid #222222; border-radius: 999px; font-size: 13px; font-weight: 700"><span style="width: 8px; height: 8px; border-radius: 50%; background: #222222"></span>On a call · 00:48</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <h1 style="margin: 0; font-size: 24px; line-height: 1.2">Share where you are</h1>
+    <p style="margin: 0; color: #4D4D4D; font-size: 14px">The person you're talking to follows you live in their browser. No app needed.</p>
+  </div>
+
+  <div style="position: relative; flex: none; height: 150px; border: 2px solid #222222; border-radius: 14px; overflow: hidden; background: #EFEFEF">
+    <svg width="100%" height="100%" viewBox="0 0 350 150" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block">
+      <rect x="0" y="0" width="350" height="150" fill="#EFEFEF"></rect>
+      <path d="M0 110 L350 80 M110 0 L140 150 M0 30 L350 45 M265 0 L250 150" stroke="#D6D6D6" stroke-width="12" fill="none"></path>
+      <path d="M128 72 C 170 50 210 40 262 38" stroke="#8A8A8A" stroke-width="2" stroke-dasharray="4 6" fill="none"></path>
+    </svg>
+    <div style="position: absolute; left: 100px; top: 44px; width: 52px; height: 52px; box-sizing: border-box; border: 3px solid #222222; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px">Fox</div>
+    <div style="position: absolute; left: 106px; top: 98px; padding: 0 8px; background: #FFFFFF; border: 2px solid #222222; border-radius: 999px; font-size: 11px; font-weight: 700">You</div>
+    <div style="position: absolute; left: 246px; top: 20px; width: 36px; height: 36px; box-sizing: border-box; border: 2px dashed #6B6B6B; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #6B6B6B">+</div>
+    <div style="position: absolute; left: 244px; top: 58px; padding: 0 8px; background: #FFFFFF; border: 2px dashed #6B6B6B; border-radius: 999px; font-size: 11px; color: #4D4D4D">Mom</div>
+    <div style="position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 4px 10px; background: #FFFFFF; border: 2px solid #222222; border-radius: 10px; font-size: 12px"><b style="flex: none; padding: 0 6px; border: 1px solid #222222; border-radius: 999px; font-size: 10px; letter-spacing: 0.06em">LIVE TOGETHER</b>You both see one map</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; border: 2px solid #222222; border-radius: 14px; overflow: hidden">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 0 12px; border-bottom: 2px solid #D6D6D6">
+      <label for="share-who" style="flex: none">Who it's for (optional)</label>
+      <span style="flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px"><input id="share-who" type="text" value="Mom" placeholder="Name" style="width: 70px; min-height: 32px; padding: 0 6px; border: 0; border-bottom: 2px dashed #8A8A8A; background: transparent; color: #222222; font-family: inherit; font-size: 15px; text-align: right"><button type="button" aria-label="Clear the name" style="flex: none; width: 32px; height: 32px; padding: 0; border: 2px solid #8A8A8A; border-radius: 50%; background: #FFFFFF; color: #4D4D4D; font-family: inherit; font-size: 13px">×</button></span>
+    </div>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 0 12px; border: 0; border-bottom: 2px solid #D6D6D6; background: transparent; color: #222222; font-family: inherit; font-size: 15px; text-align: left">Stops<span style="color: #4D4D4D">When the call ends ›</span></button>
+    <div role="group" aria-label="Location" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; padding: 0 12px; border-bottom: 2px solid #D6D6D6">
+      <span>Location</span>
+      <span style="display: flex; gap: 6px">
+        <label style="display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; box-sizing: border-box; border: 2px solid #222222; border-radius: 10px; background: #E6E6E6; font-size: 14px; font-weight: 700"><input type="radio" name="share-precision" checked style="margin: 0; accent-color: #222222">Precise</label>
+        <label style="display: flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 10px; box-sizing: border-box; border: 2px solid #222222; border-radius: 10px; font-size: 14px"><input type="radio" name="share-precision" style="margin: 0; accent-color: #222222">Approximate</label>
+      </span>
+    </div>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 6px 12px; box-sizing: border-box">
+      <span style="display: flex; flex-direction: column"><span>Let them share back</span><span style="color: #6B6B6B; font-size: 13px">Only during this call.</span></span>
+      <input type="checkbox" role="switch" checked style="flex: none; width: 22px; height: 22px; margin: 0; accent-color: #222222">
+    </label>
+  </div>
+  <p style="margin: 0; color: #6B6B6B; font-size: 13px">Only you see the name. They see your name and mascot.</p>
+  <div style="font-size: 12px; color: #4D4D4D">[ Without a call: no share-back switch, and Stops can't be When the call ends (30 min by default). Approximate rounds each point to about 500 m on the phone. ]</div>
+
+  <div style="flex: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 6px">
+    <a href="LiveTracking.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 56px; border-radius: 12px; background: #222222; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 18px">Share live location</a>
+    <div style="text-align: center; color: #6B6B6B; font-size: 13px">Next, choose who gets the link.</div>
+    <div style="text-align: center; font-size: 12px; color: #4D4D4D">[ Opens the phone's share sheet: Messages, WhatsApp, Mail, Copy link ]</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

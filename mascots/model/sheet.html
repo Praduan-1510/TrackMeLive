@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Mascot contact sheet</title></head>
+<body style="margin:0;background:#e9e6e1">
+<pre id="out" style="display:none"></pre>
+<script type="module">
+// Renders several mascots into one grid, for checking the set side by side.
+// ?m=hero,star,ninja&c=original&size=384&cols=4
+// &a=glasses,headlamp puts each accessory on each mascot that can wear it (a=all for every one),
+// and &layer=1 draws the accessory layers alone. m also takes full jobs (fox@glasses, see jobs.mjs).
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { renderJob } from './jobs.mjs';
+import { ACCESSORIES, ACCESSORY_SUPPORT } from './accessories.mjs';
+
+const out = document.getElementById('out');
+try {
+  const q = new URLSearchParams(location.search);
+  const names = (q.get('m') || 'fox,ghost,robot,astronaut').split(',');
+  const colors = (q.get('c') || 'original').split(',');
+  const accs = q.get('a') === 'all' ? Object.keys(ACCESSORIES) : (q.get('a') || '').split(',').filter(Boolean);
+  const size = Number(q.get('size')) || 384;
+  const cols = Number(q.get('cols')) || 4;
+  const jobs = [];
+  for (const n of names) {
+    if (n.includes('@')) { jobs.push(n); continue; }
+    for (const c of colors) {
+      if (!accs.length) jobs.push(`${n}:${c}`);
+      for (const a of accs) if (ACCESSORY_SUPPORT[n]?.includes(a)) jobs.push(`${n}:${c}@${a}${q.get('layer') ? '/layer' : ''}`);
+    }
+  }
+  const rows = Math.ceil(jobs.length / cols);
+  const sheet = document.createElement('canvas');
+  sheet.width = cols * size;
+  sheet.height = rows * size;
+  const ctx = sheet.getContext('2d');
+  ctx.fillStyle = q.get('bg') || '#e9e6e1';
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(size, size);
+  renderer.setClearColor(0x000000, 0);
+  jobs.forEach((job, i) => {
+    ctx.drawImage(renderJob(THREE, renderer, job), (i % cols) * size, Math.floor(i / cols) * size);
+  });
+  out.textContent = sheet.toDataURL('image/png');
+  sheet.style.cssText = 'display:block;max-width:100%';
+  document.body.prepend(sheet);
+} catch (e) {
+  out.textContent = 'ERROR ' + (e && e.stack || e);
+  out.style.display = 'block';
+}
+</script>
+</body>
+</html>

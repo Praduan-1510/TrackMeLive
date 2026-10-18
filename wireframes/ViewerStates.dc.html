@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Viewer, other states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap">
+<style>
+body{margin:0}
+a{color:#222222}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 1240px; height: 900px; box-sizing: border-box; padding: 32px 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; align-items: start; background: #FFFFFF; color: #222222; font-family: 'Balsamiq Sans', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+
+  <section style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <h2 style="margin: 0; font-size: 18px">Signal lost</h2>
+      <p style="margin: 0; color: #6B6B6B; font-size: 13px">No new location from Alex's phone for 3 ping intervals (at least 15 s).</p>
+    </div>
+    <div style="height: 740px; box-sizing: border-box; display: flex; flex-direction: column; border: 2px solid #222222; border-radius: 24px; overflow: hidden">
+      <div style="flex: none; display: flex; align-items: center; padding: 10px 14px; background: #EDEDED; border-bottom: 2px solid #222222">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: center; min-height: 32px; padding: 0 12px; box-sizing: border-box; border: 2px solid #8A8A8A; border-radius: 16px; background: #FFFFFF; color: #4D4D4D; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">trackme.live/s/[link token]</div>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px">
+        <div style="font-size: 16px; font-weight: 700">Alex's signal dropped</div>
+        <div style="align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 4px 12px; border: 2px solid #6B6B6B; border-radius: 999px; font-size: 13px; font-weight: 700"><span style="width: 10px; height: 10px; box-sizing: border-box; border: 2px solid #6B6B6B; border-radius: 50%"></span>Last seen 9:41 pm</div>
+        <div style="position: relative; flex: 1; min-height: 0; border: 2px solid #222222; border-radius: 12px; overflow: hidden; background: #EFEFEF">
+          <svg width="100%" height="100%" viewBox="0 0 320 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block">
+            <rect x="0" y="0" width="320" height="420" fill="#EFEFEF"></rect>
+            <path d="M0 290 L320 220 M100 0 L155 420 M0 85 L320 115 M250 0 L228 420" stroke="#D6D6D6" stroke-width="14" fill="none"></path>
+          </svg>
+          <div style="position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; box-sizing: border-box; border: 3px dashed #6B6B6B; border-radius: 50%; background: #F7F7F7; color: #6B6B6B; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px">Fox</div>
+        </div>
+        <div style="color: #4D4D4D; font-size: 13px">No update for a moment. This is where Alex was last seen. The map updates again when their phone reconnects.</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <h2 style="margin: 0; font-size: 18px">Sharing ended</h2>
+      <p style="margin: 0; color: #6B6B6B; font-size: 13px">Alex tapped Stop. Otherwise the heading reads "Sharing ended at 9:52 pm".</p>
+    </div>
+    <div style="height: 740px; box-sizing: border-box; display: flex; flex-direction: column; border: 2px solid #222222; border-radius: 24px; overflow: hidden">
+      <div style="flex: none; display: flex; align-items: center; padding: 10px 14px; background: #EDEDED; border-bottom: 2px solid #222222">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: center; min-height: 32px; padding: 0 12px; box-sizing: border-box; border: 2px solid #8A8A8A; border-radius: 16px; background: #FFFFFF; color: #4D4D4D; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">trackme.live/s/[link token]</div>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px">
+        <div style="font-size: 16px; font-weight: 700">Alex stopped sharing at 9:52 pm</div>
+        <div style="align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 4px 12px; border: 2px solid #222222; border-radius: 999px; background: #E6E6E6; font-size: 13px; font-weight: 700"><span style="width: 10px; height: 10px; background: #222222"></span>Ended</div>
+        <div style="position: relative; flex: 1; min-height: 0; border: 2px solid #8A8A8A; border-radius: 12px; overflow: hidden; background: #F4F4F4">
+          <svg width="100%" height="100%" viewBox="0 0 320 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block">
+            <rect x="0" y="0" width="320" height="420" fill="#F4F4F4"></rect>
+            <path d="M0 290 L320 220 M100 0 L155 420 M0 85 L320 115 M250 0 L228 420" stroke="#E2E2E2" stroke-width="14" fill="none"></path>
+          </svg>
+          <div style="position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; box-sizing: border-box; border: 3px solid #8A8A8A; border-radius: 50%; background: #FFFFFF; color: #6B6B6B; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px">Fox</div>
+          <div style="position: absolute; left: 12px; right: 12px; top: 12px; padding: 8px 10px; background: #FFFFFF; border: 2px solid #222222; border-radius: 10px; font-size: 13px; font-weight: 700; text-align: center">Last location · no longer live</div>
+        </div>
+        <div style="color: #4D4D4D; font-size: 13px">The map shows where Alex was when sharing stopped. It won't move again.</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 12px; min-width: 0">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <h2 style="margin: 0; font-size: 18px">Opened after it ended</h2>
+      <p style="margin: 0; color: #6B6B6B; font-size: 13px">Someone opens the link once the session is over. No pin is shown.</p>
+    </div>
+    <div style="height: 740px; box-sizing: border-box; display: flex; flex-direction: column; border: 2px solid #222222; border-radius: 24px; overflow: hidden">
+      <div style="flex: none; display: flex; align-items: center; padding: 10px 14px; background: #EDEDED; border-bottom: 2px solid #222222">
+        <div style="flex: 1; min-width: 0; display: flex; align-items: center; min-height: 32px; padding: 0 12px; box-sizing: border-box; border: 2px solid #8A8A8A; border-radius: 16px; background: #FFFFFF; color: #4D4D4D; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">trackme.live/s/[link token]</div>
+      </div>
+      <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center">
+        <div aria-hidden="true" style="width: 96px; height: 96px; box-sizing: border-box; border: 3px dashed #8A8A8A; border-radius: 50%"></div>
+        <div style="font-size: 18px; font-weight: 700">This location is no longer being shared</div>
+        <div style="color: #4D4D4D; font-size: 14px">Ask Alex to share again if you still need it.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1240,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 124" width="160" height="124" role="img" aria-label="Live Together">
+<title>Live Together</title>
+<g transform="translate(-14 -2)">
+    <defs><mask id="ltd" maskUnits="userSpaceOnUse" x="-20" y="-20" width="220" height="180"><rect x="-20" y="-20" width="220" height="180" fill="#fff"/><path d="M52.32 91.59 A40 40 0 1 0 29.75 70.9 Q32.39 88.89 29.1 104 Q29 109 33.01 106.01 Q41.61 97.24 52.32 91.59 Z" fill="#000" stroke="#000" stroke-width="12" stroke-linejoin="round"/></mask></defs>
+    <g mask="url(#ltd)"><g transform="translate(123 44) scale(-0.8 0.8) translate(-66 -54)">
+      <path d="M52.32 91.59 A40 40 0 1 0 29.75 70.9 Q32.39 88.89 29.1 104 Q29 109 33.01 106.01 Q41.61 97.24 52.32 91.59 Z" fill="#5AA9FF" stroke="#5AA9FF" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="66" cy="54" r="21" fill="none" stroke="#CFE2FA" stroke-width="6.5"/>
+      <circle cx="66" cy="54" r="10.5" fill="#fff"/>
+    </g></g>
+    <path d="M52.32 91.59 A40 40 0 1 0 29.75 70.9 Q32.39 88.89 29.1 104 Q29 109 33.01 106.01 Q41.61 97.24 52.32 91.59 Z" fill="#F7AE45" stroke="#F7AE45" stroke-width="3" stroke-linejoin="round"/>
+      <circle cx="66" cy="54" r="21" fill="none" stroke="#FFE3BA" stroke-width="6.5"/>
+      <circle cx="66" cy="54" r="10.5" fill="#FFFFFF"/>
+  </g>
+</svg>

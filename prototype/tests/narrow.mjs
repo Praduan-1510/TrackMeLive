@@ -1,0 +1,42 @@
+// Narrow windows: one phone at a time with a switch; both phones reachable.
+// node narrow.mjs <out-dir>
+import { chromium } from 'playwright-core';
+
+const OUT = process.argv[2];
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const ctx = await browser.newContext({ viewport: { width: 820, height: 1000 }, colorScheme: 'dark' });
+await ctx.addInitScript(() => { try { localStorage.setItem('tml-proto-platform', 'ios'); localStorage.setItem('tml-proto-text', 'default'); } catch (e) {} });
+const page = await ctx.newPage();
+const errors = [];
+const checks = [];
+const check = (name, ok, extra = '') => checks.push(`${ok ? 'PASS' : 'FAIL'} ${name}${extra !== '' ? ` (${extra})` : ''}`);
+page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+const A = (s) => `.screen[data-device="alex"] ${s}`;
+const Mo = (s) => `.screen[data-device="mom"] ${s}`;
+const click = async (s, after = 450) => { await page.click(s, { timeout: 4000 }); await page.waitForTimeout(after); };
+await page.goto(process.env.PROTO_URL || new globalThis.URL('../index.html', import.meta.url).href);
+await page.waitForTimeout(2400);
+check('one phone at a time', (await page.locator('.device.mom').isHidden()) && (await page.locator('.device.alex').isVisible()));
+await click(A('[data-act="obSkip"]'));
+await click(A('[data-act="sendCode"]'));
+await click(A('[data-act="fillCode"]'), 1500);
+await click(A('[data-act="savePicker"]'));
+await click('#ctl-call');
+await click(A('.callcard [data-act="openShare"]'));
+await click(A('[data-act="locContinue"]'));
+await click(A('[data-act="locAllow"]'));
+await click(A('[data-act="openShareSheet"]'));
+await click(A('[data-act="sendTo"][data-to="Mom"]'), 600);
+await click(A('[data-act="notifLater"]'), 1700);
+await page.screenshot({ path: `${OUT}/narrow-alex.png` });
+check('the switch flags Mom’s message', await page.locator('[data-show-btn="mom"] .badge').isVisible());
+await click('[data-show-btn="mom"]', 500);
+check('Mom’s phone shows after the switch', await page.locator('.device.mom').isVisible());
+await click(Mo('[data-act="openLink"]'), 1000);
+await page.screenshot({ path: `${OUT}/narrow-mom.png` });
+const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+check('no sideways scroll', fits);
+console.log(checks.join('\n'));
+console.log(errors.length ? errors.join('\n') : 'no errors');
+await browser.close();

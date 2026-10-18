@@ -1,0 +1,27 @@
+<!-- @dsCard group="Status" height=150 subtitle="Every state has a word" -->
+<div class="tml-pills">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    .tml-pills { display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 10px; box-sizing: border-box; min-height: 150px; padding: 20px; background: var(--surface); font-family: var(--font-text); }
+    .tml-pill { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 12px; border-radius: var(--radius-pill); font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: -0.08px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tml-pill .dot { width: 8px; height: 8px; border-radius: 50%; box-sizing: border-box; flex: none; }
+    .tml-pill .sq { width: 8px; height: 8px; border-radius: 1px; flex: none; background: var(--ink); }
+    .tml-pill svg { width: 12px; height: 12px; flex: none; }
+    .p-live { background: var(--lamplight-wash); color: var(--lamplight-text); }
+    .p-live .dot { background: var(--lamplight); }
+    .p-viewer { background: var(--crossing-wash); color: var(--crossing-text); }
+    .p-viewer .dot { background: var(--crossing); }
+    .p-seen { background: var(--surface-raised); color: var(--ink-secondary); }
+    .p-seen .dot { border: 2px solid var(--ink-secondary); }
+    .p-ended { background: var(--surface-raised); color: var(--ink); }
+    .p-call { background: var(--connected-wash); color: var(--connected); }
+    .p-badge { min-height: 22px; padding: 0 8px; gap: 6px; background: var(--lamplight-wash); color: var(--lamplight-text); font-family: var(--font-display); font-size: 11px; line-height: 13px; font-weight: 800; letter-spacing: 0.6px; }
+    .p-badge .dot { width: 6px; height: 6px; background: var(--lamplight); }
+  </style>
+  <span class="tml-pill p-live"><span class="dot"></span>Live · updated 2 s ago</span>
+  <span class="tml-pill p-viewer"><span class="dot"></span>Sharing back</span>
+  <span class="tml-pill p-seen"><span class="dot"></span>Last seen 9:41 pm</span>
+  <span class="tml-pill p-ended"><span class="sq"></span>Sharing ended at 9:52 pm</span>
+  <span class="tml-pill p-call"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h3.5l1.8 4.6-2.3 1.6a12 12 0 0 0 5.8 5.8l1.6-2.3L20 14.5V18a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-2z" fill="currentColor"></path></svg>On a call · 04:12</span>
+  <span class="tml-pill p-badge"><span class="dot"></span>LIVE</span>
+</div>

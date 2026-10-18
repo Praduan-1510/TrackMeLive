@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Agent">
+  <title>Agent</title>
+  <ellipse cx="19" cy="54" rx="4" ry="7" fill="#946043"/>
+  <ellipse cx="77" cy="54" rx="4" ry="7" fill="#946043"/>
+  <circle cx="48" cy="52" r="29" fill="#A86C47"/>
+  <path d="M19 48 Q16 16 48 15 Q80 16 77 48 Q74 36 66 32 Q48 26 30 32 Q22 36 19 48 Z" fill="#15100C"/>
+  <path d="M30 22 Q48 18 66 22" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M31 43 Q37 38 44 43" stroke="#15100C" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M65 46 L52 46" stroke="#15100C" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="38" cy="53" rx="5" ry="3.4" fill="#F3EFE9"/>
+  <ellipse cx="58" cy="53" rx="5" ry="3" fill="#F3EFE9"/>
+  <circle cx="38" cy="53.6" r="2.4" fill="#3B2416"/>
+  <circle cx="58" cy="53.6" r="2.2" fill="#3B2416"/>
+  <path d="M32.5 51.5 Q38 49 43.5 51.5" stroke="#241612" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M52.5 52 Q58 50 63.5 52" stroke="#241612" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M41 67 Q48 68 53 66 Q55 65 56 63" stroke="#2E140C" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M36 84 L46 88 L46 92 L36 96 Z M60 84 L50 88 L50 92 L60 96 Z" fill="#111114"/>
+  <rect x="45" y="87" width="6" height="6" rx="2" fill="#111114"/>
+</svg>

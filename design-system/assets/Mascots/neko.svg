@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Neko">
+  <title>Neko</title>
+  <path d="M16 38 L20 8 L42 22 Z" fill="#ECE0CB"/>
+  <path d="M80 38 L76 8 L54 22 Z" fill="#ECE0CB"/>
+  <path d="M22 30 L24 16 L34 23 Z" fill="#F4A7A7"/>
+  <path d="M74 30 L72 16 L62 23 Z" fill="#F4A7A7"/>
+  <circle cx="48" cy="52" r="35" fill="#ECE0CB"/>
+  <ellipse cx="48" cy="56" rx="25" ry="26" fill="#DCCFB8"/>
+  <ellipse cx="48" cy="57" rx="22" ry="23" fill="#D9A37A"/>
+  <path d="M26 52 Q28 34 48 34 Q68 34 70 52 L64 46 L58 52 L52 44 L46 51 L40 44 L34 51 Z" fill="#3A2722"/>
+  <path d="M34 62 Q38 56 42 62" stroke="#2A1712" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M54 62 Q58 56 62 62" stroke="#2A1712" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M43 69 Q45.5 72.5 48 69 Q50.5 72.5 53 69" stroke="#4A2420" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <ellipse cx="32" cy="68" rx="4.5" ry="2.8" fill="#FF8585"/>
+  <ellipse cx="64" cy="68" rx="4.5" ry="2.8" fill="#FF8585"/>
+</svg>

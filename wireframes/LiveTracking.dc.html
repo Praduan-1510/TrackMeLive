@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Live map</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap">
+<style>
+body{margin:0}
+a{color:#222222}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 20px 20px 24px; display: flex; flex-direction: column; gap: 12px; background: #FFFFFF; color: #222222; font-family: 'Balsamiq Sans', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+  <div style="display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 4px 6px 4px 12px; box-sizing: border-box; border: 2px solid #222222; border-radius: 14px">
+    <span style="flex: none; width: 10px; height: 10px; border-radius: 50%; background: #222222"></span>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25">
+      <div style="font-weight: 700">On a call with Mom</div>
+      <div style="color: #6B6B6B; font-size: 13px">00:09</div>
+    </div>
+    <a href="Home.dc.html" aria-label="Home" style="flex: none; width: 44px; height: 44px; box-sizing: border-box; border: 2px solid #222222; border-radius: 50%; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 L12 4 L20 11 V19 a1.5 1.5 0 0 1 -1.5 1.5 H14.5 V15 h-5 v5.5 H5.5 A1.5 1.5 0 0 1 4 19 Z" fill="#222222"></path></svg></a>
+  </div>
+  <div style="margin-top: -6px; font-size: 12px; color: #4D4D4D">[ Android adds Back to call here (with the Phone permission). On iPhone, the green call pill in the status bar returns to the call. ]</div>
+
+  <div style="position: relative; flex: none; height: 196px; border: 2px solid #222222; border-radius: 14px; overflow: hidden; background: #EFEFEF">
+    <svg width="100%" height="100%" viewBox="0 0 350 196" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block">
+      <rect x="0" y="0" width="350" height="196" fill="#EFEFEF"></rect>
+      <path d="M0 150 L350 112 M120 0 L160 196 M0 46 L350 64 M265 0 L245 196" stroke="#D6D6D6" stroke-width="14" fill="none"></path>
+      <rect x="20" y="160" width="80" height="34" fill="#E2E2E2"></rect>
+      <path d="M95 190 L118 160 L145 128 L165 100" stroke="#8A8A8A" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round" fill="none"></path>
+    </svg>
+    <div style="position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -32px 0 0 -26px; box-sizing: border-box; border: 3px solid #222222; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px">Fox</div>
+    <div style="position: absolute; left: 50%; top: 50%; margin: 22px 0 0 -20px; width: 40px; text-align: center; background: #FFFFFF; border: 2px solid #222222; border-radius: 999px; font-size: 11px; font-weight: 700">You</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <div style="display: flex; align-items: center; gap: 8px"><h1 style="margin: 0; font-size: 20px; line-height: 1.25">Sharing live</h1><span style="display: flex; align-items: center; gap: 5px; padding: 0 8px; border: 2px solid #222222; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em"><span style="width: 7px; height: 7px; border-radius: 50%; background: #222222"></span>LIVE</span></div>
+    <div style="color: #4D4D4D; font-size: 14px">Link sent to Mom. You'll know when it's opened.</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+    <div style="display: flex; flex-direction: column; padding: 8px 10px; border: 2px solid #8A8A8A; border-radius: 10px; line-height: 1.25"><b style="font-size: 15px">Waiting</b><span style="color: #6B6B6B; font-size: 12px">for Mom to share</span></div>
+    <div style="display: flex; flex-direction: column; padding: 8px 10px; border: 2px solid #8A8A8A; border-radius: 10px; line-height: 1.25"><b style="font-size: 15px">&lt; 1 min</b><span style="color: #6B6B6B; font-size: 12px">sharing</span></div>
+    <div style="display: flex; flex-direction: column; padding: 8px 10px; border: 2px solid #8A8A8A; border-radius: 10px; line-height: 1.25"><b style="font-size: 15px">When call ends</b><span style="color: #6B6B6B; font-size: 12px">stops</span></div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; border: 2px solid #222222; border-radius: 14px; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 12px; box-sizing: border-box; border-bottom: 2px solid #D6D6D6">
+      <div style="flex: none; width: 36px; height: 36px; box-sizing: border-box; border: 3px solid #222222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700">Fox</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25"><b>You</b><span style="color: #6B6B6B; font-size: 13px">Precise · every 3.5 s</span></div>
+      <span style="flex: none; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700"><span style="width: 8px; height: 8px; border-radius: 50%; background: #222222"></span>Live</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 12px; box-sizing: border-box">
+      <div style="flex: none; width: 36px; height: 36px; box-sizing: border-box; border: 2px dashed #6B6B6B; border-radius: 50%; color: #4D4D4D; display: flex; align-items: center; justify-content: center; font-weight: 700">M</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25"><b>Mom</b><span style="color: #6B6B6B; font-size: 13px">Link sent · not opened yet</span></div>
+      <span style="flex: none; display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: #4D4D4D"><span style="width: 8px; height: 8px; box-sizing: border-box; border: 2px solid #6B6B6B; border-radius: 50%"></span>Waiting</span>
+    </div>
+  </div>
+  <div style="font-size: 12px; color: #4D4D4D">[ Once Mom opens the link, Mom's row reads "Opened at 9:41 pm" with Ask to share, once per call. The interval is the real one: every 15 s below 20% battery, every 60 s below 10%. ]</div>
+
+  <div style="flex: 1"></div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="flex: 1; min-height: 48px; border: 2px solid #222222; border-radius: 12px; background: #FFFFFF; color: #222222; font-family: inherit; font-size: 15px; font-weight: 700">Change timer</button>
+      <button type="button" style="flex: 1; min-height: 48px; border: 2px solid #222222; border-radius: 12px; background: #FFFFFF; color: #222222; font-family: inherit; font-size: 15px; font-weight: 700">Send link again</button>
+    </div>
+    <a href="Home.dc.html" style="display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 12px; background: #C2410C; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 16px">Stop sharing</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,251 @@
+/* Track Me Live — generated from tokens.json. Do not edit by hand. */
+
+:root, [data-theme="light"] {
+  --ground: #F4F5F2;
+  --surface: #FFFFFF;
+  --surface-raised: #EBEEEA;
+  --ink: #11181B;
+  --ink-secondary: #4A575D;
+  --ink-tertiary: #5F6C72;
+  --separator: #11181b1f;
+  --lamplight: #F2A033;
+  --on-lamplight: #1F1405;
+  --lamplight-text: #9A5500;
+  --lamplight-wash: #FCEBD2;
+  --lamplight-halo: #f2a03329;
+  --crossing: #1D6FDB;
+  --on-crossing: #FFFFFF;
+  --crossing-text: #1D63C4;
+  --crossing-wash: #DCEAFC;
+  --crossing-halo: #1d6fdb24;
+  --flare: #D33A2C;
+  --on-flare: #FFFFFF;
+  --flare-text: #B42E22;
+  --flare-wash: #FBE3E0;
+  --connected: #17733F;
+  --connected-wash: #DDF2E4;
+  --glass-fill: #ffffffd1;
+  --glass-edge: #0b10121f;
+  --glass-highlight: #ffffffe6;
+  --focus-ring: #1D6FDB;
+  --map-land: #E9ECE6;
+  --map-road: #FFFFFF;
+  --map-road-major: #F7E3BC;
+  --map-park: #D3E6CF;
+  --map-water: #C7DDE8;
+  --map-label: #4A575D;
+  --shadow-marker: 0 6px 16px rgba(17, 24, 27, 0.25);
+  --shadow-float: 0 18px 48px rgba(17, 24, 27, 0.18);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --ground: #0B1012;
+  --surface: #151B1E;
+  --surface-raised: #1E2629;
+  --ink: #EEF2F1;
+  --ink-secondary: #A2AEB2;
+  --ink-tertiary: #85919A;
+  --separator: #ffffff1a;
+  --lamplight: #F7AE45;
+  --on-lamplight: #1F1405;
+  --lamplight-text: #FFC266;
+  --lamplight-wash: #3A2A12;
+  --lamplight-halo: #f7ae452e;
+  --crossing: #5AA9FF;
+  --on-crossing: #04192F;
+  --crossing-text: #8CC4FF;
+  --crossing-wash: #0F2742;
+  --crossing-halo: #5aa9ff2e;
+  --flare: #FF6B5E;
+  --on-flare: #2A0805;
+  --flare-text: #FF8A7F;
+  --flare-wash: #3A1716;
+  --connected: #4ED188;
+  --connected-wash: #12301F;
+  --glass-fill: #1c2427cc;
+  --glass-edge: #00000080;
+  --glass-highlight: #ffffff2e;
+  --focus-ring: #8CC4FF;
+  --map-land: #11171A;
+  --map-road: #1D2629;
+  --map-road-major: #302C24;
+  --map-park: #14241D;
+  --map-water: #0E2130;
+  --map-label: #8E9AA0;
+  --shadow-marker: 0 8px 20px rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 24px 60px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --ground: #0B1012;
+    --surface: #151B1E;
+    --surface-raised: #1E2629;
+    --ink: #EEF2F1;
+    --ink-secondary: #A2AEB2;
+    --ink-tertiary: #85919A;
+    --separator: #ffffff1a;
+    --lamplight: #F7AE45;
+    --on-lamplight: #1F1405;
+    --lamplight-text: #FFC266;
+    --lamplight-wash: #3A2A12;
+    --lamplight-halo: #f7ae452e;
+    --crossing: #5AA9FF;
+    --on-crossing: #04192F;
+    --crossing-text: #8CC4FF;
+    --crossing-wash: #0F2742;
+    --crossing-halo: #5aa9ff2e;
+    --flare: #FF6B5E;
+    --on-flare: #2A0805;
+    --flare-text: #FF8A7F;
+    --flare-wash: #3A1716;
+    --connected: #4ED188;
+    --connected-wash: #12301F;
+    --glass-fill: #1c2427cc;
+    --glass-edge: #00000080;
+    --glass-highlight: #ffffff2e;
+    --focus-ring: #8CC4FF;
+    --map-land: #11171A;
+    --map-road: #1D2629;
+    --map-road-major: #302C24;
+    --map-park: #14241D;
+    --map-water: #0E2130;
+    --map-label: #8E9AA0;
+    --shadow-marker: 0 8px 20px rgba(0, 0, 0, 0.55);
+    --shadow-float: 0 24px 60px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --tap-target: 44px;
+  --tap-target-lg: 48px;
+  --radius-xs: 8px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+  --radius-sheet: 38px;
+  --radius-pill: 999px;
+  --font-display: "Gabarito", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Figtree", system-ui, sans-serif;
+}
+
+.large-title {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+}
+
+.title-1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: -0.45px;
+}
+
+.title-2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.title-3 {
+  font-family: var(--font-text);
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 600;
+  letter-spacing: -0.45px;
+}
+
+.headline {
+  font-family: var(--font-text);
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.43px;
+}
+
+.body {
+  font-family: var(--font-text);
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 400;
+  letter-spacing: -0.43px;
+}
+
+.callout {
+  font-family: var(--font-text);
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 400;
+  letter-spacing: -0.31px;
+}
+
+.subheadline {
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 400;
+  letter-spacing: -0.23px;
+}
+
+.footnote {
+  font-family: var(--font-text);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  letter-spacing: -0.08px;
+}
+
+.caption-1 {
+  font-family: var(--font-text);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0px;
+}
+
+.caption-2 {
+  font-family: var(--font-text);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 400;
+  letter-spacing: 0.06px;
+}
+
+.distance {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.metric {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+}
+
+.badge {
+  font-family: var(--font-display);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}

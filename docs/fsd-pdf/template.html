@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400&display=block">
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+
+<section class="cover" aria-label="Cover">
+  <div class="cover-art">
+    <svg class="streets" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <g fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="9" stroke-linecap="round">
+        <path d="M-20 92 L820 48"/><path d="M-20 262 L820 214"/><path d="M-20 446 L820 398"/>
+        <path d="M150 -20 L178 540"/><path d="M432 -20 L452 540"/><path d="M676 -20 L690 540"/>
+      </g>
+      <path d="M-20 392 C 220 352 470 270 820 92" fill="none" stroke="#fff" stroke-opacity=".26" stroke-width="20" stroke-linecap="round"/>
+    </svg>
+    {{COVER_LOGO}}
+    {{COVER_CONVO}}
+  </div>
+  <div class="cover-text">
+    <p class="cover-title">{{DOC_TITLE}}</p>
+    <p class="tagline">Share where you are, the moment you're on the phone.</p>
+    <dl class="cover-meta">
+      {{COVER_META}}
+    </dl>
+  </div>
+</section>
+
+<section class="front">
+  <h2 class="front-title">Contents</h2>
+  <ol class="toc">
+    {{TOC}}
+  </ol>
+  <div class="about">
+    <h3>About this PDF</h3>
+    <dl>
+      {{ABOUT}}
+    </dl>
+  </div>
+</section>
+
+<main class="doc">
+{{BODY}}
+</main>
+
+</body>
+</html>

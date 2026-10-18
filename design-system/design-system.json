@@ -1,0 +1,882 @@
+{
+  "v": 3,
+  "assetGroups": {
+    "Mascots": {
+      "files": {
+        "fox.png": {
+          "blob": "17d932d1022a882a756e8882bc1ba3aa",
+          "name": "fox.png",
+          "size": 110472,
+          "type": "image/png"
+        },
+        "ghost.png": {
+          "blob": "318891da8df627aab8c4755804980981",
+          "name": "ghost.png",
+          "size": 77667,
+          "type": "image/png"
+        },
+        "robot.png": {
+          "blob": "f1ffee6791eccb12a9ac0dda3ce4fb8b",
+          "name": "robot.png",
+          "size": 98118,
+          "type": "image/png"
+        },
+        "astronaut.png": {
+          "blob": "24f98f0e1c2bc345b6c68257efa1a4bb",
+          "name": "astronaut.png",
+          "size": 103417,
+          "type": "image/png"
+        },
+        "astronaut.svg": {
+          "blob": "4c45ffc15279e44a8ebf9e59509966b8",
+          "name": "astronaut.svg",
+          "size": 616,
+          "type": "image/svg+xml"
+        },
+        "fox.svg": {
+          "blob": "aa11ecd30248e9d95c622484f384b044",
+          "name": "fox.svg",
+          "size": 600,
+          "type": "image/svg+xml"
+        },
+        "ghost.svg": {
+          "blob": "b1e1d2bd3fe927b85f6cc14d688a5c1a",
+          "name": "ghost.svg",
+          "size": 584,
+          "type": "image/svg+xml"
+        },
+        "robot.svg": {
+          "blob": "0fd2ba9c9c72042aeeae1adbb71e43e6",
+          "name": "robot.svg",
+          "size": 704,
+          "type": "image/svg+xml"
+        },
+        "hero.png": {
+          "blob": "e4f9da3652e8cd2fdc201f582bf5bc86",
+          "name": "hero.png",
+          "size": 146070,
+          "type": "image/png"
+        },
+        "star.png": {
+          "blob": "36f20c82c0e9ed586de6d4bb268c2da0",
+          "name": "star.png",
+          "size": 126252,
+          "type": "image/png"
+        },
+        "ninja.png": {
+          "blob": "e5e44ffcd2b6daaa41afb71b324fa239",
+          "name": "ninja.png",
+          "size": 121743,
+          "type": "image/png"
+        },
+        "neko.png": {
+          "blob": "f7763059192bb5a71deabbe38beb3ef9",
+          "name": "neko.png",
+          "size": 123113,
+          "type": "image/png"
+        },
+        "ace.png": {
+          "blob": "8d2b671cf73aa534921201513e78c5bf",
+          "name": "ace.png",
+          "size": 147523,
+          "type": "image/png"
+        },
+        "detective.png": {
+          "blob": "4bf6d1a1f453deca2de21dee94f2d350",
+          "name": "detective.png",
+          "size": 102477,
+          "type": "image/png"
+        },
+        "cowboy.png": {
+          "blob": "aedc770daa54c58d2d763c1e885bd7a7",
+          "name": "cowboy.png",
+          "size": 88944,
+          "type": "image/png"
+        },
+        "agent.png": {
+          "blob": "9c7e5797b8a7a30fd0c48cbe6d23cb76",
+          "name": "agent.png",
+          "size": 145183,
+          "type": "image/png"
+        },
+        "hero.svg": {
+          "blob": "35d4c967315164356bb1d75d7bed63df",
+          "name": "hero.svg",
+          "size": 1329,
+          "type": "image/svg+xml"
+        },
+        "star.svg": {
+          "blob": "eb5334906d8dba77862476d34c1c2f1c",
+          "name": "star.svg",
+          "size": 1300,
+          "type": "image/svg+xml"
+        },
+        "ninja.svg": {
+          "blob": "7adcac9e686faca36d726a5eeb9d7f02",
+          "name": "ninja.svg",
+          "size": 874,
+          "type": "image/svg+xml"
+        },
+        "neko.svg": {
+          "blob": "357dc6c11012414302f9788569b80724",
+          "name": "neko.svg",
+          "size": 1078,
+          "type": "image/svg+xml"
+        },
+        "ace.svg": {
+          "blob": "92fae050307b040e3f287b21888f24a4",
+          "name": "ace.svg",
+          "size": 1169,
+          "type": "image/svg+xml"
+        },
+        "detective.svg": {
+          "blob": "70f8fd25149e825848e10e515681d2e2",
+          "name": "detective.svg",
+          "size": 1319,
+          "type": "image/svg+xml"
+        },
+        "cowboy.svg": {
+          "blob": "b625af65858d969b77c0880350f09a2b",
+          "name": "cowboy.svg",
+          "size": 1373,
+          "type": "image/svg+xml"
+        },
+        "agent.svg": {
+          "blob": "ebf05292bde2511629ee6857f92dd767",
+          "name": "agent.svg",
+          "size": 1448,
+          "type": "image/svg+xml"
+        }
+      },
+      "name": "Mascots",
+      "order": [
+        "fox.png",
+        "ghost.png",
+        "robot.png",
+        "astronaut.png",
+        "hero.png",
+        "star.png",
+        "ninja.png",
+        "neko.png",
+        "ace.png",
+        "detective.png",
+        "cowboy.png",
+        "agent.png",
+        "fox.svg",
+        "ghost.svg",
+        "robot.svg",
+        "astronaut.svg",
+        "hero.svg",
+        "star.svg",
+        "ninja.svg",
+        "neko.svg",
+        "ace.svg",
+        "detective.svg",
+        "cowboy.svg",
+        "agent.svg"
+      ],
+      "tile": "m"
+    },
+    "Brand": {
+      "files": {
+        "mark.svg": {
+          "blob": "dd487bbc90daa05c332e144db33ba3a8",
+          "name": "mark.svg",
+          "size": 567,
+          "type": "image/svg+xml"
+        },
+        "mark-on-dark.svg": {
+          "blob": "918a6301c3562fc17d0dc1ecd56aab6f",
+          "name": "mark-on-dark.svg",
+          "size": 567,
+          "type": "image/svg+xml"
+        },
+        "logo-horizontal.svg": {
+          "blob": "48c219932f8b18a96feb47990bd94e54",
+          "name": "logo-horizontal.svg",
+          "size": 4808,
+          "type": "image/svg+xml"
+        },
+        "logo-horizontal-on-dark.svg": {
+          "blob": "9c04ac34407e5fd5acbed0ac1874dbe8",
+          "name": "logo-horizontal-on-dark.svg",
+          "size": 4808,
+          "type": "image/svg+xml"
+        },
+        "app-icon-default.svg": {
+          "blob": "bdd2736e72d3a0cb8b34604b711578b4",
+          "name": "app-icon-default.svg",
+          "size": 643,
+          "type": "image/svg+xml"
+        },
+        "live-together.svg": {
+          "blob": "99d73581d4386845e6f4adbaaa38d649",
+          "name": "live-together.svg",
+          "size": 1340,
+          "type": "image/svg+xml"
+        },
+        "wordmark.svg": {
+          "blob": "577ecfe702c800efed4b7ca05c19445c",
+          "name": "wordmark.svg",
+          "size": 4399,
+          "type": "image/svg+xml"
+        },
+        "wordmark-on-dark.svg": {
+          "blob": "97ca15a4a3fb38606e1cfc68eafb49fa",
+          "name": "wordmark-on-dark.svg",
+          "size": 4399,
+          "type": "image/svg+xml"
+        },
+        "wordmark-on-amber.svg": {
+          "blob": "000225b6b89af1297c8b9ce1c6632762",
+          "name": "wordmark-on-amber.svg",
+          "size": 4399,
+          "type": "image/svg+xml"
+        },
+        "favicon.svg": {
+          "blob": "3cbbfe59749eb530a70a80cf3c3defa4",
+          "name": "favicon.svg",
+          "size": 573,
+          "type": "image/svg+xml"
+        },
+        "app-icon-dark.svg": {
+          "blob": "325ab471f708125f827d8ff12c716f7a",
+          "name": "app-icon-dark.svg",
+          "size": 643,
+          "type": "image/svg+xml"
+        },
+        "app-icon-tinted.svg": {
+          "blob": "ee6ea0c06222298b207020cdae25cf6d",
+          "name": "app-icon-tinted.svg",
+          "size": 826,
+          "type": "image/svg+xml"
+        },
+        "logo-stacked.svg": {
+          "blob": "ff13ca678de554b2b1e2c7be0d870c07",
+          "name": "logo-stacked.svg",
+          "size": 4811,
+          "type": "image/svg+xml"
+        },
+        "logo-stacked-on-dark.svg": {
+          "blob": "09d51b88758a4aff16a1d89c4528ec3d",
+          "name": "logo-stacked-on-dark.svg",
+          "size": 4811,
+          "type": "image/svg+xml"
+        },
+        "logo-horizontal-on-amber.svg": {
+          "blob": "dd8cd2d56e114674ed5293f274e33ae2",
+          "name": "logo-horizontal-on-amber.svg",
+          "size": 4987,
+          "type": "image/svg+xml"
+        },
+        "live-together-on-dark.svg": {
+          "blob": "d897b3b86f5dad713914b902192ac092",
+          "name": "live-together-on-dark.svg",
+          "size": 1340,
+          "type": "image/svg+xml"
+        },
+        "mark-mono-ink.svg": {
+          "blob": "1f6982008ad575d3ccbff50a90f722ce",
+          "name": "mark-mono-ink.svg",
+          "size": 746,
+          "type": "image/svg+xml"
+        },
+        "mark-mono-white.svg": {
+          "blob": "88a4fd96064553e88f06f8f37e489d1d",
+          "name": "mark-mono-white.svg",
+          "size": 746,
+          "type": "image/svg+xml"
+        },
+        "mark-them.svg": {
+          "blob": "f2756e81b9582508ef435b57a7ce3143",
+          "name": "mark-them.svg",
+          "size": 571,
+          "type": "image/svg+xml"
+        },
+        "android-icon-background.svg": {
+          "blob": "5eb23a428c2b7e1a465015aea6d21c90",
+          "name": "android-icon-background.svg",
+          "size": 274,
+          "type": "image/svg+xml"
+        },
+        "android-icon-foreground.svg": {
+          "blob": "beadc8c1302c926e233447743acae1b2",
+          "name": "android-icon-foreground.svg",
+          "size": 644,
+          "type": "image/svg+xml"
+        },
+        "android-icon-monochrome.svg": {
+          "blob": "6928f62f8e3dbc7b77686088cf97837b",
+          "name": "android-icon-monochrome.svg",
+          "size": 840,
+          "type": "image/svg+xml"
+        },
+        "play-store-icon.svg": {
+          "blob": "7025cd3385981aac5ef2f3530e0b6c56",
+          "name": "play-store-icon.svg",
+          "size": 653,
+          "type": "image/svg+xml"
+        },
+        "play-store-icon.png": {
+          "blob": "1b8d10a38f5f201a866e2891fa21e3f5",
+          "name": "play-store-icon.png",
+          "size": 20149,
+          "type": "image/png"
+        }
+      },
+      "name": "Brand",
+      "order": [
+        "mark.svg",
+        "mark-on-dark.svg",
+        "mark-mono-ink.svg",
+        "mark-mono-white.svg",
+        "mark-them.svg",
+        "wordmark.svg",
+        "wordmark-on-dark.svg",
+        "wordmark-on-amber.svg",
+        "logo-horizontal.svg",
+        "logo-horizontal-on-dark.svg",
+        "logo-horizontal-on-amber.svg",
+        "logo-stacked.svg",
+        "logo-stacked-on-dark.svg",
+        "live-together.svg",
+        "live-together-on-dark.svg",
+        "app-icon-default.svg",
+        "app-icon-dark.svg",
+        "app-icon-tinted.svg",
+        "android-icon-background.svg",
+        "android-icon-foreground.svg",
+        "android-icon-monochrome.svg",
+        "play-store-icon.svg",
+        "play-store-icon.png",
+        "favicon.svg"
+      ],
+      "tile": "m"
+    },
+    "Mascot colors": {
+      "files": {
+        "hero-moss.png": {
+          "blob": "eec38c42e5da8e9e2601187caf344b07",
+          "name": "hero-moss.png",
+          "size": 145059,
+          "type": "image/png"
+        },
+        "hero-lagoon.png": {
+          "blob": "9f4f6812e8384a90fe25a74b1342a1e8",
+          "name": "hero-lagoon.png",
+          "size": 143264,
+          "type": "image/png"
+        },
+        "hero-dusk.png": {
+          "blob": "5b3a3c219db13ceca8797a21f4f8cb8f",
+          "name": "hero-dusk.png",
+          "size": 141470,
+          "type": "image/png"
+        },
+        "hero-rose.png": {
+          "blob": "be444f9cedf698040824c09ff562faf5",
+          "name": "hero-rose.png",
+          "size": 143500,
+          "type": "image/png"
+        },
+        "star-moss.png": {
+          "blob": "ee343d2f557dc9eae0ae16032704cc89",
+          "name": "star-moss.png",
+          "size": 134590,
+          "type": "image/png"
+        },
+        "star-lagoon.png": {
+          "blob": "f9770595ff450ac6d1418adc4ec30a2e",
+          "name": "star-lagoon.png",
+          "size": 133995,
+          "type": "image/png"
+        },
+        "star-dusk.png": {
+          "blob": "a151806d9162df62a448de78f2153c75",
+          "name": "star-dusk.png",
+          "size": 132033,
+          "type": "image/png"
+        },
+        "star-rose.png": {
+          "blob": "3fd351fdc117608ae95724f1496720f6",
+          "name": "star-rose.png",
+          "size": 137757,
+          "type": "image/png"
+        },
+        "ninja-moss.png": {
+          "blob": "59610fd04ee3de42026f8969cb6e890a",
+          "name": "ninja-moss.png",
+          "size": 126498,
+          "type": "image/png"
+        },
+        "ninja-lagoon.png": {
+          "blob": "eee5f9a94779d3e10af5cc79ee8a4227",
+          "name": "ninja-lagoon.png",
+          "size": 127351,
+          "type": "image/png"
+        },
+        "ninja-dusk.png": {
+          "blob": "13080e873e1d3680e1256ebeb17c5dfb",
+          "name": "ninja-dusk.png",
+          "size": 126248,
+          "type": "image/png"
+        },
+        "ninja-rose.png": {
+          "blob": "04233217e420e637e8d95cb3ec9dd409",
+          "name": "ninja-rose.png",
+          "size": 126995,
+          "type": "image/png"
+        },
+        "neko-moss.png": {
+          "blob": "ba16aa53c4970bfd0ad83d43e4300dd5",
+          "name": "neko-moss.png",
+          "size": 135516,
+          "type": "image/png"
+        },
+        "neko-lagoon.png": {
+          "blob": "c664b515d793c339e5450e036b9ad748",
+          "name": "neko-lagoon.png",
+          "size": 136568,
+          "type": "image/png"
+        },
+        "neko-dusk.png": {
+          "blob": "610191a7778401637e5c0fa9baa8ef79",
+          "name": "neko-dusk.png",
+          "size": 133343,
+          "type": "image/png"
+        },
+        "neko-rose.png": {
+          "blob": "00c4a94c41d642befab87bcc079ca6bc",
+          "name": "neko-rose.png",
+          "size": 133783,
+          "type": "image/png"
+        },
+        "ace-moss.png": {
+          "blob": "c877cdbb1ccc0d4c025631cef931c85f",
+          "name": "ace-moss.png",
+          "size": 144514,
+          "type": "image/png"
+        },
+        "ace-lagoon.png": {
+          "blob": "32a7f443c6515e3440569e44008f0f24",
+          "name": "ace-lagoon.png",
+          "size": 144878,
+          "type": "image/png"
+        },
+        "ace-dusk.png": {
+          "blob": "d6757e38277eaca3ebdbcbcde76d67fc",
+          "name": "ace-dusk.png",
+          "size": 145005,
+          "type": "image/png"
+        },
+        "ace-rose.png": {
+          "blob": "84171755e6e3f9488c544ad4ed5350e0",
+          "name": "ace-rose.png",
+          "size": 145069,
+          "type": "image/png"
+        },
+        "detective-moss.png": {
+          "blob": "a29ce4e97efaee92ce6a64a86a2af721",
+          "name": "detective-moss.png",
+          "size": 103077,
+          "type": "image/png"
+        },
+        "detective-lagoon.png": {
+          "blob": "1c03af4bcd6b3ccab31142ca47d92c5e",
+          "name": "detective-lagoon.png",
+          "size": 103531,
+          "type": "image/png"
+        },
+        "detective-dusk.png": {
+          "blob": "f1cad4332ce568174f76e81bccc4c4d3",
+          "name": "detective-dusk.png",
+          "size": 103244,
+          "type": "image/png"
+        },
+        "detective-rose.png": {
+          "blob": "b099b20145cf7b5062ffac30538ac9ce",
+          "name": "detective-rose.png",
+          "size": 103498,
+          "type": "image/png"
+        },
+        "cowboy-moss.png": {
+          "blob": "d545c02a11b1a61cc33af57fa0342bf7",
+          "name": "cowboy-moss.png",
+          "size": 90759,
+          "type": "image/png"
+        },
+        "cowboy-lagoon.png": {
+          "blob": "0594a8dd45a7ba0af9ba28cc150ee1b3",
+          "name": "cowboy-lagoon.png",
+          "size": 90334,
+          "type": "image/png"
+        },
+        "cowboy-dusk.png": {
+          "blob": "aaa7ad656ea2cf2507a9118002106af0",
+          "name": "cowboy-dusk.png",
+          "size": 89695,
+          "type": "image/png"
+        },
+        "cowboy-rose.png": {
+          "blob": "f441cae139d5772da75f50bd2eaf9a22",
+          "name": "cowboy-rose.png",
+          "size": 89789,
+          "type": "image/png"
+        },
+        "agent-moss.png": {
+          "blob": "cb1a4b6fed801d8f296883b4bd74d443",
+          "name": "agent-moss.png",
+          "size": 147228,
+          "type": "image/png"
+        },
+        "agent-lagoon.png": {
+          "blob": "8c3430951929a3d91cfbebe40bdcf704",
+          "name": "agent-lagoon.png",
+          "size": 147031,
+          "type": "image/png"
+        },
+        "agent-dusk.png": {
+          "blob": "fddb2e72c796737dc849df0886fbe870",
+          "name": "agent-dusk.png",
+          "size": 146528,
+          "type": "image/png"
+        },
+        "agent-rose.png": {
+          "blob": "f3b98fa65b5aa2a3127f951685bac31f",
+          "name": "agent-rose.png",
+          "size": 146868,
+          "type": "image/png"
+        },
+        "fox-moss.png": {
+          "blob": "fea909d5710f508dcd34bafeacc8cbdd",
+          "name": "fox-moss.png",
+          "size": 111216,
+          "type": "image/png"
+        },
+        "fox-lagoon.png": {
+          "blob": "d787c541cdfb0c7b856732ebe9c36557",
+          "name": "fox-lagoon.png",
+          "size": 111607,
+          "type": "image/png"
+        },
+        "fox-dusk.png": {
+          "blob": "a8adf5606b40fd1faa2e66d444605470",
+          "name": "fox-dusk.png",
+          "size": 108395,
+          "type": "image/png"
+        },
+        "fox-rose.png": {
+          "blob": "ea15c7b5823dc6d4a4b2ad909cbd842d",
+          "name": "fox-rose.png",
+          "size": 108205,
+          "type": "image/png"
+        },
+        "ghost-moss.png": {
+          "blob": "4fbfcece955a5f0c9878638bc042594d",
+          "name": "ghost-moss.png",
+          "size": 85822,
+          "type": "image/png"
+        },
+        "ghost-lagoon.png": {
+          "blob": "17b271054c36e026760f3e7480120f21",
+          "name": "ghost-lagoon.png",
+          "size": 88469,
+          "type": "image/png"
+        },
+        "ghost-dusk.png": {
+          "blob": "403ce1a237427b01dc5f9a918ed5d61c",
+          "name": "ghost-dusk.png",
+          "size": 89874,
+          "type": "image/png"
+        },
+        "ghost-rose.png": {
+          "blob": "96eebce53714ea7f7bc87aade1a57edb",
+          "name": "ghost-rose.png",
+          "size": 88658,
+          "type": "image/png"
+        },
+        "robot-moss.png": {
+          "blob": "66bc8fd3094752a463fbeee2ef24b5d0",
+          "name": "robot-moss.png",
+          "size": 103612,
+          "type": "image/png"
+        },
+        "robot-lagoon.png": {
+          "blob": "088b47e8d23549c94ce3f3c79128a543",
+          "name": "robot-lagoon.png",
+          "size": 104408,
+          "type": "image/png"
+        },
+        "robot-dusk.png": {
+          "blob": "9cb0ea27ff9d05cd63a635b2d9a85443",
+          "name": "robot-dusk.png",
+          "size": 103276,
+          "type": "image/png"
+        },
+        "robot-rose.png": {
+          "blob": "736cf234d22cccbdcb618f73f06efe2c",
+          "name": "robot-rose.png",
+          "size": 104091,
+          "type": "image/png"
+        },
+        "astronaut-moss.png": {
+          "blob": "5244cdea8ecef42d689c8a1b0218b792",
+          "name": "astronaut-moss.png",
+          "size": 123672,
+          "type": "image/png"
+        },
+        "astronaut-lagoon.png": {
+          "blob": "2c87c825f5b74a70d92db5acd270f2b7",
+          "name": "astronaut-lagoon.png",
+          "size": 123301,
+          "type": "image/png"
+        },
+        "astronaut-dusk.png": {
+          "blob": "70b8079a4eed21ade7cdb1d10360541b",
+          "name": "astronaut-dusk.png",
+          "size": 120185,
+          "type": "image/png"
+        },
+        "astronaut-rose.png": {
+          "blob": "0d72c1da1139e2ae661525c998b0c77a",
+          "name": "astronaut-rose.png",
+          "size": 122061,
+          "type": "image/png"
+        }
+      },
+      "name": "Mascot colors",
+      "order": [
+        "fox-moss.png",
+        "fox-lagoon.png",
+        "fox-dusk.png",
+        "fox-rose.png",
+        "ghost-moss.png",
+        "ghost-lagoon.png",
+        "ghost-dusk.png",
+        "ghost-rose.png",
+        "robot-moss.png",
+        "robot-lagoon.png",
+        "robot-dusk.png",
+        "robot-rose.png",
+        "astronaut-moss.png",
+        "astronaut-lagoon.png",
+        "astronaut-dusk.png",
+        "astronaut-rose.png",
+        "hero-moss.png",
+        "hero-lagoon.png",
+        "hero-dusk.png",
+        "hero-rose.png",
+        "star-moss.png",
+        "star-lagoon.png",
+        "star-dusk.png",
+        "star-rose.png",
+        "ninja-moss.png",
+        "ninja-lagoon.png",
+        "ninja-dusk.png",
+        "ninja-rose.png",
+        "neko-moss.png",
+        "neko-lagoon.png",
+        "neko-dusk.png",
+        "neko-rose.png",
+        "ace-moss.png",
+        "ace-lagoon.png",
+        "ace-dusk.png",
+        "ace-rose.png",
+        "detective-moss.png",
+        "detective-lagoon.png",
+        "detective-dusk.png",
+        "detective-rose.png",
+        "cowboy-moss.png",
+        "cowboy-lagoon.png",
+        "cowboy-dusk.png",
+        "cowboy-rose.png",
+        "agent-moss.png",
+        "agent-lagoon.png",
+        "agent-dusk.png",
+        "agent-rose.png"
+      ],
+      "tile": "s"
+    },
+    "Mascot accessories": {
+      "files": {
+        "fox-headphones.png": {
+          "blob": "86387932bec693fe2d9b2ac183321dd3",
+          "name": "fox-headphones.png",
+          "size": 33455,
+          "type": "image/png"
+        },
+        "fox-glasses.png": {
+          "blob": "15ff43e93b33c796ca7cb59fa7d18b27",
+          "name": "fox-glasses.png",
+          "size": 38644,
+          "type": "image/png"
+        },
+        "fox-headlamp.png": {
+          "blob": "e8ad23bf2631e310a1c8055f5f4bcf30",
+          "name": "fox-headlamp.png",
+          "size": 24692,
+          "type": "image/png"
+        },
+        "ghost-headphones.png": {
+          "blob": "49b72740449915c7882bf71620a4e4a3",
+          "name": "ghost-headphones.png",
+          "size": 39589,
+          "type": "image/png"
+        },
+        "ghost-glasses.png": {
+          "blob": "ff7fa3805fe454f697a5b650f9d6ee0e",
+          "name": "ghost-glasses.png",
+          "size": 30209,
+          "type": "image/png"
+        },
+        "ghost-headlamp.png": {
+          "blob": "da61ac1e372fd9e642a87b0a10995ab0",
+          "name": "ghost-headlamp.png",
+          "size": 21694,
+          "type": "image/png"
+        },
+        "robot-headlamp.png": {
+          "blob": "fb79c72a0fe316e70ea9825be6a86046",
+          "name": "robot-headlamp.png",
+          "size": 36879,
+          "type": "image/png"
+        },
+        "hero-glasses.png": {
+          "blob": "91f68e44e3bfb2dcb185d706634970a4",
+          "name": "hero-glasses.png",
+          "size": 28698,
+          "type": "image/png"
+        },
+        "star-headphones.png": {
+          "blob": "8fdeca6d4e96f14f7001be267c1344ea",
+          "name": "star-headphones.png",
+          "size": 36185,
+          "type": "image/png"
+        },
+        "star-glasses.png": {
+          "blob": "496f81518274d8d8f76183580d0cf271",
+          "name": "star-glasses.png",
+          "size": 33617,
+          "type": "image/png"
+        },
+        "star-headlamp.png": {
+          "blob": "7a5f8ac81d62abb04b06ad1ec0ed0b43",
+          "name": "star-headlamp.png",
+          "size": 23613,
+          "type": "image/png"
+        },
+        "ninja-headphones.png": {
+          "blob": "9bb735dbaf856a3d4e9d0341926ba890",
+          "name": "ninja-headphones.png",
+          "size": 39744,
+          "type": "image/png"
+        },
+        "neko-glasses.png": {
+          "blob": "edf348790a6bdb58b62437f58f851aa1",
+          "name": "neko-glasses.png",
+          "size": 25254,
+          "type": "image/png"
+        },
+        "neko-headlamp.png": {
+          "blob": "f8fc4c7eb6250d996854ca33050e0d8e",
+          "name": "neko-headlamp.png",
+          "size": 21736,
+          "type": "image/png"
+        },
+        "ace-headphones.png": {
+          "blob": "f0e1c5782b90fbe0f6415b7800f2f4bc",
+          "name": "ace-headphones.png",
+          "size": 42155,
+          "type": "image/png"
+        },
+        "ace-headlamp.png": {
+          "blob": "9fce649195c9a8013ff752d200867e4b",
+          "name": "ace-headlamp.png",
+          "size": 25316,
+          "type": "image/png"
+        },
+        "detective-glasses.png": {
+          "blob": "f9a31d8c190d0e9fd20fdb9a9e9e7f35",
+          "name": "detective-glasses.png",
+          "size": 23477,
+          "type": "image/png"
+        },
+        "cowboy-glasses.png": {
+          "blob": "010e974de959058edd74806e32a2e8c8",
+          "name": "cowboy-glasses.png",
+          "size": 18098,
+          "type": "image/png"
+        },
+        "agent-headphones.png": {
+          "blob": "0defbc4d3832a0ecf8f25fb7dc696aa1",
+          "name": "agent-headphones.png",
+          "size": 42811,
+          "type": "image/png"
+        },
+        "agent-glasses.png": {
+          "blob": "2fff477bd3b8ffc32884940f823a3f8d",
+          "name": "agent-glasses.png",
+          "size": 39636,
+          "type": "image/png"
+        },
+        "agent-headlamp.png": {
+          "blob": "8844214ff460330a239cdfc208c93b66",
+          "name": "agent-headlamp.png",
+          "size": 25920,
+          "type": "image/png"
+        }
+      },
+      "name": "Mascot accessories",
+      "order": [
+        "fox-headphones.png",
+        "fox-glasses.png",
+        "fox-headlamp.png",
+        "ghost-headphones.png",
+        "ghost-glasses.png",
+        "ghost-headlamp.png",
+        "robot-headlamp.png",
+        "hero-glasses.png",
+        "star-headphones.png",
+        "star-glasses.png",
+        "star-headlamp.png",
+        "ninja-headphones.png",
+        "neko-glasses.png",
+        "neko-headlamp.png",
+        "ace-headphones.png",
+        "ace-headlamp.png",
+        "detective-glasses.png",
+        "cowboy-glasses.png",
+        "agent-headphones.png",
+        "agent-glasses.png",
+        "agent-headlamp.png"
+      ],
+      "tile": "s"
+    }
+  },
+  "blobs": {},
+  "createdOnFiles": {
+    "at": "2026-10-17T13:30:00Z",
+    "v": 1
+  },
+  "docs": {
+    "readme": "README.md",
+    "sections": []
+  },
+  "groups": [
+    "Brand",
+    "Mascots",
+    "Mascot colors",
+    "Mascot accessories"
+  ],
+  "lastChange": {
+    "at": "2026-10-17T21:33:40Z",
+    "by": "Claude",
+    "note": "Classic mascot colors, full logo set, Android icons, accessories",
+    "via": "Claude Code"
+  },
+  "layout": "files",
+  "libraries": [],
+  "namespace": "TrackMeLive",
+  "sections": {},
+  "title": "Track Me Live"
+}

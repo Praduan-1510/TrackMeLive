@@ -1,0 +1,677 @@
+/* Track Me Live on Android: a Material 3 (Expressive) app in our own tokens, plus Android's chrome.
+   Every app color comes from tokens.css. System stand-ins (Settings, permission dialogs, Gboard,
+   the call screen) use a monochrome system palette built from the same neutrals, so they never
+   borrow the brand's people colors. */
+
+/* ---------- Platform switch: which chrome each phone shows ---------- */
+.a-statusbar, .a-gesture, .a-cam, .pip { display: none; }
+.screen[data-platform="android"] .statusbar, .screen[data-platform="android"] .home-ind { display: none; }
+.screen[data-platform="android"] .a-statusbar { display: block; }
+.screen[data-platform="android"] .a-gesture, .screen[data-platform="android"] .a-cam { display: block; }
+.screen[data-platform="android"] .pip.on { display: block; }
+
+.screen[data-platform="android"] {
+  --font-text: "Figtree", system-ui, sans-serif;
+  /* Font scale: Android scales large text less than small text (nonlinear font scaling). */
+  --ax: 1;
+  --axd: 1;
+  --a-ease: cubic-bezier(.2, 0, 0, 1);
+  --a-ease-out: cubic-bezier(.05, .7, .1, 1);
+  --a-dialog: var(--surface);
+  --a-thumb-on: var(--surface);
+  --a-thumb-on-v: var(--surface);
+  --a-sel: color-mix(in srgb, var(--ink) 10%, transparent);
+  --a-sys: var(--ink);
+  --a-sys-btn: var(--surface-raised);
+  /* Gboard, a system keyboard: neutral greys, like the iPhone keyboard stand-in. */
+  --kb-bg: #E2E6E9; --kb-key: #FBFCFD; --kb-fn: #C9D0D5; --kb-ink: #11181B;
+  border-radius: 42px;
+  font-size: calc(16px * var(--ax)); line-height: 24px; letter-spacing: .1px;
+}
+.screen[data-platform="android"][data-theme="dark"] {
+  --a-dialog: var(--surface-raised);
+  --a-thumb-on: var(--on-lamplight);
+  --a-thumb-on-v: var(--on-crossing);
+  --a-sys-btn: color-mix(in srgb, var(--ink) 9%, var(--surface-raised));
+  --kb-bg: #171D20; --kb-key: #343C40; --kb-fn: #252D31; --kb-ink: #EEF2F1;
+}
+
+/* Larger text: about Android's 2x font scale. */
+.screen[data-platform="android"][data-text="large"] { --ax: 1.5; --axd: 1.3; }
+.screen[data-platform="android"][data-text="xl"] { --ax: 2; --axd: 1.6; }
+/* System UI that doesn't follow the app's text size here: the status bar, keyboard, call screen,
+   lock screen and the mini map. */
+.a-statusbar, .a-kb, .a-call, .a-lock, .pip, .a-chromebar { --ax: 1; --axd: 1; }
+
+/* Material Symbols Rounded */
+.ms {
+  font-family: "Material Symbols Rounded"; font-weight: normal; font-style: normal; font-size: calc(24px * var(--ax)); line-height: 1;
+  letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr;
+  font-feature-settings: "liga"; -webkit-font-smoothing: antialiased; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+  width: 1em; height: 1em; overflow: hidden; flex: none; user-select: none;
+}
+.ms.fill { font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24; }
+.mono-mark { display: block; }
+
+/* ---------- Device chrome: status bar, camera, gesture handle ---------- */
+.a-statusbar { position: absolute; z-index: 9; left: 0; right: 0; top: 0; height: 40px; color: var(--ink); pointer-events: none; font: 500 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .2px; }
+.a-statusbar .sb { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 12px 22px 0 28px; border: 0; margin: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; }
+.a-statusbar .sb-hit { position: absolute; inset: 0; z-index: 0; width: 100%; border: 0; padding: 0; background: transparent; pointer-events: auto; cursor: pointer; }
+.a-statusbar .l, .a-statusbar .r { position: relative; z-index: 1; pointer-events: none; }
+.a-statusbar .a-callchip { pointer-events: auto; }
+/* The call chip's touch target is 48dp wide and the status bar's height; the green chip sits inside. */
+.a-statusbar .a-callchip-hit { position: relative; display: inline-flex; align-items: center; min-width: 48px; height: 40px; margin: -10px -4px; padding: 0 4px; border: 0; background: transparent; color: inherit; pointer-events: auto; cursor: pointer; }
+.a-statusbar .l, .a-statusbar .r { display: flex; align-items: center; gap: 6px; height: 20px; }
+.a-statusbar .r { gap: 6px; }
+.a-statusbar .ms { font-size: calc(16px * var(--ax)); }
+.sb-sig { width: 14px; height: 14px; display: block; }
+.sb-wifi { width: 17px; height: 13px; display: block; }
+.sb-batt { width: 25px; height: 13px; display: block; }
+.a-sbic { width: 16px; height: 16px; display: grid; place-items: center; }
+.a-sbic .mono-mark { width: 13px; height: 15px; }
+.a-callchip { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 8px 0 6px; border-radius: 10px; background: var(--connected); color: var(--surface); font: 600 calc(12px * var(--ax))/calc(20px * var(--ax)) var(--font-text); font-variant-numeric: tabular-nums; }
+.a-callchip .ms { font-size: calc(13px * var(--ax)); }
+.screen.dark-chrome .a-statusbar { color: #fff; }
+.screen.shade-open .a-statusbar { color: var(--ink); }
+.a-cam { position: absolute; z-index: 10; top: 13px; left: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #040607; box-shadow: 0 0 0 1.5px #0B1013, inset 1px 1px 0 1.5px #121c22; pointer-events: none; }
+.a-gesture { position: absolute; z-index: 9; left: 50%; bottom: 8px; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; background: var(--ink); opacity: .5; pointer-events: none; }
+.screen.dark-chrome .a-gesture { background: #fff; opacity: .6; }
+
+/* ---------- Page structure ---------- */
+.screen[data-platform="android"] .scr.enter { animation: a-in .34s var(--a-ease-out) both; }
+@keyframes a-in { from { opacity: 0; transform: scale(.975); } }
+.a-page { padding-top: 40px; }
+.a-top { flex: none; display: flex; align-items: center; gap: 4px; height: 64px; padding: 0 8px 0 4px; }
+.a-top-gap { flex: none; width: 12px; }
+.a-top-title { flex: 1; min-width: 0; font: 600 calc(22px * var(--axd))/calc(28px * var(--axd)) var(--font-display); letter-spacing: 0; text-wrap: balance; }
+.a-top .pill { margin-right: 8px; }
+.a-content { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 16px 32px; }
+.a-page.tabbed .a-content { padding-bottom: calc(var(--a-nav-h, 90px) + 22px); }
+.a-hl { font: 700 calc(28px * var(--axd))/calc(36px * var(--axd)) var(--font-display); letter-spacing: -.2px; margin-top: 4px; text-wrap: balance; }
+/* Material 3 top app bar on top-level scrolling screens (Settings, Your mascot). One solid band from
+   the top of the screen, under the status bar, so nothing that scrolls ever shows above the title.
+   Same height at rest and scrolled, so the content never jumps: the 28/36 headline sits low at rest,
+   and collapses to the 22/28 title, centered, on the raised surface once content scrolls under it. */
+.a-appbar { position: relative; z-index: 3; flex: none; margin-top: -40px; padding: 60px 16px 8px; background: var(--ground); transition: background-color .2s ease, padding .2s var(--a-ease); }
+.a-appbar-t { font: 700 calc(28px * var(--axd))/calc(36px * var(--axd)) var(--font-display); letter-spacing: -.2px; text-wrap: balance; transition: font-size .2s var(--a-ease), letter-spacing .2s ease; }
+.scr.a-scrolled .a-appbar { padding: 54px 16px 14px; background: var(--surface-raised); }
+.scr.a-scrolled .a-appbar-t { font-size: calc(22px * var(--axd)); letter-spacing: 0; }
+.a-lede.first { margin-top: 0; }
+.a-sec.first { margin-top: 8px; }
+.a-hl.big { font-size: calc(36px * var(--ax)); line-height: 44px; letter-spacing: -.4px; margin-top: 2px; }
+.a-hl.center, .a-lede.center { text-align: center; }
+.a-kicker { margin-top: 28px; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-lede { margin-top: 8px; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .15px; text-wrap: pretty; }
+.a-fine { margin-top: 10px; text-align: center; font: 400 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .3px; }
+.a-help { margin: 8px 16px 0; font: 400 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .3px; }
+.a-help.center { margin: 16px 0 0; text-align: center; font-size: calc(14px * var(--ax)); line-height: 20px; letter-spacing: .2px; }
+.a-spacer { flex: 1; min-height: 24px; }
+.a-label { margin: 18px 4px 8px; font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; }
+.a-sec { margin: 24px 16px 8px; font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; }
+.a-foot { margin: 8px 16px 0; font: 400 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .3px; }
+
+/* Shared app pieces, set in Figtree's tracking rather than SF's */
+.screen[data-platform="android"] :is(.pill, .tile span, .person .t1, .person .t2, .st, .cap, .glassbar .t1, .glassbar .t2, .sheet .sub, .shareback .t1, .shareback .t2, .ask-line, .fine, .btn, .mk .name span, .ghost-lbl span, .muted) { letter-spacing: .1px; }
+.screen[data-platform="android"] .btn .ms { font-size: calc(20px * var(--ax)); }
+.screen[data-platform="android"] .shareback .ico .ms { font-size: calc(22px * var(--ax)); }
+.ask-ic .ms { font-size: calc(16px * var(--ax)); }
+
+/* ---------- Buttons ---------- */
+.a-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 24px; border: 0; border-radius: 20px; font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; white-space: nowrap; transition: border-radius .3s var(--a-ease), background-color .2s ease; -webkit-tap-highlight-color: transparent; }
+.a-btn::before { content: ""; position: absolute; inset: -4px 0; }
+.a-btn::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.a-btn:hover::after { opacity: .08; }
+.a-btn:active::after { opacity: .12; }
+/* Material 3 Expressive: a pressed button's corners tighten. */
+.a-btn:active { border-radius: 10px; }
+.a-btn .ms { font-size: calc(20px * var(--ax)); }
+.a-btn.lg { min-height: 56px; border-radius: 28px; font-size: calc(16px * var(--ax)); line-height: 24px; letter-spacing: .15px; }
+.a-btn.lg:active { border-radius: 10px; }
+.a-btn.lg .ms { font-size: calc(22px * var(--ax)); }
+.a-btn.block { width: 100%; }
+.a-btn.filled { background: var(--lamplight); color: var(--on-lamplight); }
+.a-btn.tonal { background: var(--surface-raised); color: var(--ink); }
+.a-btn.danger { background: var(--flare-wash); color: var(--flare-text); }
+.a-btn.call { background: var(--connected-wash); color: var(--connected); padding: 0 16px; }
+.a-btn.ask { flex: none; background: var(--crossing-wash); color: var(--crossing-text); padding: 0 16px; }
+.a-btn.text { background: transparent; color: var(--ink); padding: 0 12px; }
+.a-btn.text.danger { background: transparent; color: var(--flare-text); }
+.a-btn:disabled { opacity: .38; }
+/* A 40dp button's touch target reaches 48dp through ::before. Buttons already 48dp or taller don't
+   extend, so neighbouring targets keep at least 8dp between them. */
+.a-btn.lg::before, .a-mapbar .a-btn::before, .a-explain .a-btn.text::before, .a-done::before { inset: 0; }
+.a-iconbtn { position: relative; flex: none; width: 48px; height: 48px; border: 0; border-radius: 50%; background: transparent; color: var(--ink); display: grid; place-items: center; }
+.a-iconbtn::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: currentColor; opacity: 0; transition: opacity .15s ease; }
+.a-iconbtn:active::after { opacity: .12; }
+.a-iconbtn[hidden] { display: none; }
+
+/* ---------- Navigation bar ---------- */
+.a-nav { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; display: flex; padding: 8px 12px 26px; background: var(--surface); }
+.a-nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 56px; padding: 4px 0; border: 0; background: transparent; color: var(--ink-secondary); font: 600 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); letter-spacing: .4px; }
+.a-nav .ind { position: relative; width: 56px; height: 32px; border-radius: 16px; display: grid; place-items: center; transition: background-color .25s var(--a-ease); }
+.a-nav .ind::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s; }
+.a-nav button:active .ind::after { opacity: .12; }
+.a-nav button[aria-current="page"] { color: var(--ink); }
+.a-nav button[aria-current="page"] .ind { background: var(--lamplight-wash); color: var(--lamplight-text); }
+
+/* ---------- Cards ---------- */
+.a-card { position: relative; display: flex; flex-direction: column; gap: 12px; width: 100%; margin-top: 16px; padding: 16px; border: 0; border-radius: 24px; background: var(--surface); color: var(--ink); text-align: left; font: inherit; }
+.a-card.call { background: var(--connected-wash); }
+.a-card.live { background: var(--lamplight-wash); padding-right: 52px; }
+.a-card.live .go { position: absolute; right: 16px; top: 50%; margin-top: -12px; color: var(--lamplight-text); }
+.a-card.tip { margin-top: 12px; }
+.a-card-row { display: flex; align-items: center; gap: 10px; font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-card-row .ms { font-size: calc(20px * var(--ax)); }
+.a-card-row.muted { color: var(--ink-secondary); }
+.a-card.call .a-card-row { color: var(--connected); }
+.a-card.live .a-card-row { color: var(--lamplight-text); }
+.a-card-tx { font: 400 calc(15px * var(--ax))/calc(22px * var(--ax)) var(--font-text); letter-spacing: .1px; color: var(--ink); }
+.a-card-tx.muted { color: var(--ink-secondary); }
+.a-card-acts { display: flex; justify-content: flex-end; gap: 8px; }
+.a-needs { display: flex; flex-direction: column; gap: 2px; }
+.a-need { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border-radius: 4px; background: var(--surface-raised); font: 500 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+.a-need:first-child { border-radius: 20px 20px 4px 4px; }
+.a-need:last-child { border-radius: 4px 4px 20px 20px; }
+.a-need > .ms { font-size: calc(20px * var(--ax)); color: var(--ink-secondary); }
+.a-need > span:not(.ms):not(.st) { flex: 1; }
+.a-need .st { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); }
+.a-need.ok .st { color: var(--ink); }
+.a-need .st .ms { font-size: calc(18px * var(--ax)); }
+.screen[data-platform="android"] .a-hero { margin-top: 16px; border-radius: 24px; padding: 16px; grid-template-columns: 112px minmax(0, 1fr); }
+.a-hero-tx { margin: 2px 0 10px; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-cta { margin-top: 24px; }
+
+/* ---------- Lists (Material 3 Expressive: grouped items, small inner corners) ---------- */
+.a-group { display: flex; flex-direction: column; gap: 2px; }
+.a-group > .a-li { background: var(--surface); border-radius: 4px; }
+.a-group > .a-li:first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
+.a-group > .a-li:last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.a-li { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 56px; padding: 8px 20px 8px 16px; border: 0; background: transparent; color: var(--ink); text-align: left; font: inherit; letter-spacing: inherit; }
+.a-li.two { min-height: 72px; }
+button.a-li::after, label.a-li::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s; pointer-events: none; }
+button.a-li:active::after, label.a-li:active::after { opacity: .1; }
+label.a-li { cursor: pointer; }
+.a-li .lead { flex: none; width: 24px; height: 24px; display: grid; place-items: center; color: var(--ink-secondary); }
+.a-li .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.a-li .hl { font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); letter-spacing: .15px; }
+.a-li .sp { font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .2px; }
+.a-li > b { font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); text-align: right; }
+.a-li.danger, .a-li.danger .lead { color: var(--flare-text); }
+.a-li.stack { flex-direction: column; align-items: stretch; gap: 10px; padding: 14px 16px 16px; }
+.a-li.off .hl, .a-li.off .sp { opacity: .38; }
+.a-group + .a-foot { margin-top: 10px; }
+
+/* Switch with thumb icons */
+.a-switch { position: relative; flex: none; width: 52px; height: 32px; }
+.a-switch input { position: absolute; inset: -8px -2px; width: auto; height: auto; margin: 0; opacity: 0; z-index: 1; cursor: pointer; }
+.a-switch .tr { position: absolute; inset: 0; border-radius: 16px; background: var(--surface-raised); box-shadow: inset 0 0 0 2px var(--ink-tertiary); transition: background-color .25s ease, box-shadow .25s ease; }
+.a-switch .th { position: absolute; top: 4px; left: 4px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink-tertiary); color: var(--surface-raised); display: grid; place-items: center; transition: transform .3s var(--a-ease), background-color .25s ease, width .15s ease, height .15s ease, top .15s ease, left .15s ease; }
+.a-switch .th .ms { grid-area: 1 / 1; font-size: calc(16px * var(--ax)); font-variation-settings: "FILL" 0, "wght" 600, "GRAD" 0, "opsz" 20; }
+.a-switch .th .on { display: none; }
+.a-switch input:checked ~ .tr { background: var(--lamplight); box-shadow: none; }
+.a-switch input:checked ~ .th { transform: translateX(20px); background: var(--a-thumb-on); color: var(--lamplight-text); }
+.a-switch input:checked ~ .th .on { display: block; }
+.a-switch input:checked ~ .th .off { display: none; }
+.a-switch input:active:not(:disabled) ~ .th { top: 2px; left: 2px; width: 28px; height: 28px; }
+.a-switch.viewer input:checked ~ .tr { background: var(--crossing); }
+.a-switch.viewer input:checked ~ .th { background: var(--a-thumb-on-v); color: var(--crossing-text); }
+.a-switch input:focus-visible ~ .tr { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.a-switch input:disabled { cursor: default; }
+.a-switch input:disabled ~ .tr, .a-switch input:disabled ~ .th { opacity: .38; }
+
+/* Segmented buttons. The group is a size container measured in its own em (the label size): once the
+   segments' labels can't sit side by side at the current text size, they stack into one column, so a
+   label is never cut short or ellipsized. Three-segment groups need more room than two. */
+.a-seg { container: a-seg / inline-size; font-size: calc(14px * var(--ax)); }
+/* Chrome re-evaluates an em-based container query only when the container's size changes, so the
+   group's width carries a hair of its own em: a text-size change alone still restacks it. */
+.a-seg:not(.a-live-prec .a-seg) { width: calc(100% - .01em); }
+.a-seg-in { display: flex; }
+.a-seg button { position: relative; flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; margin-left: -1px; padding: 0 10px; border: 0; background: transparent; color: var(--ink); font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; box-shadow: inset 0 0 0 1px var(--ink-tertiary); text-align: center; }
+.a-seg button::before { content: ""; position: absolute; inset: -4px 0; }
+.a-seg button:first-child { margin-left: 0; border-radius: 20px 0 0 20px; }
+.a-seg button:last-child { border-radius: 0 20px 20px 0; }
+.a-seg button[aria-pressed="true"] { background: var(--a-sel); }
+.a-seg button .ms { font-size: calc(18px * var(--ax)); }
+.a-seg button span:not(.ms) { min-width: 0; }
+@container a-seg (max-width: 14em) {
+  .a-seg-in { flex-direction: column; }
+  .a-seg-in button { min-height: 48px; margin: -1px 0 0; padding: 6px 16px; border-radius: 0; }
+  .a-seg-in button::before { inset: 0; }
+  .a-seg-in button:first-child { margin-top: 0; border-radius: 20px 20px 0 0; }
+  .a-seg-in button:last-child { border-radius: 0 0 20px 20px; }
+}
+@container a-seg (min-width: 14em) and (max-width: 18em) {
+  .a-seg.three .a-seg-in { flex-direction: column; }
+  .a-seg.three .a-seg-in button { min-height: 48px; margin: -1px 0 0; padding: 6px 16px; border-radius: 0; }
+  .a-seg.three .a-seg-in button::before { inset: 0; }
+  .a-seg.three .a-seg-in button:first-child { margin-top: 0; border-radius: 20px 20px 0 0; }
+  .a-seg.three .a-seg-in button:last-child { border-radius: 0 0 20px 20px; }
+}
+
+/* Chips and radio buttons */
+/* One line that scrolls sideways, like a single-line ChipGroup. */
+.a-chips { display: flex; gap: 8px; margin: -8px -16px 0; padding: 8px 16px; overflow-x: auto; scrollbar-width: none; }
+.a-chips::-webkit-scrollbar { display: none; }
+.a-chips .a-chip { flex: none; }
+.a-chip { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-tertiary); font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-chip::before { content: ""; position: absolute; inset: -8px 0; }
+.a-chip .ms { font-size: calc(18px * var(--ax)); margin-left: -6px; }
+.a-chip[aria-pressed="true"] { background: var(--lamplight-wash); box-shadow: none; }
+.a-chip[aria-pressed="true"] .ms { color: var(--lamplight-text); }
+.a-acc-none { margin: 0 4px; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-radio { --rc: var(--lamplight-text); flex: none; width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink-secondary); display: grid; place-items: center; }
+.a-radio.on { box-shadow: inset 0 0 0 2px var(--rc); }
+.a-radio.on::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--rc); }
+
+/* ---------- Onboarding and splash ---------- */
+.a-splash { align-items: center; justify-content: center; background: var(--ground); }
+.a-splash-icon { display: grid; place-items: center; animation: a-splash .9s var(--a-ease-out) both; }
+.a-splash-icon .a-appicon { width: 160px; height: 160px; }
+@keyframes a-splash { from { transform: scale(.6); opacity: 0; } }
+.a-splash-brand { position: absolute; left: 50%; bottom: 64px; width: 150px; margin-left: -75px; }
+.a-appicon { display: inline-grid; width: 48px; height: 48px; border-radius: 50%; overflow: hidden; flex: none; }
+.a-appicon img { width: 100%; height: 100%; }
+.a-appicon.sq { border-radius: 14px; }
+.a-ob .a-content { padding-bottom: 36px; }
+.a-ob-art { height: 300px; }
+.a-ob-map { position: relative; width: 330px; height: 280px; border-radius: 28px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--separator); }
+.a-ob-title { margin-top: 4px; font: 800 calc(30px * var(--axd))/calc(38px * var(--axd)) var(--font-display); letter-spacing: -.3px; text-wrap: balance; }
+.a-ob-body { margin-top: 12px; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-ob-list { margin-top: 20px; display: grid; gap: 16px; }
+.a-ob-list div { display: flex; gap: 16px; align-items: flex-start; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); }
+.a-ob-list .ms { color: var(--lamplight-text); }
+.a-dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+.a-dots i { width: 8px; height: 8px; border-radius: 4px; background: var(--ink-tertiary); opacity: .35; transition: all .3s var(--a-ease); }
+.a-dots i.on { width: 24px; background: var(--lamplight); opacity: 1; }
+
+/* ---------- Sign-up: outlined text fields, code, Gboard ---------- */
+.a-field { position: relative; display: flex; align-items: center; min-height: 56px; margin-top: 28px; padding: 0 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--ink-tertiary); }
+.a-field + .a-field { margin-top: 24px; }
+.a-flabel { position: absolute; left: 12px; top: -9px; padding: 0 4px; background: var(--ground); font: 500 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .3px; }
+.a-fval { display: flex; align-items: center; gap: 12px; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); letter-spacing: .3px; }
+.a-cc { display: inline-flex; align-items: center; padding-right: 10px; border-right: 1px solid var(--separator); font-weight: 600; }
+.a-cc .ms { font-size: calc(22px * var(--ax)); color: var(--ink-secondary); }
+.a-code .a-content { padding-bottom: 12px; }
+.a-otp { margin-top: 28px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.a-otp span { height: 56px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--ink-tertiary); display: grid; place-items: center; font: 700 calc(26px * var(--axd)) var(--font-display); font-variant-numeric: tabular-nums; }
+.a-otp span.on { animation: otp-in .3s cubic-bezier(.3, 1.6, .5, 1) both; }
+.a-otp span.on:nth-child(2) { animation-delay: .05s; } .a-otp span.on:nth-child(3) { animation-delay: .1s; } .a-otp span.on:nth-child(4) { animation-delay: .15s; } .a-otp span.on:nth-child(5) { animation-delay: .2s; } .a-otp span.on:nth-child(6) { animation-delay: .25s; }
+.a-otp span.cur { box-shadow: inset 0 0 0 2px var(--lamplight); }
+.a-otp span.cur::after { content: ""; width: 2px; height: 26px; border-radius: 1px; background: var(--lamplight-text); animation: caret 1s steps(1) infinite; }
+.a-kb { flex: none; padding: 4px 6px 30px; background: var(--kb-bg); color: var(--kb-ink); }
+.a-kb-strip { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 4px; }
+.a-kb-tool { width: 40px; height: 40px; display: grid; place-items: center; opacity: .72; }
+.a-kb-otp { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px 0 12px; border: 0; border-radius: 18px; background: var(--kb-key); color: var(--kb-ink); font: 600 calc(16px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: 1.6px; box-shadow: 0 1px 0 rgba(0, 0, 0, .08); }
+.a-kb-otp .ms { font-size: calc(20px * var(--ax)); letter-spacing: normal; }
+.a-kb-otp:disabled { opacity: .4; }
+.a-kb-keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding-top: 2px; }
+.a-kb-keys > span { height: 50px; border-radius: 10px; background: var(--kb-key); display: grid; place-items: center; font: 400 calc(24px * var(--ax))/1 var(--font-text); letter-spacing: 0; }
+.a-kb-keys > span.fn { background: var(--kb-fn); font-size: calc(22px * var(--ax)); }
+.a-kb-keys > span.go { background: var(--kb-ink); color: var(--kb-bg); border-radius: 25px; }
+
+/* ---------- Mascot picker ---------- */
+.screen[data-platform="android"] .a-stage { height: 176px; margin-top: 4px; }
+.screen[data-platform="android"] .a-stage .glow { width: 160px; height: 160px; }
+.a-pick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.a-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 10px; border: 0; border-radius: 20px; background: var(--surface); color: var(--ink); font: 600 calc(13px * var(--ax))/calc(16px * var(--ax)) var(--font-text); letter-spacing: .1px; box-shadow: inset 0 0 0 1px var(--separator); }
+.a-pick img { width: 60px; height: 60px; }
+.a-pick[aria-pressed="true"] { background: var(--lamplight-wash); box-shadow: inset 0 0 0 2px var(--lamplight); }
+.a-swatches { display: flex; gap: 12px; flex-wrap: wrap; }
+.a-swatch { width: 48px; height: 48px; border: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; color: var(--on-lamplight); box-shadow: inset 0 0 0 1px var(--separator); }
+.a-swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ground), 0 0 0 5px var(--ink); }
+.a-swatch .ms { font-variation-settings: "FILL" 0, "wght" 700, "GRAD" 0, "opsz" 24; }
+
+/* ---------- Share ---------- */
+.screen[data-platform="android"] .a-preview { margin-top: 20px; border-radius: 28px; }
+.screen[data-platform="android"] .a-preview .cap { background: var(--surface); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 16px; }
+.a-preview + .a-field { margin-top: 24px; }
+.a-trailpill { margin-right: 8px; }
+/* A pinned bottom action: the content scrolls above it. */
+.a-bottom { flex: none; padding: 12px 16px 28px; background: var(--ground); box-shadow: 0 -1px 0 var(--separator); }
+.a-bottom .a-fine { margin-top: 8px; }
+.a-content:has(+ .a-bottom), .a-page.tabbed .a-content:has(+ .a-bottom) { padding-bottom: 20px; }
+/* On a tab, the pinned action sits on top of the navigation bar, never under it. */
+.a-bottom.over-nav { margin-bottom: var(--a-nav-h, 90px); padding-bottom: 12px; }
+/* Sign-up's Name: an outlined text field that takes typing, up to 24 characters. */
+.a-namefield { margin-top: 28px; }
+.a-namefield.bad, .a-namefield.bad:focus-within { box-shadow: inset 0 0 0 2px var(--ink); }
+.a-namefield.bad:focus-within .a-flabel { color: var(--ink); }
+.a-namefield + .a-help, .a-namefield + .a-err { margin-bottom: 4px; }
+.a-namefield ~ .a-field:not(.a-namefield) { margin-top: 24px; }
+.a-vfield { margin-top: 24px; padding-right: 4px; }
+.a-vfield input { flex: 1; min-width: 0; height: 54px; padding: 0; border: 0; outline: none; background: transparent; color: var(--ink); font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); letter-spacing: .3px; }
+.a-vfield input::placeholder { color: var(--ink-tertiary); }
+.a-vfield:focus-within { box-shadow: inset 0 0 0 2px var(--lamplight); }
+.a-vfield:focus-within .a-flabel { color: var(--lamplight-text); }
+.a-vfield .a-iconbtn { color: var(--ink-secondary); }
+.a-vfield .a-iconbtn .ms { font-size: calc(20px * var(--ax)); }
+.a-share-list { margin-top: 16px; }
+.a-done { margin-top: 8px; min-height: 48px; }
+.pip .mk .area { transform: scale(calc(1 / var(--pip-k, 1))); }
+.a-note { display: flex; gap: 10px; margin: 12px 8px 0; font: 400 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .2px; }
+.a-note .ms { font-size: calc(18px * var(--ax)); margin-top: 0; }
+.a-tiledlg .a-tile-prev { display: flex; justify-content: center; padding: 4px 0; }
+.a-tiledlg .a-tile-prev .a-qt { width: 210px; }
+.a-tiledlg .acts { margin-top: 0; }
+
+/* ---------- Live map: floating top bar and the standard bottom sheet ---------- */
+.a-page.a-live { padding: 48px 0 0; }
+.a-mapbar { position: relative; z-index: 3; flex: none; margin: 0 12px 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 64px; padding: 8px 8px 8px 4px; border-radius: 32px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--separator); }
+.a-mapbar .txt { flex: 1 1 7em; min-width: 0; display: flex; flex-direction: column; }
+/* Names wrap; nothing in the bar is ever cut short. */
+.a-mapbar .t1 { font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; text-wrap: balance; }
+.a-mapbar .t2 { font: 400 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+.a-mapbar .calldot { margin-left: 0; }
+.a-mapbar .a-btn { min-height: 48px; border-radius: 24px; }
+/* The open map band between the bar and the sheet. With large text the sheet scrolls rather than
+   cover the whole map. */
+.a-mapgap { flex: 1 0 0; min-height: 0; pointer-events: none; }
+.a-bsheet { position: relative; z-index: 3; flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 16px; padding: 0 16px; border-radius: 28px 28px 0 0; background: var(--surface); box-shadow: 0 -1px 0 var(--separator); }
+/* Stop sharing closes the sheet, above the gesture area. When the sheet scrolls (large text), it stays
+   pinned at the sheet's bottom, always reachable. */
+.a-stopbar { padding-bottom: 34px; background: var(--surface); }
+/* 1-hour warning: a quiet line, no color and no sound. */
+.a-limit { display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; font: 500 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; font-variant-numeric: tabular-nums; }
+.a-limit .ms { font-size: calc(18px * var(--ax)); margin-top: calc(1px * var(--ax)); }
+.a-limit .nw { white-space: nowrap; }
+/* Location detail while sharing: Material 3 segmented buttons; a change starts at the next update. */
+.a-live-prec { display: flex; flex-direction: column; gap: 8px; }
+.a-live-prec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.a-live-prec .lbl { display: inline-flex; align-items: center; gap: 8px; font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; }
+.a-live-prec .lbl .ms { font-size: calc(20px * var(--ax)); }
+.a-live-prec .a-seg { flex: 1 1 15em; min-width: 0; }
+.a-prec-note { display: flex; align-items: flex-start; gap: 6px; font: 400 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .2px; }
+.a-prec-note .ms { font-size: calc(16px * var(--ax)); margin-top: calc(1px * var(--ax)); }
+.scr.enter .a-bsheet { animation: a-sheet-up .45s var(--a-ease-out) both; }
+@keyframes a-sheet-up { from { transform: translateY(48px); opacity: 0; } }
+.a-handle { flex: none; width: 32px; height: 4px; margin: 14px auto 2px; border-radius: 2px; background: var(--ink-tertiary); opacity: .5; }
+.a-bsheet .head { display: flex; flex-direction: column; gap: 4px; }
+.a-bsheet .title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.a-bsheet h2 { font: 700 calc(24px * var(--axd))/calc(32px * var(--axd)) var(--font-display); letter-spacing: -.1px; }
+.a-bsheet .sub { font: 400 calc(15px * var(--ax))/calc(22px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; }
+.a-bsheet .tile { border-radius: 16px; }
+/* Side by side while both labels fit; otherwise each takes its own row, 8dp between touch targets. */
+.a-actions { display: flex; flex-wrap: wrap; gap: 16px 8px; }
+.a-actions .a-btn { flex: 1 1 0; min-width: max-content; padding: 0 12px; }
+
+/* ---------- Ended ---------- */
+.a-ended-art { position: relative; display: grid; place-items: center; height: 168px; }
+.a-ended-art::before { content: ""; position: absolute; left: 50%; top: 50%; width: 156px; height: 156px; margin: -78px; border-radius: 50%; border: 3px dashed var(--ink-tertiary); opacity: .6; box-sizing: border-box; }
+.a-ended-art img { grid-area: 1 / 1; }
+.a-summary { margin-top: 20px; }
+.a-summary .a-li { min-height: 52px; }
+
+/* ---------- Dialogs, sheets, snackbars ---------- */
+.a-scrim { position: absolute; inset: 0; z-index: 6; background: rgba(0, 0, 0, .32); animation: fade .2s ease both; }
+.a-dialog { position: absolute; z-index: 7; left: 50%; top: 50%; width: 312px; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 16px; padding: 24px 24px 18px; border-radius: 28px; background: var(--a-dialog); color: var(--ink); animation: a-dlg-in .32s var(--a-ease-out) both; }
+@keyframes a-dlg-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.9); } }
+.a-dialog-ic { display: grid; place-items: center; color: var(--ink-secondary); }
+.a-dialog h2 { font: 600 calc(24px * var(--axd))/calc(32px * var(--axd)) var(--font-display); letter-spacing: 0; text-wrap: balance; }
+.a-dialog p { font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .25px; text-wrap: pretty; }
+.a-dialog p b { color: var(--ink); font-weight: 600; }
+.a-dialog.has-icon h2, .a-dialog.has-icon p { text-align: center; }
+.a-dialog .acts { display: flex; justify-content: flex-end; gap: 8px; margin: 8px -8px 0 0; }
+.a-msheet { position: absolute; z-index: 7; left: 0; right: 0; bottom: 0; max-height: 790px; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; gap: 12px; padding: 0 24px 34px; border-radius: 28px 28px 0 0; background: var(--a-dialog); color: var(--ink); animation: a-sheet-up .4s var(--a-ease-out) both; }
+.a-msheet::-webkit-scrollbar { display: none; }
+.a-msheet .a-handle { margin: 16px auto 6px; }
+.a-sheet-title { font: 700 calc(22px * var(--axd))/calc(28px * var(--axd)) var(--font-display); margin-bottom: 4px; }
+.a-radios { display: flex; flex-direction: column; margin: 0 -24px; }
+.a-radios .a-li { padding-left: 24px; }
+.a-explain { text-align: center; }
+.a-explain h2 { font: 700 calc(24px * var(--axd))/calc(32px * var(--axd)) var(--font-display); letter-spacing: -.1px; text-wrap: balance; }
+.a-explain .lead { font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); color: var(--ink-secondary); text-wrap: pretty; }
+.a-ask-art { margin: 4px auto 0; }
+.a-ask-art .ms { font-size: calc(30px * var(--ax)); }
+.a-explain-rows { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; text-align: left; }
+.a-explain-rows .row { display: flex; gap: 16px; padding: 14px 16px; border-radius: 4px; background: var(--a-sys-btn); }
+.a-explain-rows .row:first-child { border-radius: 20px 20px 4px 4px; }
+.a-explain-rows .row:last-child { border-radius: 4px 4px 20px 20px; }
+.a-explain-rows .ms { color: var(--lamplight-text); }
+.a-explain-rows b { display: block; font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+.a-explain-rows span { display: block; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-explain .a-btn.lg { margin-top: 8px; }
+.a-explain .a-btn.text { min-height: 48px; }
+.a-snack { position: absolute; z-index: 8; left: 12px; right: 12px; bottom: var(--a-snack-b, 40px); display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 14px 16px; border-radius: 4px; background: var(--ink); color: var(--ground); font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .25px; animation: a-snack-in .3s var(--a-ease-out) both; }
+@keyframes a-snack-in { from { opacity: 0; transform: translateY(12px); } }
+.a-snack-act { margin: -6px -8px -6px auto; padding: 6px 8px; border: 0; background: transparent; color: var(--ground); font: 700 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+
+/* ---------- Android's own permission dialogs ---------- */
+.a-sysdlg { position: absolute; z-index: 7; left: 50%; top: 50%; width: 330px; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px 24px 22px; border-radius: 28px; background: var(--a-dialog); color: var(--ink); text-align: center; box-shadow: 0 16px 48px rgba(0, 0, 0, .22); animation: a-dlg-in .32s var(--a-ease-out) both; }
+.a-sysdlg .sic { color: var(--a-sys); display: grid; place-items: center; }
+.a-sysdlg .sic .ms { font-size: calc(28px * var(--ax)); }
+.a-sysdlg h2 { font: 400 calc(20px * var(--ax))/calc(27px * var(--ax)) var(--font-text); letter-spacing: 0; text-wrap: balance; }
+.a-sysdlg h2 b { font-weight: 700; }
+.a-sysbtns { align-self: stretch; display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.a-sysbtns button { position: relative; min-height: 52px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--a-sys-btn); color: var(--ink); font: 500 calc(16px * var(--ax))/calc(22px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-sysbtns button:first-child { border-radius: 22px 22px 6px 6px; }
+.a-sysbtns button:last-child { border-radius: 6px 6px 22px 22px; }
+.a-sysbtns button::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s; }
+.a-sysbtns button:active::after { opacity: .1; }
+.a-prec { display: flex; justify-content: center; gap: 28px; margin: 0 0 2px; }
+.a-prec > button, .a-prec > span { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 0; border: 0; background: transparent; color: var(--ink-secondary); font: 500 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+.a-prec .pimg { position: relative; width: 96px; height: 96px; border-radius: 50%; overflow: hidden; background: var(--map-land); box-shadow: 0 0 0 1px var(--separator); transition: box-shadow .2s ease; }
+.a-prec .on .pimg { box-shadow: 0 0 0 3px var(--a-dialog), 0 0 0 6px var(--a-sys); }
+.a-prec .on .plb { color: var(--ink); font-weight: 700; }
+.a-prec .mark { position: absolute; left: 50%; top: 50%; border-radius: 50%; }
+/* The location dot is the system's own blue, as in the iPhone stand-in. */
+.a-prec .precise .mark { width: 14px; height: 14px; margin: -7px; background: #1A73E8; box-shadow: 0 0 0 3px #fff, 0 2px 4px rgba(0, 0, 0, .3); }
+.a-prec .approximate .mark { width: 60px; height: 60px; margin: -30px; background: rgba(26, 115, 232, .2); box-shadow: inset 0 0 0 2px rgba(26, 115, 232, .55); }
+
+/* ---------- Heads-up notifications, the shade, the lock screen ---------- */
+.a-hun { position: absolute; z-index: 8; left: 8px; right: 8px; top: 42px; overflow: hidden; border-radius: 24px; background: var(--a-dialog); color: var(--ink); box-shadow: 0 10px 30px rgba(0, 0, 0, .2), inset 0 0 0 1px var(--separator); animation: a-hun-in .45s var(--a-ease-out) both; }
+@keyframes a-hun-in { from { transform: translateY(-115%); } }
+.a-hun-main, .a-ntf-main { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px 16px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; letter-spacing: inherit; }
+.hdr { display: flex; align-items: center; gap: 6px; font: 500 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .2px; }
+.hdr .app { color: var(--ink); }
+.hdr .exp { margin-left: auto; font-size: calc(20px * var(--ax)); }
+.nic { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--lamplight); color: var(--on-lamplight); display: grid; place-items: center; }
+.nic .mono-mark { width: 11px; height: 13px; }
+.nic .ms { font-size: calc(13px * var(--ax)); }
+.nic.msg { background: var(--ink); color: var(--ground); }
+.nic.call { background: var(--connected); color: var(--surface); }
+.a-hun .row, .a-ntf .row { display: flex; align-items: flex-start; gap: 12px; }
+.a-hun .tx, .a-ntf .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.a-hun .tx b, .a-ntf .tx b { font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-hun .tx span, .a-ntf .tx span { font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .2px; }
+.a-hun .tx u { color: var(--ink); text-underline-offset: 2px; }
+.a-hun .nav { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--ink-secondary); color: var(--surface); display: grid; place-items: center; font: 700 calc(17px * var(--axd)) var(--font-display); }
+.a-hun .acts, .a-ntf .acts { display: flex; gap: 4px; padding: 0 8px 10px; margin-top: -4px; }
+.a-hun .acts button, .a-ntf .acts button { min-height: 40px; padding: 0 12px; border: 0; border-radius: 20px; background: transparent; color: var(--lamplight-text); font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-ntf .acts .stop, .a-ntf .acts .hang { color: var(--flare-text); }
+.a-hun.lockn { top: 206px; animation: a-rise .4s var(--a-ease-out) both; }
+@keyframes a-rise { from { opacity: 0; transform: translateY(16px); } }
+.a-shade { position: absolute; inset: 0; z-index: 8; }
+@keyframes a-shade-in { from { opacity: 0; transform: translateY(-24px); } }
+.a-shade-bg { position: absolute; inset: 0; width: 100%; border: 0; background: color-mix(in srgb, var(--ground) 88%, transparent); -webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px); cursor: default; animation: fade .3s ease both; }
+.a-shade-in { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 52px 12px 0; pointer-events: none; animation: a-shade-in .35s var(--a-ease-out) both; }
+.a-shade-in > * { pointer-events: auto; }
+.a-shade-head { display: flex; align-items: baseline; gap: 12px; padding: 0 12px 4px; }
+.a-shade-head .t { font: 400 40px/48px var(--font-text); letter-spacing: -.5px; }
+.a-shade-head .d { font: 500 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+/* Quick Settings: system tiles in the monochrome system palette. Track Me Live's tile is one of them. */
+.a-qs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.a-qt { display: flex; align-items: center; gap: 10px; min-width: 0; height: 68px; padding: 0 12px 0 10px; border: 0; border-radius: 24px; background: var(--a-sys-btn); color: var(--ink); text-align: left; font: inherit; }
+.a-qt .qi { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.a-qt .qi .mono-mark { width: 16px; height: 19px; }
+.a-qt .ql { min-width: 0; display: flex; flex-direction: column; }
+.a-qt b { font: 600 calc(14px * var(--ax))/calc(18px * var(--ax)) var(--font-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-qt small { font: 400 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.a-qt.on { background: var(--ink); color: var(--ground); }
+.a-qt.on .qi { background: color-mix(in srgb, var(--ground) 14%, transparent); }
+button.a-qt { position: relative; cursor: pointer; }
+button.a-qt::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity .15s; }
+button.a-qt:active::after { opacity: .12; }
+.a-qs-row { display: flex; justify-content: space-between; padding: 0 2px; }
+.a-qs-row > * { width: 52px; height: 52px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--a-sys-btn); color: var(--ink); }
+.a-qs-row > .on { background: var(--ink); color: var(--ground); }
+.a-qs-row .mono-mark { width: 17px; height: 20px; }
+.a-qs-bright { height: 48px; border-radius: 24px; background: var(--a-sys-btn); overflow: hidden; }
+.a-qs-bright .fill { display: flex; align-items: center; justify-content: flex-end; width: 62%; height: 100%; padding-right: 14px; border-radius: 24px; background: var(--ink); color: var(--ground); }
+.a-shade.qs .a-shade-head { padding-top: 4px; }
+.a-ntfs { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.a-ntf { border-radius: 6px; background: var(--a-dialog); }
+.a-ntf:first-child { border-top-left-radius: 24px; border-top-right-radius: 24px; }
+.a-ntf:last-child { border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
+.a-ntf > .hdr { padding: 14px 16px 0; }
+.a-ntf > .row { padding: 6px 16px 4px; }
+.a-ntf .lg { flex: none; }
+.a-none { padding: 20px; text-align: center; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-active { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 24px; background: var(--a-dialog); }
+.a-active .lbl { font: 600 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-active-row { display: flex; align-items: center; gap: 12px; }
+.a-active-row .a-appicon { width: 40px; height: 40px; }
+.a-active-row .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.a-active-row b { font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+.a-active-row .tx span { font: 400 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-lock { background: #0D1214; color: #fff; }
+.a-lock .wall { position: absolute; inset: 0; opacity: .5; }
+.a-lk-date { position: relative; margin: 32px 0 0 28px; font: 500 calc(16px * var(--ax))/calc(22px * var(--ax)) var(--font-text); color: rgba(255, 255, 255, .9); }
+.a-lk-clock { position: relative; display: flex; flex-direction: column; align-items: center; margin-top: 64px; font: 400 132px/.9 var(--font-text); letter-spacing: -3px; color: #F6F2EA; }
+.a-lock.has-n .a-lk-clock { flex-direction: row; align-items: baseline; margin: 6px 0 0 26px; font-size: calc(68px * var(--ax)); line-height: 76px; letter-spacing: -1.5px; }
+.a-lock.has-n .a-lk-clock span + span::before { content: ":"; }
+.a-lk-bottom { position: absolute; left: 32px; right: 32px; bottom: 44px; display: flex; align-items: center; justify-content: space-between; }
+.a-lk-bottom .sc { width: 56px; height: 56px; border-radius: 50%; background: rgba(255, 255, 255, .14); display: grid; place-items: center; }
+.a-lk-bottom .hint { opacity: .8; }
+
+/* ---------- Google Phone's call screen and the picture-in-picture mini map ---------- */
+.a-call { align-items: center; padding: 40px 28px 46px; background: #0E1315; color: #fff; }
+.a-call-head { display: flex; flex-direction: column; align-items: center; margin-top: 32px; text-align: center; }
+.a-call-av { width: 88px; height: 88px; border-radius: 50%; background: #2A383D; color: #E3ECEF; display: grid; place-items: center; font: 500 calc(38px * var(--ax)) var(--font-text); }
+.a-call-name { margin-top: 16px; font: 400 calc(34px * var(--ax))/calc(40px * var(--ax)) var(--font-text); letter-spacing: 0; }
+.a-call-sub { margin-top: 4px; font: 400 calc(16px * var(--ax))/calc(24px * var(--ax)) var(--font-text); color: rgba(255, 255, 255, .7); }
+.a-call .note { margin-top: 2px; font-size: calc(11px * var(--ax)); line-height: 16px; color: rgba(255, 255, 255, .35); letter-spacing: .4px; }
+.a-call-grid { display: grid; grid-template-columns: repeat(3, 84px); gap: 18px 26px; justify-content: center; }
+.a-call-grid .cb { display: flex; flex-direction: column; align-items: center; gap: 8px; font: 500 calc(13px * var(--ax))/calc(16px * var(--ax)) var(--font-text); color: rgba(255, 255, 255, .85); }
+.a-call-grid .ci { width: 72px; height: 72px; border-radius: 50%; background: rgba(255, 255, 255, .1); display: grid; place-items: center; }
+.a-endcall { margin-top: 30px; width: 104px; height: 64px; border: 0; border-radius: 32px; background: #E5484D; color: #fff; display: grid; place-items: center; }
+.a-endcall .ms { font-size: calc(30px * var(--ax)); }
+.pip { position: absolute; z-index: 4; right: 12px; top: 274px; width: 156px; height: 208px; overflow: hidden; border-radius: 18px; background: var(--map-land); box-shadow: var(--shadow-float); animation: a-pip-in .45s var(--a-ease-out) both; transform-origin: 100% 0; }
+@keyframes a-pip-in { from { transform: scale(.5); opacity: 0; } }
+.pip-map { position: absolute; left: 0; top: 0; width: 390px; height: 844px; transform-origin: 0 0; transition: transform .6s cubic-bezier(.3, .7, .3, 1); }
+.pip .mk { transform: scale(var(--pip-k, 1)); }
+.pip .mk .name { display: none; }
+.pip .chip { transform: translate(-50%, -50%) scale(var(--pip-kc, 1)); }
+.pip-ui { position: absolute; inset: 0; }
+.pip-ui .badge { position: absolute; z-index: 2; left: 8px; top: 8px; }
+.pip-cap { position: absolute; z-index: 2; left: 8px; right: 8px; bottom: 8px; padding: 3px 8px; border-radius: 10px; background: var(--surface); color: var(--ink-secondary); font: 600 calc(11px * var(--ax))/calc(16px * var(--ax)) var(--font-text); text-align: center; font-variant-numeric: tabular-nums; }
+.pip-hit { position: absolute; inset: 0; z-index: 3; width: 100%; border: 0; background: transparent; cursor: pointer; }
+.pip-menu { position: absolute; inset: 0; z-index: 3; animation: fade .15s ease both; }
+.pip-bg { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(0, 0, 0, .52); cursor: pointer; }
+.pip-row { position: absolute; left: 4px; right: 4px; bottom: 6px; display: grid; grid-template-columns: repeat(3, 1fr); }
+.pip-c { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 52px; padding: 4px 0; border: 0; border-radius: 14px; background: transparent; color: #fff; font: 600 11px/14px var(--font-text); }
+.pip-c::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: #fff; opacity: 0; transition: opacity .15s; }
+.pip-c:active::after { opacity: .18; }
+.pip-c .ms { font-size: 24px; }
+
+/* ---------- Mom: the link in Chrome ---------- */
+.a-chromebar { position: absolute; z-index: 4; left: 0; right: 0; top: 0; height: 100px; display: flex; align-items: center; gap: 2px; padding: 44px 4px 0 12px; background: var(--surface); box-shadow: 0 1px 0 var(--separator); }
+.a-omni { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 14px; border-radius: 22px; background: var(--surface-raised); color: var(--ink); font: 400 calc(16px * var(--ax))/calc(22px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.a-omni .ms { font-size: calc(20px * var(--ax)); color: var(--ink-secondary); }
+.a-tabsw { flex: none; width: 48px; height: 48px; display: grid; place-items: center; }
+.a-tabsw i { width: 20px; height: 20px; border: 2px solid var(--ink); border-radius: 5px; box-sizing: border-box; font: 700 calc(11px * var(--ax))/calc(16px * var(--ax)) var(--font-text); font-style: normal; text-align: center; }
+.a-chrome-more { flex: none; width: 40px; height: 48px; display: grid; place-items: center; color: var(--ink); }
+.screen[data-platform="android"].browser .map-layer { transform: translateY(56px); }
+.screen[data-platform="android"][data-device="mom"] { --vp-top: 108px; --vp-bottom: 24px; }
+.screen[data-platform="android"] .expired.a-web { padding-top: 100px; padding-bottom: 96px; }
+.screen[data-platform="android"] .brandfoot { bottom: 52px; }
+.a-sysdlg.chrome h2 { font-size: calc(19px * var(--ax)); line-height: 26px; }
+/* Open in Maps leaves the browser, so the page asks first. In Chrome the question is a Material dialog
+   in the system's monochrome palette, with Cancel and Open as text buttons. */
+.screen[data-platform="android"] .perm.maps-ask { left: 50%; right: auto; top: 50%; bottom: auto; width: 312px; max-height: calc(100% - 160px); overflow-y: auto; transform: translate(-50%, -50%); gap: 16px; padding: 24px 24px 18px; border-radius: 28px; background: var(--a-dialog); box-shadow: 0 16px 48px rgba(0, 0, 0, .22); animation: a-dlg-in .32s var(--a-ease-out) both; }
+.screen[data-platform="android"] .maps-ask .row { flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+.screen[data-platform="android"] .maps-ask .row svg { width: 26px; height: 26px; color: var(--a-sys); }
+.screen[data-platform="android"] .maps-ask b { display: block; font: 400 calc(20px * var(--ax))/calc(27px * var(--ax)) var(--font-text); letter-spacing: 0; }
+.screen[data-platform="android"] .maps-ask p { margin-top: 12px; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .25px; text-wrap: pretty; }
+.screen[data-platform="android"] .maps-ask .btns { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-right: -8px; }
+.screen[data-platform="android"] .maps-ask .btns .btn { min-height: 48px; padding: 0 12px; border-radius: 24px; background: transparent; color: var(--ink); font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); letter-spacing: .1px; }
+.screen[data-platform="android"] .maps-ask .btns .btn:active { transform: none; border-radius: 10px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+
+/* ---------- Android's Settings app ---------- */
+.a-sys { background: var(--ground); }
+.a-sys .a-content { padding-bottom: 40px; }
+.a-sys-title { margin-top: 4px; padding: 0 8px; font: 400 calc(34px * var(--ax))/calc(42px * var(--ax)) var(--font-text); letter-spacing: 0; }
+.a-sys-app { display: flex; align-items: center; gap: 16px; margin: 20px 8px 4px; font: 500 calc(18px * var(--ax))/calc(24px * var(--ax)) var(--font-text); }
+.a-sys-app .a-appicon { width: 40px; height: 40px; }
+.a-sys-sec { margin: 22px 16px 8px; font: 600 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); letter-spacing: .1px; }
+.a-sys .a-group + .a-group { margin-top: 16px; }
+.a-sys .a-radio { --rc: var(--a-sys); }
+.a-sys .a-li .lead, .a-sys .a-radio { margin-right: 0; }
+.a-sys .a-switch input:checked ~ .tr { background: var(--a-sys); }
+.a-sys .a-switch input:checked ~ .th { background: var(--ground); color: var(--a-sys); }
+.a-sys-foot { display: flex; gap: 14px; margin: 22px 16px 0; font: 400 calc(14px * var(--ax))/calc(20px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.a-sys-foot .ms { font-size: calc(20px * var(--ax)); }
+
+/* ---------- Sharesheet ---------- */
+.a-sharesheet { gap: 16px; padding-bottom: 32px; }
+.ss-prev { display: flex; align-items: center; gap: 14px; }
+.ss-thumb { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; overflow: hidden; background: var(--a-sys-btn); }
+.ss-prev .tx { min-width: 0; text-align: left; }
+.ss-prev b { display: block; font: 600 calc(15px * var(--ax))/calc(20px * var(--ax)) var(--font-text); }
+.ss-prev span { font: 400 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink-secondary); }
+.ss-chips { display: flex; gap: 8px; }
+.ss-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ss-person, .ss-app { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 4px 0; border: 0; border-radius: 16px; background: transparent; color: var(--ink); font: 500 calc(12px * var(--ax))/calc(16px * var(--ax)) var(--font-text); letter-spacing: .2px; }
+.ss-person .ph { position: relative; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--ink-secondary); color: var(--surface); font: 700 calc(22px * var(--axd)) var(--font-display); }
+.ss-person .badge-app { position: absolute; right: -3px; bottom: -3px; width: 24px; height: 24px; border-radius: 50%; background: var(--a-sys-btn); color: var(--ink); box-shadow: 0 0 0 2px var(--a-dialog); display: grid; place-items: center; }
+.ss-person .badge-app .ms { font-size: calc(14px * var(--ax)); }
+.ss-div { height: 1px; margin: 0 -24px; background: var(--separator); }
+.ss-app .sq { width: 56px; height: 56px; border-radius: 50%; background: var(--a-sys-btn); color: var(--ink); display: grid; place-items: center; }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .screen[data-platform="android"] .scr.enter, .scr.enter .a-bsheet, .a-scrim, .a-dialog, .a-sysdlg, .a-msheet, .a-snack, .a-hun, .a-hun.lockn,
+  .a-shade-bg, .a-shade-in, .a-splash-icon, .pip, .pip-menu, .a-otp span.on { animation: none !important; }
+  .a-btn, .a-switch .th, .a-switch .tr, .a-nav .ind, .pip-map, .a-dots i, .a-appbar, .a-appbar-t { transition: none !important; }
+}
+
+/* ---------- Round 1 additions ---------- */
+/* Errors: an icon and words, in ink. Flare is only for stopping and deleting. */
+.a-err { display: flex; align-items: flex-start; gap: 8px; margin: 8px 16px 0; font: 600 calc(13px * var(--ax))/calc(18px * var(--ax)) var(--font-text); color: var(--ink); }
+.a-err .ms { font-size: 18px; flex: none; }
+.a-err.center { justify-content: center; margin: 16px 0 0; }
+.a-field.bad { box-shadow: inset 0 0 0 2px var(--ink); }
+.a-otp.bad span { box-shadow: inset 0 0 0 2px var(--ink-tertiary); }
+.a-resend { align-self: center; margin-top: 8px; }
+/* Gboard's keys type into the code. */
+.a-kb-keys > button { height: 50px; border: 0; border-radius: 10px; background: var(--kb-key); color: var(--kb-ink); display: grid; place-items: center; font: 400 24px/1 var(--font-text); letter-spacing: 0; cursor: pointer; }
+.a-kb-keys > button.fn { background: var(--kb-fn); font-size: 22px; }
+.a-kb-keys > button:active { filter: brightness(.92); }
+/* The share screen's Location row: segmented buttons in place, no chevron. */
+.a-li.stack.lead-row { flex-direction: row; align-items: flex-start; gap: 16px; }
+.a-li.stack.lead-row .lead { margin-top: 2px; }
+.a-li.stack.lead-row .tx { gap: 10px; }
+.a-pick { position: relative; }
+.pick-check .ms { font-size: 14px; font-variation-settings: "FILL" 0, "wght" 700, "GRAD" 0, "opsz" 20; }
+.a-live .bar-av { width: 36px; height: 36px; }
+.a-actions + .a-btn { margin-top: 0; }
+
+/* Larger text: rows grow, nothing is cut off, and Stop sharing stays reachable. */
+.screen[data-platform="android"].big .a-actions { flex-direction: column; gap: 8px; }
+.screen[data-platform="android"].big .a-actions .a-btn { min-width: 0; }
+/* Buttons grow with their text: at least 48dp each, so their touch targets need no extension and
+   stacked buttons keep 8dp between them. */
+.screen[data-platform="android"].big .a-btn:not(.lg) { min-height: 48px; }
+.screen[data-platform="android"].big .a-btn::before { inset: 0; }
+.screen[data-platform="android"].big .a-btn { white-space: normal; text-align: center; }
+.screen[data-platform="android"].big .a-bsheet > * { flex-shrink: 0; }
+.screen[data-platform="android"].big .a-mapbar { flex-wrap: wrap; }
+.screen[data-platform="android"].big .a-mapbar .txt { min-width: 60%; }
+/* The map keeps a band the size of one marker and its name; the sheet scrolls instead, with Stop
+   sharing pinned at its bottom. */
+.screen[data-platform="android"].big .a-mapgap { flex-basis: 136px; }
+.screen[data-platform="android"].big .a-live.together .a-mapgap { flex-basis: 220px; }
+.screen[data-platform="android"].big .a-stopbar { position: sticky; bottom: 0; z-index: 2; margin: 0 -16px; padding: 12px 16px 34px; box-shadow: 0 -1px 0 var(--separator); }
+.screen[data-platform="android"].big .a-card-acts { flex-direction: column; align-items: stretch; }
+.screen[data-platform="android"].big .a-hero { grid-template-columns: 1fr; }
+.screen[data-platform="android"].big .a-pick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.screen[data-platform="android"].big .a-nav button { font-size: 14px; }
+.screen[data-platform="android"].big .a-page:not(.a-live) > .a-content:not(.scroll) { overflow-y: auto; scrollbar-width: none; }
+.screen[data-platform="android"].big .a-dialog { width: 340px; }
+.screen[data-platform="android"].big .a-dialog .acts { flex-direction: column; align-items: flex-end; }
+
+/* Map labels stay 11px or more: none in the mini map, the permission thumbnails or the wallpaper. */
+.pip .m-label, .a-prec .m-label, .wall .m-label { display: none; }
+.a-bsheet > * { flex-shrink: 0; }
+.a-bsheet::-webkit-scrollbar { display: none; }
+.screen[data-platform="android"] .people .sb-note { letter-spacing: .1px; }

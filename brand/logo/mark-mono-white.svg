@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84.5 98.5" width="84.5" height="98.5" role="img" aria-label="Track Me Live">
+<title>Track Me Live</title>
+<g transform="translate(0 0) scale(1) translate(-23.5 -12.5)"><defs><mask id="m4" maskUnits="userSpaceOnUse" x="0" y="0" width="200" height="140">
+        <rect width="200" height="140" fill="#fff"/>
+        <circle cx="66" cy="54" r="21" fill="none" stroke="#000" stroke-width="6.5"/>
+        <circle cx="66" cy="54" r="10.5" fill="#000"/>
+      </mask></defs>
+      <path d="M52.32 91.59 A40 40 0 1 0 29.75 70.9 Q32.39 88.89 29.1 104 Q29 109 33.01 106.01 Q41.61 97.24 52.32 91.59 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round" mask="url(#m4)"/></g>
+</svg>

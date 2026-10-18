@@ -1,0 +1,13 @@
+{
+  "name": "track-me-live-prototype-tests",
+  "private": true,
+  "description": "Browser tests for the click-through prototype. Run ./run-suite.sh after npm i.",
+  "type": "module",
+  "scripts": {
+    "test": "./run-suite.sh"
+  },
+  "dependencies": {
+    "axe-core": "4.10.2",
+    "playwright-core": "1.47.2"
+  }
+}

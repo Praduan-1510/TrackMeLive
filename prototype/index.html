@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Track Me Live Prototype</title>
+<link rel="icon" href="../brand/logo/favicon.svg" type="image/svg+xml">
+<!-- Fonts are vendored in fonts/ (OFL and Apache licenses there), so the prototype works offline. -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="../design-system/tokens.css">
+<link rel="stylesheet" href="css/stage.css">
+<link rel="stylesheet" href="css/app.css">
+<script src="js/map.js" defer></script>
+<script src="js/app.js" defer></script>
+<!-- css/android.css and js/android.js load when Android is first chosen, or once after the first paint. -->
+</head>
+<body>
+<div class="stage">
+  <svg class="stage-map" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="1440" height="900" fill="#070A0C"/>
+    <path d="M-40 760 C 260 700 460 820 760 770 C 1000 730 1180 680 1480 720 L 1480 960 L -40 960 Z" fill="#0A1620"/>
+    <g fill="none" stroke="#10171A" stroke-width="12" stroke-linecap="round">
+      <path d="M-20 140 L1460 80"/><path d="M-20 360 L1460 300"/><path d="M-20 580 L1460 520"/>
+      <path d="M180 -20 L220 920"/><path d="M560 -20 L590 920"/><path d="M960 -20 L980 920"/><path d="M1320 -20 L1340 920"/>
+    </g>
+    <path d="M-20 680 C 360 620 760 480 1460 200" fill="none" stroke="#16140F" stroke-width="26" stroke-linecap="round"/>
+  </svg>
+
+  <header class="stage-head">
+    <img class="logo" src="../brand/logo/logo-horizontal-on-dark.svg" alt="Track Me Live">
+    <h1 class="sr-only">Track Me Live click-through prototype</h1>
+    <span class="proto-tag">Click-through prototype · v1</span>
+    <span class="spacer"></span>
+    <div class="seg-ctl" role="group" aria-label="Phone platform">
+      <button type="button" data-platform-set="ios" aria-pressed="true">iPhone</button>
+      <button type="button" data-platform-set="android" aria-pressed="false">Android</button>
+    </div>
+    <div class="seg-ctl" role="group" aria-label="Phone appearance">
+      <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+      <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+    </div>
+    <button class="ghost-btn" type="button" id="restart">Restart</button>
+  </header>
+
+  <div class="stage-body">
+    <aside class="story" aria-label="What to try">
+      <div class="story-steps" tabindex="0" role="region" aria-label="Steps">
+        <h2>Live Together, on a call</h2>
+        <p class="lede">Two phones, one session. Follow the steps, or click anything on either phone.</p>
+        <ol class="steps" id="steps"></ol>
+      </div>
+      <div class="controls">
+        <h3>Simulate</h3>
+        <div class="ctl-grid">
+          <button class="ctl call wide" type="button" id="ctl-call"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h3.5l1.8 4.6-2.3 1.6a12 12 0 0 0 5.8 5.8l1.6-2.3L20 14.5V18a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-2z" fill="currentColor"/></svg></span><span class="lbl">Start a call with Mom</span><small></small></button>
+          <button class="ctl sig wide" type="button" id="ctl-quick"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="3.5" fill="currentColor"/><rect x="13.5" y="3.5" width="7" height="7" rx="2" fill="currentColor" opacity=".55"/><rect x="3.5" y="13.5" width="7" height="7" rx="2" fill="currentColor" opacity=".55"/><rect x="13.5" y="13.5" width="7" height="7" rx="3.5" fill="currentColor"/></svg></span><span class="lbl">Open Control Center</span><small></small></button>
+          <button class="ctl sig" type="button" id="ctl-signal"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 L3 10.5 L11 13 L13.5 21 Z" fill="currentColor"/></svg></span><span class="lbl">Lose Alex's GPS signal</span><small></small></button>
+          <button class="ctl sig" type="button" id="ctl-offline"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 9.2a13.4 13.4 0 0 1 18.8 0M5.6 12.4a9.2 9.2 0 0 1 12.8 0M8.6 15.6a5 5 0 0 1 6.8 0M4 4l16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span class="lbl">Lose Alex's connection</span><small></small></button>
+          <button class="ctl sig" type="button" id="ctl-limit"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="lbl">Jump to the 1-hour limit</span><small></small></button>
+          <button class="ctl sig" type="button" id="ctl-later"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M12 7.5 V12 L15 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></span><span class="lbl">Mom opens the link later</span><small></small></button>
+        </div>
+        <!-- Narrow windows: the header's switches move here. -->
+        <div class="narrow-switches">
+          <div class="text-size"><span id="np-lbl">Phones</span><div class="seg-ctl" role="group" aria-labelledby="np-lbl"><button type="button" data-platform-set="ios" aria-pressed="true">iPhone</button><button type="button" data-platform-set="android" aria-pressed="false">Android</button></div></div>
+          <div class="text-size"><span id="na-lbl">Appearance</span><div class="seg-ctl" role="group" aria-labelledby="na-lbl"><button type="button" data-theme-set="system" aria-pressed="true">System</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+        </div>
+        <div class="text-size"><span id="ts-lbl">Text size</span><div class="seg-ctl" role="group" aria-labelledby="ts-lbl"><button type="button" data-text-set="default" aria-pressed="true">Default</button><button type="button" data-text-set="large" aria-pressed="false">150%</button><button type="button" data-text-set="xl" aria-pressed="false">200%</button></div></div>
+        <details class="more">
+          <summary>More states</summary>
+          <p class="more-h">Sign-up</p>
+          <div class="chips">
+            <button class="mini" type="button" id="dev-number" aria-pressed="false">Number is incomplete</button>
+            <button class="mini" type="button" id="dev-sendfail" aria-pressed="false">Next text fails</button>
+            <button class="mini" type="button" id="dev-expire" aria-pressed="false">Code expires</button>
+          </div>
+          <p class="more-h">Mom’s page</p>
+          <div class="chips">
+            <button class="mini" type="button" id="dev-broken">Mom opens a broken link</button>
+            <button class="mini" type="button" id="dev-mapfail" aria-pressed="false">Map doesn’t load</button>
+            <button class="mini" type="button" id="dev-nogeo" aria-pressed="false">Browser can’t share location</button>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <div class="devices" data-show="alex">
+      <div class="seg-ctl dev-switch" role="group" aria-label="Which phone">
+        <button type="button" data-show-btn="alex" aria-pressed="true"><span class="t">Alex's iPhone</span><span class="badge" hidden></span></button>
+        <button type="button" data-show-btn="mom" aria-pressed="false"><span class="t">Mom's phone</span><span class="badge" hidden></span></button>
+      </div>
+      <section class="device alex" role="group" aria-label="Alex's iPhone, Track Me Live app">
+        <div class="dev-label"><span class="dot a"></span><b>Alex</b> <span class="t">iPhone · the Track Me Live app</span></div>
+        <div class="dev-scale"><div class="phone"><div class="screen" data-device="alex"></div></div></div>
+      </section>
+      <section class="device mom" role="group" aria-label="Mom's phone, the link in a browser">
+        <div class="dev-label"><span class="dot m"></span><b>Mom</b> <span class="t">any phone · the link in a browser</span></div>
+        <div class="dev-scale"><div class="phone"><div class="screen" data-device="mom"></div></div></div>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>

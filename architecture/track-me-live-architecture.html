@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Track Me Live Architecture</title>
+<meta name="description" content="System architecture for Track Me Live v1: the iOS and Android apps, the Firebase backend, push, the Maps API and the viewer's browser page, including the Live Together share-back path.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Track Me Live system architecture.
+   Colors are the design-system tokens (design-system/tokens.css), copied here so the page is self-contained.
+   Lamplight = the sharer, crossing = the viewer, connected = the phone call, flare = stop only.
+   The PDF build (docs/fsd-pdf/build.mjs) renders #system-map in the light theme, so keep that id. */
+:root {
+  --ground: #F4F5F2;
+  --surface: #FFFFFF;
+  --surface-raised: #EBEEEA;
+  --ink: #11181B;
+  --ink-secondary: #4A575D;
+  --ink-tertiary: #5F6C72;
+  --separator: #11181b1f;
+  --lamplight: #F2A033;
+  --on-lamplight: #1F1405;
+  --lamplight-text: #9A5500;
+  --lamplight-wash: #FCEBD2;
+  --crossing: #1D6FDB;
+  --on-crossing: #FFFFFF;
+  --crossing-text: #1D63C4;
+  --crossing-wash: #DCEAFC;
+  --flare-text: #B42E22;
+  --connected: #17733F;
+  --connected-wash: #DDF2E4;
+  --focus-ring: #1D6FDB;
+  --map-land: #E9ECE6;
+  --map-road: #FFFFFF;
+  --map-road-major: #F7E3BC;
+  --map-park: #D3E6CF;
+  --map-water: #C7DDE8;
+  --logo-ring: #FFE3BA;
+  --logo-center: #FFFFFF;
+  /* Diagram surfaces: zones sit one step off the ground, boxes one step further. */
+  --canvas: #FFFFFF;
+  --zone: #EBEEEA;
+  --box: #FFFFFF;
+  --line: #11181b2e;
+  --edge: #11181B;
+  --dash: #5F6C72;
+  --font-display: "Gabarito", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-text: "Figtree", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0B1012;
+    --surface: #151B1E;
+    --surface-raised: #1E2629;
+    --ink: #EEF2F1;
+    --ink-secondary: #A2AEB2;
+    --ink-tertiary: #85919A;
+    --separator: #ffffff1a;
+    --lamplight: #F7AE45;
+    --on-lamplight: #1F1405;
+    --lamplight-text: #FFC266;
+    --lamplight-wash: #3A2A12;
+    --crossing: #5AA9FF;
+    --on-crossing: #04192F;
+    --crossing-text: #8CC4FF;
+    --crossing-wash: #0F2742;
+    --flare-text: #FF8A7F;
+    --connected: #4ED188;
+    --connected-wash: #12301F;
+    --focus-ring: #8CC4FF;
+    --map-land: #11171A;
+    --map-road: #1D2629;
+    --map-road-major: #302C24;
+    --map-park: #14241D;
+    --map-water: #0E2130;
+    --canvas: #0B1012;
+    --zone: #151B1E;
+    --box: #1E2629;
+    --line: #ffffff26;
+    --edge: #EEF2F1;
+    --dash: #85919A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0B1012;
+  --surface: #151B1E;
+  --surface-raised: #1E2629;
+  --ink: #EEF2F1;
+  --ink-secondary: #A2AEB2;
+  --ink-tertiary: #85919A;
+  --separator: #ffffff1a;
+  --lamplight: #F7AE45;
+  --on-lamplight: #1F1405;
+  --lamplight-text: #FFC266;
+  --lamplight-wash: #3A2A12;
+  --crossing: #5AA9FF;
+  --on-crossing: #04192F;
+  --crossing-text: #8CC4FF;
+  --crossing-wash: #0F2742;
+  --flare-text: #FF8A7F;
+  --connected: #4ED188;
+  --connected-wash: #12301F;
+  --focus-ring: #8CC4FF;
+  --map-land: #11171A;
+  --map-road: #1D2629;
+  --map-road-major: #302C24;
+  --map-park: #14241D;
+  --map-water: #0E2130;
+  --canvas: #0B1012;
+  --zone: #151B1E;
+  --box: #1E2629;
+  --line: #ffffff26;
+  --edge: #EEF2F1;
+  --dash: #85919A;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 400 16px/1.55 var(--font-text);
+  -webkit-font-smoothing: antialiased;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 72px max(16px, env(safe-area-inset-left, 0px));
+}
+.wrap { max-width: 1440px; margin: 0 auto; }
+.measure { max-width: 68ch; }
+:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; border-radius: 6px; }
+code { font: 500 .86em var(--font-mono); background: var(--surface-raised); border-radius: 5px; padding: 1px 5px; overflow-wrap: anywhere; }
+p { margin: 0; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+
+/* Top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 20px; border-bottom: 1px solid var(--separator); }
+.brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.brand svg { height: 26px; width: auto; flex: none; }
+.brand span { font: 600 14px/1.3 var(--font-text); color: var(--ink-secondary); border-left: 1px solid var(--separator); padding-left: 14px; white-space: nowrap; }
+.theme-btn { min-height: 44px; padding: 0 18px; border: 0; border-radius: 999px; background: var(--surface-raised); color: var(--ink); font: 600 14px var(--font-text); cursor: pointer; flex: none; }
+.theme-btn:hover { background: var(--separator); }
+@media (max-width: 520px) { .brand span { display: none; } }
+
+/* Intro */
+.intro { padding-block: 48px 32px; display: grid; gap: 18px; }
+.eyebrow { font: 600 13px/1.4 var(--font-text); color: var(--lamplight-text); }
+h1 { font: 700 clamp(32px, 5vw, 52px)/1.04 var(--font-display); letter-spacing: -.025em; }
+.lead { font-size: 18px; color: var(--ink-secondary); }
+.facts { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.facts li { background: var(--surface); border-radius: 18px; padding: 16px 18px; display: grid; gap: 4px; align-content: start; }
+.facts b { font: 700 28px/1.1 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 14px; line-height: 1.4; color: var(--ink-secondary); }
+@media (max-width: 980px) { .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts b { font-size: 24px; } }
+
+/* Sections */
+section { padding-block: 40px; border-top: 1px solid var(--separator); display: grid; gap: 20px; min-width: 0; }
+h2 { font: 700 clamp(24px, 3vw, 32px)/1.15 var(--font-display); letter-spacing: -.015em; }
+h3 { font: 700 18px/1.3 var(--font-display); }
+h2.spaced { margin-top: 28px; }
+.sub { color: var(--ink-secondary); }
+
+/* Diagrams */
+figure { margin: 0; display: grid; gap: 12px; min-width: 0; }
+.scroll { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; border-radius: 22px; background: var(--canvas); border: 1px solid var(--separator); }
+.scroll:focus-visible { outline-offset: -3px; }
+.dg { display: block; width: 100%; height: auto; }
+/* Diagram text is 12px or larger at 1:1, so the diagrams never shrink below 1:1; narrower
+   screens scroll sideways inside the panel instead. */
+#system-map .dg { min-width: 1440px; }
+.lc .dg { min-width: 1200px; }
+.hint { display: none; font-size: 14px; color: var(--ink-secondary); }
+@media (max-width: 1480px) { .hint { display: block; } }
+figcaption { color: var(--ink-secondary); font-size: 15px; max-width: 80ch; }
+
+/* Diagram marks (shared by every diagram on the page) */
+.zone { fill: var(--zone); }
+.box { fill: var(--box); stroke: var(--line); stroke-width: 1; }
+.box-sharer { fill: var(--lamplight-wash); stroke: var(--lamplight); stroke-width: 1.5; }
+.box-viewer { fill: var(--crossing-wash); stroke: var(--crossing); stroke-width: 1.5; }
+.card { fill: var(--zone); }
+.ext { fill: var(--box); stroke: var(--edge); stroke-width: 1.2; }
+.bar-sharer { fill: var(--lamplight); }
+.bar-viewer { fill: var(--crossing); }
+.hair { stroke: var(--line); stroke-width: 1; }
+
+.e { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+.e-sharer { fill: none; stroke: var(--lamplight); stroke-width: 4; stroke-linecap: round; }
+.e-viewer { fill: none; stroke: var(--crossing); stroke-width: 4; stroke-linecap: round; }
+.e-viewer-thin { fill: none; stroke: var(--crossing); stroke-width: 1.8; }
+.e-call { fill: none; stroke: var(--connected); stroke-width: 1.8; }
+.ah { fill: var(--edge); }
+.ah-sharer { fill: var(--lamplight); }
+.ah-viewer { fill: var(--crossing); }
+.ah-call { fill: var(--connected); }
+
+.t-zone { font: 700 17px var(--font-display); fill: var(--ink); }
+.t-title { font: 700 15px var(--font-display); fill: var(--ink); }
+.t-small-title { font: 700 14px var(--font-display); fill: var(--ink); }
+.t-body { font: 400 12px var(--font-text); fill: var(--ink); }
+.t-strong { font: 600 12px var(--font-text); fill: var(--ink); }
+.t-muted { font: 400 12px var(--font-text); fill: var(--ink-secondary); }
+.t-label { font: 600 12px var(--font-text); fill: var(--ink); }
+.t-label-muted { font: 400 12px var(--font-text); fill: var(--ink-secondary); }
+.t-mono { font: 500 12px var(--font-mono); fill: var(--ink); }
+.t-mono-muted { font: 400 12px var(--font-mono); fill: var(--ink-secondary); }
+.t-sharer { fill: var(--lamplight-text); }
+.t-viewer { fill: var(--crossing-text); }
+.t-call { fill: var(--connected); }
+.t-stop { fill: var(--flare-text); }
+.mono { font-family: var(--font-mono); font-size: 1em; }
+.t-on-viewer { font: 600 12px var(--font-text); fill: var(--on-crossing); }
+.t-capsule { font: 700 12px var(--font-display); fill: var(--ground); }
+.dot-call { fill: var(--connected); }
+.dot-sharer { fill: var(--lamplight); }
+.chip { fill: var(--zone); }
+.ring-stale { fill: none; stroke: var(--ink-tertiary); stroke-width: 1.4; stroke-dasharray: 2.4 2; }
+
+.m-land { fill: var(--map-land); }
+.m-road { fill: none; stroke: var(--map-road); stroke-width: 7; stroke-linecap: round; }
+.m-major { fill: none; stroke: var(--map-road-major); stroke-width: 11; stroke-linecap: round; }
+.m-park { fill: var(--map-park); }
+.m-water { fill: var(--map-water); }
+.m-trail { fill: var(--lamplight); }
+.m-sharer-disc { fill: var(--box); stroke: var(--lamplight); stroke-width: 3; }
+.m-sharer-face { fill: var(--lamplight); }
+.m-viewer-disc { fill: var(--crossing); stroke: var(--box); stroke-width: 2.5; }
+.m-person { fill: var(--on-crossing); }
+.m-you { fill: var(--box); stroke: var(--crossing); stroke-width: 1; }
+.t-you { font: 700 12px var(--font-display); fill: var(--crossing-text); }
+.m-link { fill: none; stroke: var(--ink); stroke-opacity: .35; stroke-width: 1.5; stroke-dasharray: 4 4; }
+.m-capsule { fill: var(--ink); }
+.m-bob { transform-box: fill-box; transform-origin: center; animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .m-bob { animation: none; } }
+
+/* Every flow */
+.flows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .flows { grid-template-columns: 1fr; } }
+.lane { background: var(--surface); border-radius: 22px; padding: 22px 24px; display: grid; gap: 14px; align-content: start; min-width: 0; }
+.lane h3 { display: flex; align-items: center; gap: 10px; }
+.swatch { width: 26px; height: 4px; border-radius: 2px; background: var(--edge); flex: none; }
+.swatch.sharer { background: var(--lamplight); }
+.swatch.viewer { background: var(--crossing); }
+.swatch.call { background: var(--connected); height: 10px; width: 10px; border-radius: 50%; }
+.lane ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.lane li { display: grid; gap: 2px; min-width: 0; }
+.lane .route { font: 600 14px/1.4 var(--font-text); }
+.lane .route i { font-style: normal; color: var(--ink-tertiary); padding-inline: 4px; }
+.lane li p { font-size: 15px; color: var(--ink-secondary); }
+
+/* Open questions */
+.qs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--separator); counter-reset: q; }
+.qs li { display: grid; grid-template-columns: 1fr; gap: 6px; padding-block: 18px; border-bottom: 1px solid var(--separator); counter-increment: q; }
+@media (min-width: 820px) { .qs li { grid-template-columns: minmax(0, 22rem) minmax(0, 1fr); gap: 8px 40px; } }
+.qs h3 { font: 700 17px/1.35 var(--font-display); }
+.qs h3::before { content: counter(q) ". "; color: var(--lamplight-text); font-variant-numeric: tabular-nums; }
+.ref { display: inline-block; margin-top: 6px; font: 600 12px var(--font-text); color: var(--ink-secondary); background: var(--surface-raised); border-radius: 999px; padding: 1px 9px; }
+.qs p { color: var(--ink-secondary); font-size: 15px; min-width: 0; }
+
+footer { padding-top: 24px; border-top: 1px solid var(--separator); color: var(--ink-secondary); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 729.1 119.23" role="img" aria-label="Track Me Live">
+      <g transform="scale(1.21) translate(-23.5 -12.5)">
+        <path d="M52.32 91.59 A40 40 0 1 0 29.75 70.9 Q32.39 88.89 29.1 104 Q29 109 33.01 106.01 Q41.61 97.24 52.32 91.59 Z" style="fill:var(--lamplight);stroke:var(--lamplight)" stroke-width="3" stroke-linejoin="round"/>
+        <circle cx="66" cy="54" r="21" fill="none" style="stroke:var(--logo-ring)" stroke-width="6.5"/>
+        <circle cx="66" cy="54" r="10.5" style="fill:var(--logo-center)"/>
+      </g>
+      <g transform="translate(129.9 85.63)">
+        <path style="fill:var(--ink)" d="M34.70 0L21.50 0L21.50-55.60L1-55.60L1-68.10L55.80-68.10L55.80-55.60L34.70-55.60L34.70 0Z M61.20-48.90L71-48.90L72.30-43.70Q72.80-44.20 73.50-44.80L73.50-44.80Q75.70-46.90 78.65-48.45Q81.60-50 84.80-50L84.80-50Q86.40-50 87.70-49.80Q89-49.60 89.70-49.10L89.70-49.10L89.70-37.20L86.50-37.20Q80-37.20 76.50-35.20L76.50-35.20Q75.30-34.40 74.30-33.40L74.30-33.40L74.30 0L61.20 0L61.20-48.90Z M111 1.40L111 1.40Q105.60 1.40 101.50-0.65Q97.40-2.70 95.20-6.45Q93-10.20 93-15.20Q93-20.20 95.35-23.90Q97.70-27.60 101.80-29.65Q105.90-31.70 111.10-31.70L111.10-31.70Q118.20-31.70 122.60-28.50L122.60-28.50L122.60-31.80Q122.60-34.60 120.60-36.80Q118.60-39 114.10-39L114.10-39Q111.30-39 107.90-38.35Q104.50-37.70 100.80-35.90L100.80-35.90L96.90-45.50Q101.20-47.60 106.05-48.80Q110.90-50 115.80-50L115.80-50Q122.50-50 126.90-47.60Q131.30-45.20 133.50-41Q135.70-36.80 135.70-31.40L135.70-31.40L135.70 0L125.30 0L124.30-3.40Q123.40-2.60 122.50-1.90L122.50-1.90Q117.90 1.40 111 1.40ZM114.60-8.60L114.60-8.60Q118.20-8.60 120.40-10.40Q122.60-12.20 122.60-15.20L122.60-15.20Q122.60-18.30 120.40-20.05Q118.20-21.80 114.60-21.80Q111-21.80 108.80-20.05Q106.60-18.30 106.60-15.20L106.60-15.20Q106.60-12.20 108.80-10.40Q111-8.60 114.60-8.60Z M167.00 1.20L167.00 1.20Q159.50 1.20 153.90-2.10Q148.30-5.40 145.25-11.20Q142.20-17 142.20-24.50L142.20-24.50Q142.20-31.90 145.25-37.70Q148.30-43.50 153.90-46.75Q159.50-50 167.00-50L167.00-50Q174.80-50 180.75-46.05Q186.70-42.10 189.30-35.40L189.30-35.40L177.30-30.20Q175.80-33.60 173.25-35.50Q170.70-37.40 166.90-37.40L166.90-37.40Q162.00-37.40 158.70-33.95Q155.40-30.50 155.40-24.50L155.40-24.50Q155.40-18.40 158.70-15Q162.00-11.60 166.90-11.60L166.90-11.60Q170.70-11.60 173.25-13.45Q175.80-15.30 177.30-18.70L177.30-18.70L189.30-13.50Q186.70-6.90 180.70-2.85Q174.70 1.20 167.00 1.20Z M194.90 0L194.90-68.10L207.90-68.10L207.90-30.50L224.50-48.90L239.40-48.90L218.70-25.70L239.80 0L224.40 0L207.90-20L207.90 0L194.90 0Z  M278.30 0L265.00 0L277.20-68.10L288.90-68.10L305.80-21.10L322.70-68.10L334.40-68.10L346.60 0L333.30 0L328.40-31.10Q327.30-37.40 326.60-43.80L326.60-43.80Q326.40-44.80 326.30-45.80L326.30-45.80Q326.00-44.50 325.70-43.40L325.70-43.40Q324.00-37.40 321.80-31.20L321.80-31.20L310.90-0.90L300.70-0.90L289.80-31.20Q287.60-37.40 285.90-43.40L285.90-43.40Q285.60-44.50 285.30-45.60L285.30-45.60Q285.20-44.70 285.10-43.80L285.10-43.80Q284.30-37.40 283.20-31.10L283.20-31.10L278.30 0Z M375.00 1L375.00 1Q367.70 1 362.20-2.15Q356.70-5.30 353.70-11Q350.70-16.70 350.70-24.40L350.70-24.40Q350.70-32 353.70-37.75Q356.70-43.50 362.20-46.75Q367.70-50 375.00-50L375.00-50Q382.40-50 387.85-46.70Q393.30-43.40 396.30-37.65Q399.30-31.90 399.30-24.50L399.30-24.50Q399.30-23.40 399.25-22.35Q399.20-21.30 399.00-20.60L399.00-20.60L363.10-20.60Q363.40-15.80 366.40-12.90L366.40-12.90Q369.70-9.50 375.50-9.50L375.50-9.50Q380.60-9.50 383.50-11.60Q386.40-13.70 388.50-16.80L388.50-16.80L397.60-11.60Q394.30-5.50 388.65-2.25Q383.00 1 375.00 1ZM363.30-30.40L363.30-30.40L386.60-30.40Q385.90-33.50 384.20-35.80L384.20-35.80Q381.20-39.70 375.00-39.70L375.00-39.70Q369.60-39.70 366.30-36.40L366.30-36.40Q363.90-34 363.30-30.40Z  M472.90-12.50L472.90 0L432.10 0L432.10-68.10L445.20-68.10L445.20-12.50L472.90-12.50Z M492.80-48.90L492.80 0L479.70 0L479.70-48.90L492.80-48.90Z M534.40-48.90L547.90-48.90L530 0L517.40 0L498.60-48.90L512.40-48.90L523.60-16.10L534.40-48.90Z M574.90 1L574.90 1Q567.60 1 562.10-2.15Q556.60-5.30 553.60-11Q550.60-16.70 550.60-24.40L550.60-24.40Q550.60-32 553.60-37.75Q556.60-43.50 562.10-46.75Q567.60-50 574.90-50L574.90-50Q582.30-50 587.75-46.70Q593.20-43.40 596.20-37.65Q599.20-31.90 599.20-24.50L599.20-24.50Q599.20-23.40 599.15-22.35Q599.10-21.30 598.90-20.60L598.90-20.60L563.00-20.60Q563.30-15.80 566.30-12.90L566.30-12.90Q569.60-9.50 575.40-9.50L575.40-9.50Q580.50-9.50 583.40-11.60Q586.30-13.70 588.40-16.80L588.40-16.80L597.50-11.60Q594.20-5.50 588.55-2.25Q582.90 1 574.90 1ZM563.20-30.40L563.20-30.40L586.50-30.40Q585.80-33.50 584.10-35.80L584.10-35.80Q581.10-39.70 574.90-39.70L574.90-39.70Q569.50-39.70 566.20-36.40L566.20-36.40Q563.80-34 563.20-30.40Z"/>
+        <circle cx="486.2" cy="-64.25" r="8.43" style="fill:var(--lamplight)"/>
+      </g>
+    </svg>
+    <span>System architecture · v1</span>
+  </div>
+  <button class="theme-btn" id="theme" type="button">Dark</button>
+</header>
+
+<main>
+<header class="intro">
+  <p class="eyebrow">From Track Me Live — FSD.md, as revised October 18, 2026</p>
+  <h1>How Track Me Live fits together</h1>
+  <p class="lead measure">Code runs in three places: the sharer's app on iOS or Android, a Firebase backend, and the viewer's browser. The sharer's location flows one way, from the app through Firestore to the browser. During the call, Live Together adds a second, opt-in flow the other way: the viewer's location, back to the app.</p>
+  <ul class="facts" aria-label="Key numbers">
+    <li><b>3–5 s</b><span>between pings above 20% battery; 15 s, then 60 s as it drains</span></li>
+    <li><b>5 s</b><span>from capture to both maps</span></li>
+    <li><b>1 h</b><span>hard limit, set as <code>expires_at</code> at the start</span></li>
+    <li><b>24 h</b><span>after a session ends, all pings are deleted</span></li>
+    <li><b>30 days</b><span>until session metadata is purged</span></li>
+  </ul>
+</header>
+
+<section aria-labelledby="map-title">
+  <h2 id="map-title">System map</h2>
+  <p class="sub measure">Amber is the sharer's location. Blue is the Live Together share-back path: the sharer's request and the viewer's location. Green marks the phone call and <code>call_active</code>, which decides when share back is allowed.</p>
+  <figure id="system-map">
+    <p class="hint">Scroll sideways to see the whole map. Every flow is also written out below it.</p>
+    <div class="scroll" tabindex="0" role="region" aria-label="System map, scrolls sideways">
+      <svg class="dg" viewBox="0 0 1440 1130" role="img" aria-labelledby="sm-title sm-desc">
+        <title id="sm-title">Track Me Live system map</title>
+        <desc id="sm-desc">The sharer's iOS or Android app signs in with Firebase Authentication, starts a session through Cloud Functions, keeps call_active true only while the session's own call is connected, checks in through last_ping_at and writes GPS pings to Firestore. The link goes out through the system share sheet. The viewer's page, served by Firebase Hosting, trades the link token with a Cloud Function; the first browser to do so becomes the session's viewer, later browsers can only watch. The page listens to the session and its pings, shows the sharer's mascot, and looks up the nearest street name in the browser with the Maps API for a text line; nothing is geocoded or stored on the backend. During the call, if the sharer allows it, the sharer can ask to see the viewer, and the viewer can share back by writing viewer pings, which the app listens to. Security rules accept those writes only from that viewer while the session is active, share back is allowed, the call is active and the app checked in within 2 minutes. Cloud Functions send alerts through APNs and FCM, update the iOS Live Activity, clear call_active when the app stops checking in, end share back when the call ends, stop sessions on schedule, and delete pings after 24 hours and metadata and call logs after 30 days. Both maps are drawn with the Maps API.</desc>
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 Z"/></marker>
+          <marker id="ah-sharer" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" orient="auto-start-reverse"><path class="ah-sharer" d="M0,0 L10,5 L0,10 Z"/></marker>
+          <marker id="ah-viewer" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="15" markerHeight="15" orient="auto-start-reverse"><path class="ah-viewer" d="M0,0 L10,5 L0,10 Z"/></marker>
+          <marker id="ah-viewer-thin" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path class="ah-viewer" d="M0,0 L10,5 L0,10 Z"/></marker>
+        </defs>
+
+        <!-- ============ Outside service: Maps API ============ -->
+        <rect class="ext" x="16" y="12" width="1408" height="38" rx="19"/>
+        <text class="t-title" x="40" y="36">Maps API</text>
+        <text class="t-muted" x="118" y="36">outside service · draws the map in the app and on the viewer page · the viewer's browser looks up the nearest street name, never stored</text>
+
+        <!-- ============ Zones ============ -->
+        <rect class="zone" x="16" y="70" width="290" height="1002" rx="18"/>
+        <rect class="zone" x="444" y="70" width="580" height="1002" rx="18"/>
+        <rect class="zone" x="1162" y="70" width="262" height="1002" rx="18"/>
+        <text class="t-zone" x="30" y="96">Sharer's phone</text>
+        <text class="t-muted" x="156" y="96">iOS and Android apps</text>
+        <text class="t-zone" x="458" y="96">Firebase backend</text>
+        <text class="t-zone" x="1176" y="96">Viewer's browser</text>
+
+        <!-- Maps API: tiles for both maps, street name for the viewer's text line -->
+        <line class="e" x1="282" y1="70" x2="282" y2="51" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="274" y="64" text-anchor="end">map tiles</text>
+        <line class="e" x1="1396" y1="108" x2="1396" y2="51" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="1388" y="64" text-anchor="end">map tiles, nearest street name</text>
+
+        <!-- ============ Row A: sign in, auth, hosting ============ -->
+        <rect class="box" x="30" y="108" width="262" height="64" rx="10"/>
+        <text class="t-title" x="46" y="130">Sign in</text>
+        <text class="t-body" x="46" y="148">Name and phone number</text>
+        <text class="t-body" x="46" y="164">6-digit text code, resend after 30 s</text>
+
+        <rect class="box" x="458" y="108" width="264" height="64" rx="10"/>
+        <text class="t-title" x="474" y="130">Firebase Authentication</text>
+        <text class="t-body" x="474" y="148">Sharers: phone number + SMS code</text>
+        <text class="t-body" x="474" y="164">Viewers: anonymous, one session</text>
+
+        <line class="e" x1="292" y1="132" x2="458" y2="132" marker-end="url(#ah)"/>
+        <text class="t-label" x="375" y="125" text-anchor="middle">number, then the code</text>
+        <line class="e" x1="458" y1="152" x2="292" y2="152" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="375" y="167" text-anchor="middle">signed in</text>
+
+        <rect class="box" x="734" y="108" width="276" height="64" rx="10"/>
+        <text class="t-title" x="750" y="130">Firebase Hosting</text>
+        <text class="t-body" x="750" y="148">The viewer page</text>
+        <text class="t-body" x="750" y="164">Mascot renders and accessory art</text>
+        <line class="e" x1="1010" y1="140" x2="1176" y2="140" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="1093" y="133" text-anchor="middle">page and mascot render</text>
+
+        <!-- ============ Platform apps and push ============ -->
+        <rect class="box" x="30" y="186" width="262" height="112" rx="10"/>
+        <text class="t-title" x="46" y="208">iOS app</text>
+        <circle class="dot-call" cx="50" cy="221.5" r="3.5"/>
+        <text class="t-body" x="60" y="226">CallKit call observer</text>
+        <text class="t-body" x="46" y="242">Quick start: Control Center,</text>
+        <text class="t-muted" x="46" y="257">Lock Screen or Action button control</text>
+        <text class="t-body" x="46" y="273">Live Activity + Dynamic Island</text>
+        <text class="t-muted" x="46" y="288">No Back to call: green call indicator</text>
+
+        <rect class="box" x="30" y="308" width="262" height="128" rx="10"/>
+        <text class="t-title" x="46" y="330">Android app</text>
+        <circle class="dot-call" cx="50" cy="343.5" r="3.5"/>
+        <text class="t-body" x="60" y="348">TelephonyManager call state</text>
+        <text class="t-muted" x="60" y="363">Phone permission; before that,</text>
+        <text class="t-muted" x="60" y="378"><tspan class="mono">MODE_IN_CALL</tspan> while the app is open</text>
+        <text class="t-muted" x="46" y="393">Without it: 30-min timer, no share back</text>
+        <text class="t-body" x="46" y="410">Quick start: Quick Settings tile</text>
+        <text class="t-body" x="46" y="426">Foreground service, PiP mini map</text>
+
+        <rect class="ext" x="318" y="227" width="114" height="30" rx="15"/>
+        <text class="t-small-title" x="375" y="247" text-anchor="middle">APNs</text>
+        <line class="e" x1="458" y1="242" x2="433" y2="242" marker-end="url(#ah)"/>
+        <line class="e" x1="318" y1="242" x2="293" y2="242" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="375" y="273" text-anchor="middle">alerts and Live Activity</text>
+        <text class="t-label-muted" x="375" y="288" text-anchor="middle">updates</text>
+
+        <rect class="ext" x="318" y="357" width="114" height="30" rx="15"/>
+        <text class="t-small-title" x="375" y="377" text-anchor="middle">FCM</text>
+        <line class="e" x1="458" y1="372" x2="433" y2="372" marker-end="url(#ah)"/>
+        <line class="e" x1="318" y1="372" x2="293" y2="372" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="375" y="403" text-anchor="middle">alerts</text>
+
+        <!-- ============ Cloud Functions ============ -->
+        <rect class="box" x="458" y="186" width="552" height="298" rx="10"/>
+        <text class="t-title" x="474" y="208">Cloud Functions</text>
+        <text class="t-muted" x="598" y="208">session logic, viewer sign-in, alerts and cleanup</text>
+        <line class="hair" x1="474" y1="219" x2="994" y2="219"/>
+        <!-- column 1 -->
+        <text class="t-strong" x="474" y="240">Start a session</text>
+        <text class="t-muted" x="474" y="255"><tspan class="mono">expires_at</tspan> (1 h), <tspan class="mono">stop_at</tspan>, <tspan class="mono">call_id</tspan>,</text>
+        <text class="t-muted" x="474" y="270"><tspan class="mono">share_back_allowed</tspan>; <tspan class="mono">private/meta</tspan></text>
+        <text class="t-strong" x="474" y="292">Alerts</text>
+        <text class="t-muted" x="474" y="307">first open, <tspan class="t-call">a call ending while sharing</tspan>,</text>
+        <text class="t-muted" x="474" y="322">sharing expiring; to every phone</text>
+        <text class="t-strong" x="474" y="344">Scheduled stop</text>
+        <text class="t-muted" x="474" y="359">at the earlier of <tspan class="mono">stop_at</tspan> and</text>
+        <text class="t-muted" x="474" y="374"><tspan class="mono">expires_at</tspan>, even if the app was killed;</text>
+        <text class="t-muted" x="474" y="389">on the call: 10 min after the watchdog</text>
+        <text class="t-strong" x="474" y="411">Metadata purge <tspan class="t-label-muted">· scheduled</tspan></text>
+        <text class="t-muted" x="474" y="426">session metadata and call logs, 30 days</text>
+        <text class="t-strong" x="474" y="448">Ping cleanup <tspan class="t-label-muted">· scheduled</tspan></text>
+        <text class="t-muted" x="474" y="463"><tspan class="mono">pings</tspan>, <tspan class="mono">viewerPings</tspan>: 24 h after the end</text>
+        <!-- column 2 -->
+        <text class="t-strong" x="746" y="240">Viewer sign-in</text>
+        <text class="t-muted" x="746" y="255">the page's own script trades the token,</text>
+        <text class="t-muted" x="746" y="270">so link previews never count; the first</text>
+        <text class="t-muted" x="746" y="285">browser becomes <tspan class="mono">viewer_uid</tspan>;</text>
+        <text class="t-muted" x="746" y="300"><tspan class="mono">first_viewed_at</tspan> once</text>
+        <text class="t-strong" x="746" y="322">Live Activity updates</text>
+        <text class="t-muted" x="746" y="337">status and stop time, via APNs;</text>
+        <text class="t-muted" x="746" y="352">the phone works out the distance</text>
+        <circle class="dot-call" cx="750" cy="369.5" r="3.5"/>
+        <text class="t-strong" x="760" y="374">Call watchdog <tspan class="t-label-muted">· scheduled</tspan></text>
+        <text class="t-muted" x="746" y="389">check-in (<tspan class="mono">last_ping_at</tspan>) over 2 min</text>
+        <text class="t-muted" x="746" y="404">old: clears <tspan class="mono t-call">call_active</tspan></text>
+        <circle class="dot-call" cx="750" cy="421.5" r="3.5"/>
+        <text class="t-strong" x="760" y="426">Share back off</text>
+        <text class="t-muted" x="746" y="441"><tspan class="mono t-call">call_active</tspan> false:</text>
+        <text class="t-muted" x="746" y="456"><tspan class="mono">viewer_sharing</tspan> false</text>
+
+        <!-- Functions and Firestore talk to each other -->
+        <line class="e" x1="574" y1="484" x2="574" y2="505" marker-end="url(#ah)"/>
+        <line class="e" x1="590" y1="506" x2="590" y2="485" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="602" y="499">writes and deletes · triggered by changes</text>
+
+        <!-- ============ Both apps ============ -->
+        <line class="hair" x1="124" y1="452" x2="292" y2="452"/>
+        <text class="t-label-muted" x="30" y="456">In both apps</text>
+
+        <rect class="box" x="30" y="464" width="262" height="146" rx="10"/>
+        <text class="t-title" x="46" y="486">Session controls</text>
+        <circle class="dot-call" cx="50" cy="499.5" r="3.5"/>
+        <text class="t-body" x="60" y="504">Share banner when a call starts</text>
+        <text class="t-muted" x="60" y="519">while the app is open, not sharing</text>
+        <text class="t-body" x="46" y="536">Who it's for · Precise or Approximate</text>
+        <text class="t-body" x="46" y="552">Stop rule: the call, or 15, 30, 60 min</text>
+        <text class="t-body" x="46" y="568"><tspan class="t-viewer">Let them share back</tspan> · <tspan class="t-viewer">Ask to share</tspan></text>
+        <text class="t-body" x="46" y="584">Send link again · <tspan class="t-stop">Stop sharing</tspan></text>
+        <circle class="dot-call" cx="50" cy="595.5" r="3.5"/>
+        <text class="t-body" x="60" y="600"><tspan class="mono t-call">call_active</tspan>: its own call only</text>
+
+        <line class="e" x1="292" y1="474" x2="458" y2="474" marker-end="url(#ah)"/>
+        <text class="t-label" x="375" y="467" text-anchor="middle">start session</text>
+        <text class="t-label-muted" x="375" y="488" text-anchor="middle">returns the link</text>
+
+        <!-- ============ Firestore ============ -->
+        <rect class="box" x="458" y="506" width="552" height="552" rx="10"/>
+        <text class="t-title" x="474" y="528">Firestore</text>
+        <text class="t-muted" x="546" y="528">live data with real-time listeners</text>
+
+        <rect class="card" x="472" y="538" width="524" height="110" rx="8"/>
+        <text class="t-mono" x="486" y="557">shareSessions/{sessionId}</text>
+        <text class="t-label-muted" x="982" y="557" text-anchor="end">only what the viewer may see</text>
+        <text class="t-mono-muted" x="486" y="574">status, started_at, expires_at, stop_rule, stop_at, ended_at,</text>
+        <text class="t-mono-muted" x="486" y="590">end_reason, call_id, <tspan class="t-call">call_active</tspan>, <tspan class="t-viewer">share_back_allowed</tspan>, <tspan class="t-call">last_ping_at</tspan>,</text>
+        <text class="t-mono-muted" x="486" y="606">ping_interval_s, precision, sharer {name, mascot_id, mascot_color,</text>
+        <text class="t-mono-muted" x="486" y="622">mascot_accessory}, first_viewed_at, <tspan class="t-viewer">viewer_sharing</tspan>,</text>
+        <text class="t-mono-muted" x="486" y="638"><tspan class="t-viewer">share_back_requested_at</tspan></text>
+
+        <rect class="card" x="472" y="656" width="524" height="46" rx="8"/>
+        <text class="t-mono" x="486" y="674">└ private/meta</text>
+        <text class="t-mono-muted" x="604" y="674">user_id, link_token_hash, viewer_uid,</text>
+        <text class="t-mono-muted" x="486" y="691">viewer_name, live_activity_token</text>
+        <text class="t-label-muted" x="982" y="691" text-anchor="end">sharer and Cloud Functions only</text>
+
+        <rect class="box-viewer" x="472" y="710" width="524" height="50" rx="8"/>
+        <text class="t-mono" x="486" y="730">└ viewerPings/{id}</text>
+        <text class="t-mono-muted" x="486" y="748">lat, lng, recorded_at</text>
+        <text class="t-label-muted t-viewer" x="982" y="730" text-anchor="end">only from viewer_uid, while sharing back</text>
+
+        <rect class="box-sharer" x="472" y="768" width="524" height="62" rx="8"/>
+        <text class="t-mono" x="486" y="789">└ pings/{id}</text>
+        <text class="t-mono-muted" x="486" y="807">lat, lng, recorded_at</text>
+        <text class="t-label-muted t-sharer" x="982" y="789" text-anchor="end">the sharer's GPS, rounded on the phone if Approximate</text>
+        <text class="t-label-muted" x="982" y="807" text-anchor="end">Last seen uses the newest ping's time</text>
+
+        <rect class="card" x="472" y="838" width="524" height="94" rx="8"/>
+        <text class="t-mono" x="486" y="857">users/{userId}</text>
+        <text class="t-mono-muted" x="650" y="857">phone, name, mascot_id, mascot_color,</text>
+        <text class="t-mono-muted" x="650" y="873">mascot_accessory, last_viewer_name, settings</text>
+        <text class="t-mono" x="486" y="889">└ devices/{deviceId}</text>
+        <text class="t-mono-muted" x="650" y="889">platform, push_token, updated_at</text>
+        <text class="t-mono" x="486" y="905">mascots/{id}</text>
+        <text class="t-mono-muted" x="650" y="905">character, set, default_color, accessories</text>
+        <text class="t-mono" x="486" y="921">callLogs/{id}</text>
+        <text class="t-mono-muted" x="650" y="921">user_id, session_id, call_id, call_time</text>
+
+        <rect class="card" x="472" y="940" width="524" height="108" rx="8"/>
+        <text class="t-small-title" x="486" y="960">Security rules</text>
+        <text class="t-muted" x="486" y="977">Viewer, signed in for one session: reads its document and pings, never</text>
+        <text class="t-muted" x="486" y="992"><tspan class="mono">private</tspan>, and keeps reading after the end. Only <tspan class="mono">viewer_uid</tspan> writes</text>
+        <text class="t-muted" x="486" y="1007"><tspan class="mono">viewerPings</tspan> and <tspan class="mono">viewer_sharing</tspan>: session active, before <tspan class="mono">expires_at</tspan>,</text>
+        <text class="t-muted" x="486" y="1022"><tspan class="mono">share_back_allowed</tspan> and <tspan class="mono t-call">call_active</tspan> true, a check-in under 2 min old.</text>
+        <text class="t-muted" x="486" y="1037">Sharer, signed in: their own user doc, devices, sessions and call logs.</text>
+
+        <!-- Phone to backend -->
+        <line class="e" x1="292" y1="548" x2="472" y2="548" marker-end="url(#ah)"/>
+        <text class="t-label" x="375" y="541" text-anchor="middle">Stop · <tspan class="t-call">call_active</tspan></text>
+        <line class="e-viewer-thin" x1="292" y1="564" x2="472" y2="564" marker-end="url(#ah-viewer-thin)"/>
+        <text class="t-label t-viewer" x="375" y="579" text-anchor="middle">Ask to share</text>
+
+        <rect class="box" x="30" y="710" width="262" height="50" rx="10"/>
+        <rect class="bar-viewer" x="30" y="710" width="5" height="50" rx="2.5"/>
+        <text class="t-title" x="46" y="730">Live Together map</text>
+        <text class="t-body" x="46" y="749">Both markers and the distance</text>
+
+        <rect class="box" x="30" y="768" width="262" height="62" rx="10"/>
+        <rect class="bar-sharer" x="30" y="768" width="5" height="62" rx="2.5"/>
+        <text class="t-title" x="46" y="789">GPS pings</text>
+        <text class="t-body" x="46" y="807">3–5 s; 15 s under 20%, 60 s under 10%</text>
+        <text class="t-muted" x="46" y="822">Approximate: rounded here, ~500 m</text>
+
+        <rect class="box" x="30" y="838" width="262" height="64" rx="10"/>
+        <text class="t-title" x="46" y="860">Profile and mascot</text>
+        <text class="t-body" x="46" y="878">Mascot, color and accessory;</text>
+        <text class="t-muted" x="46" y="893">renders bundled in the app</text>
+
+        <rect class="box" x="30" y="912" width="262" height="64" rx="10"/>
+        <text class="t-title" x="46" y="934">Share sheet</text>
+        <text class="t-body" x="46" y="952">Messages, WhatsApp, Mail, Copy link</text>
+        <text class="t-muted" x="46" y="967">The app never sends texts itself</text>
+
+        <line class="e-viewer" x1="472" y1="735" x2="298" y2="735" marker-end="url(#ah-viewer)"/>
+        <text class="t-label t-viewer" x="375" y="727" text-anchor="middle">listens to viewerPings</text>
+        <text class="t-label-muted" x="375" y="753" text-anchor="middle">both maps show both</text>
+
+        <line class="e-sharer" x1="292" y1="799" x2="466" y2="799" marker-end="url(#ah-sharer)"/>
+        <text class="t-label t-sharer" x="375" y="791" text-anchor="middle">writes a ping, 3–60 s</text>
+        <text class="t-label-muted" x="375" y="817" text-anchor="middle">check-in: <tspan class="mono">last_ping_at</tspan>,</text>
+        <text class="t-label-muted" x="375" y="831" text-anchor="middle">also every 30 s, no fix</text>
+
+        <line class="e" x1="292" y1="870" x2="472" y2="870" marker-end="url(#ah)"/>
+        <text class="t-label" x="375" y="863" text-anchor="middle">profile, devices,</text>
+        <text class="t-label-muted" x="375" y="886" text-anchor="middle">call logs; reads mascots</text>
+
+        <!-- ============ Viewer's browser ============ -->
+        <rect class="box" x="1176" y="108" width="234" height="460" rx="10"/>
+        <text class="t-title" x="1192" y="130">Live map page</text>
+        <text class="t-body" x="1192" y="148">Opens from the link</text>
+        <text class="t-muted" x="1192" y="163">No app, no account</text>
+        <line class="hair" x1="1192" y1="178" x2="1394" y2="178"/>
+        <text class="t-strong" x="1192" y="198">What the viewer sees</text>
+        <rect class="chip" x="1192" y="208" width="202" height="24" rx="12"/>
+        <circle class="dot-sharer" cx="1206" cy="220" r="4"/>
+        <text class="t-body" x="1216" y="224">Live</text>
+        <rect class="chip" x="1192" y="238" width="202" height="24" rx="12"/>
+        <circle class="ring-stale" cx="1206" cy="250" r="4.5"/>
+        <text class="t-body" x="1216" y="254">Last seen 9:41 pm</text>
+        <rect class="chip" x="1192" y="268" width="202" height="24" rx="12"/>
+        <text class="t-body" x="1206" y="284">Sharing ended at 9:52 pm</text>
+        <rect class="chip" x="1192" y="298" width="202" height="24" rx="12"/>
+        <text class="t-body" x="1206" y="314">No longer being shared</text>
+        <line class="hair" x1="1192" y1="340" x2="1394" y2="340"/>
+        <text class="t-strong" x="1192" y="360">Viewer sign-in</text>
+        <text class="t-muted" x="1192" y="376">trades the link token for a</text>
+        <text class="t-muted" x="1192" y="391">sign-in to this one session.</text>
+        <text class="t-muted" x="1192" y="406">The first browser can share</text>
+        <text class="t-muted" x="1192" y="421">back; later ones watch only</text>
+        <line class="hair" x1="1192" y1="436" x2="1394" y2="436"/>
+        <text class="t-strong" x="1192" y="456">Listens to the session</text>
+        <text class="t-muted" x="1192" y="472"><tspan class="mono">status</tspan>, <tspan class="mono t-call">call_active</tspan>,</text>
+        <text class="t-muted" x="1192" y="487"><tspan class="mono">share_back_allowed</tspan>,</text>
+        <text class="t-muted" x="1192" y="502">precision, the interval and</text>
+        <text class="t-muted" x="1192" y="517">the sharer snapshot; reads</text>
+        <text class="t-muted" x="1192" y="532">stay open after the end</text>
+
+        <rect class="box-viewer" x="1176" y="578" width="234" height="174" rx="10"/>
+        <text class="t-title t-viewer" x="1192" y="598">Share back</text>
+        <text class="t-muted" x="1278" y="598">during the call only</text>
+        <rect class="box" x="1192" y="606" width="202" height="24" rx="12"/>
+        <text class="t-body" x="1203" y="622">Alex asked to see where you are</text>
+        <text class="t-muted" x="1192" y="650">Only in the first browser, and</text>
+        <text class="t-muted" x="1192" y="665">only if the sharer allows it.</text>
+        <text class="t-muted" x="1192" y="680">Pauses while the page is hidden</text>
+        <rect class="bar-viewer" x="1192" y="712" width="202" height="28" rx="14"/>
+        <text class="t-on-viewer" x="1293" y="731" text-anchor="middle">Share my location</text>
+
+        <rect class="box" x="1176" y="762" width="234" height="292" rx="10"/>
+        <rect class="bar-sharer" x="1176" y="762" width="5" height="292" rx="2.5"/>
+        <text class="t-title" x="1192" y="784">Live map</text>
+        <text class="t-muted" x="1258" y="784">mascot marker</text>
+        <text class="t-strong" x="1192" y="804">Near Harbor Way</text>
+        <text class="t-muted" x="1192" y="819">1.2 km north-east of you</text>
+        <g aria-hidden="true" transform="translate(0 136)">
+          <clipPath id="mapclip"><rect x="1192" y="694" width="202" height="166" rx="8"/></clipPath>
+          <g clip-path="url(#mapclip)">
+            <rect class="m-land" x="1192" y="694" width="202" height="166"/>
+            <rect class="m-park" x="1330" y="702" width="56" height="44" rx="8"/>
+            <path class="m-water" d="M1192 832 C1242 820 1302 848 1394 826 L1394 860 L1192 860 Z"/>
+            <path class="m-road" d="M1184 722 L1402 712 M1184 788 L1402 774 M1232 686 L1240 868 M1322 686 L1328 868"/>
+            <path class="m-major" d="M1184 824 C1242 802 1312 764 1402 730"/>
+            <path class="m-link" d="M1252 790 L1346 744"/>
+            <circle class="m-trail" cx="1210" cy="823" r="2"/>
+            <circle class="m-trail" cx="1219" cy="818" r="2"/>
+            <circle class="m-trail" cx="1228" cy="813" r="2"/>
+            <circle class="m-trail" cx="1237" cy="807" r="2"/>
+            <circle class="m-trail" cx="1245" cy="800" r="2"/>
+            <rect class="m-capsule" x="1272" y="756" width="54" height="20" rx="10"/>
+            <text class="t-capsule" x="1299" y="770" text-anchor="middle">1.2 km</text>
+            <g class="m-bob">
+              <circle class="m-sharer-disc" cx="1252" cy="790" r="12"/>
+              <circle class="m-sharer-face" cx="1252" cy="790" r="6"/>
+            </g>
+            <circle class="m-viewer-disc" cx="1350" cy="736" r="10"/>
+            <circle class="m-person" cx="1350" cy="732.5" r="2.8"/>
+            <path class="m-person" d="M1344.6 742.2 a5.4 4.6 0 0 1 10.8 0 Z"/>
+            <rect class="m-you" x="1331" y="750" width="38" height="18" rx="9"/>
+            <text class="t-you" x="1350" y="763.5" text-anchor="middle">You</text>
+          </g>
+        </g>
+        <text class="t-muted" x="1192" y="1021">Approximate: area name only, a</text>
+        <text class="t-muted" x="1192" y="1036">1 km circle, distances to 0.5 km</text>
+
+        <!-- Backend to viewer -->
+        <line class="e" x1="1176" y1="376" x2="1010" y2="376" marker-end="url(#ah)"/>
+        <text class="t-label" x="1093" y="369" text-anchor="middle">link token</text>
+        <line class="e" x1="1010" y1="392" x2="1176" y2="392" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="1093" y="407" text-anchor="middle">sign-in for one session</text>
+
+        <line class="e" x1="996" y1="558" x2="1176" y2="558" marker-end="url(#ah)"/>
+        <text class="t-label" x="1093" y="551" text-anchor="middle">listens to the session</text>
+        <text class="t-label-muted" x="1093" y="574" text-anchor="middle">status, <tspan class="mono t-call">call_active</tspan></text>
+
+        <line class="e-viewer-thin" x1="996" y1="604" x2="1176" y2="604" marker-end="url(#ah-viewer-thin)"/>
+        <text class="t-label t-viewer" x="1093" y="597" text-anchor="middle">Ask to share request</text>
+
+        <line class="e-viewer" x1="1176" y1="735" x2="1002" y2="735" marker-end="url(#ah-viewer)"/>
+        <text class="t-label t-viewer" x="1093" y="727" text-anchor="middle">writes viewerPings</text>
+        <text class="t-label-muted" x="1093" y="753" text-anchor="middle">only during a live call</text>
+
+        <line class="e-sharer" x1="996" y1="799" x2="1170" y2="799" marker-end="url(#ah-sharer)"/>
+        <text class="t-label t-sharer" x="1093" y="791" text-anchor="middle">listens to pings</text>
+        <text class="t-label-muted" x="1093" y="817" text-anchor="middle">on the map within 5 s</text>
+
+        <!-- The link reaches the viewer through the share sheet -->
+        <path class="e" d="M161 976 V1090 H1293 V1073" marker-end="url(#ah)"/>
+        <text class="t-label-muted" x="727" y="1085" text-anchor="middle">the link, sent from the share sheet, opens the viewer page in any browser; link previews never count as an open</text>
+
+        <!-- ============ Legend ============ -->
+        <g transform="translate(16 1104)">
+          <line class="e-sharer" x1="2" y1="10" x2="30" y2="10"/>
+          <text class="t-label-muted" x="40" y="14">Sharer's location</text>
+          <line class="e-viewer" x1="170" y1="10" x2="198" y2="10"/>
+          <text class="t-label-muted" x="208" y="14">Share back (Live Together)</text>
+          <circle class="dot-call" cx="404" cy="10" r="4"/>
+          <text class="t-label-muted" x="414" y="14">The phone call and <tspan class="mono">call_active</tspan></text>
+          <line class="e" x1="630" y1="10" x2="658" y2="10" marker-end="url(#ah)"/>
+          <text class="t-label-muted" x="668" y="14">Requests, listeners and alerts</text>
+          <rect class="ext" x="880" y="1" width="28" height="18" rx="9"/>
+          <text class="t-label-muted" x="918" y="14">Outside service</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>Firestore is the only meeting point: the app and the browser never talk to each other directly. The sharer's pings flow left to right; while the viewer shares back during the call, their pings flow right to left. Cloud Functions run the rest: starting a session, the viewer's sign-in, alerts, expiry and cleanup.</figcaption>
+  </figure>
+</section>
+
+<section aria-labelledby="flows-title">
+  <h2 id="flows-title">Every flow, in words</h2>
+  <p class="sub measure">The same arrows as the map, written out. "App" means both the iOS and Android apps unless a platform is named.</p>
+  <div class="flows">
+    <div class="lane">
+      <h3><span class="swatch sharer" aria-hidden="true"></span>Sharer's location</h3>
+      <ol>
+        <li><p class="route">GPS pings <i>→</i> <code>pings/{id}</code></p><p>The app writes <code>lat</code>, <code>lng</code> and <code>recorded_at</code> every 3–5 seconds above 20% battery, every 15 seconds from 20% to 10%, and every 60 seconds under 10%, and records the current <code>ping_interval_s</code>. With Approximate on, the phone rounds each point to about 500 m before writing it.</p></li>
+        <li><p class="route">App <i>→</i> <code>last_ping_at</code></p><p>The app's check-in, not its newest location: refreshed with every ping, and every 30 seconds even without a GPS fix, so losing GPS alone never ends share back.</p></li>
+        <li><p class="route"><code>pings</code> <i>→</i> live map page</p><p>A real-time listener; a new ping reaches both maps within 5 seconds of capture. A person shows as Live while their newest ping is under 3 intervals old (at least 15 seconds), then as "Last seen" with the newest ping's <code>recorded_at</code>. While the sharer is Approximate, both maps show a soft circle 1 km across with no trail, and distances are rounded to 0.5 km: "about 1 km", "under 1 km".</p></li>
+        <li><p class="route">Sharing in the background</p><p>Sharing always starts in the app, with "While using the app" location only. On iOS it continues with the system location indicator and the Live Activity; iOS has no Back to call, so the sharer returns through the system's green call indicator. On Android it runs as a foreground service with the notification "Sharing your location with Mom", with Open and Stop sharing.</p></li>
+      </ol>
+    </div>
+    <div class="lane">
+      <h3><span class="swatch viewer" aria-hidden="true"></span>Share back (Live Together)</h3>
+      <ol>
+        <li><p class="route">Session controls <i>→</i> <code>share_back_allowed</code>, <code>share_back_requested_at</code></p><p>Let them share back is a switch on the share screen, on by default. Ask to share, from the viewer's row, works once per call and only after the viewer has opened the link. A session has at most one call, and Share again during that call keeps Ask to share used.</p></li>
+        <li><p class="route">Session <i>→</i> share-back panel</p><p>Only the first browser to open the link (<code>viewer_uid</code>) sees the Share my location card and "Alex asked to see where you are", and only if the sharer allowed share back. Later browsers, such as a forwarded link, can only watch.</p></li>
+        <li><p class="route">Share-back panel <i>→</i> <code>viewerPings/{id}</code> and <code>viewer_sharing</code></p><p>Off by default; starts when the viewer taps Share my location and the browser allows it. Rules accept these writes only from <code>viewer_uid</code>, while the session is active and before <code>expires_at</code>, with <code>share_back_allowed</code> and <code>call_active</code> true and <code>last_ping_at</code> under 2 minutes old. It pauses while the page is in the background.</p></li>
+        <li><p class="route"><code>viewerPings</code> <i>→</i> Live Together map</p><p>The app listens and shows both markers and the straight-line distance, in the app, the Android mini map and the iOS Live Activity. On the sharer's map the viewer is a crossing-blue disc with the initial of the name the sharer gave, or a person icon; on the viewer's own page it's always a person icon labelled You. A decline is never reported; the row stays "Watching".</p></li>
+      </ol>
+    </div>
+    <div class="lane">
+      <h3><span class="swatch" aria-hidden="true"></span>Session, call and alerts</h3>
+      <ol>
+        <li><p class="route"><span class="swatch call" aria-hidden="true" style="display:inline-block;margin-right:6px;vertical-align:1px"></span>CallKit or TelephonyManager <i>→</i> session controls</p><p>A call that starts while the app is open and not already sharing shows the in-app banner. Neither platform reports calls to an app that isn't running, and the app never knows who is on the call. iOS needs no permission. Android uses TelephonyManager with the Phone permission; until it's granted, the audio mode (<code>MODE_IN_CALL</code>) while the app is open, which engineering confirms in a spike. Without the permission, shares use a 30-minute timer and share back is off.</p></li>
+        <li><p class="route">Quick start <i>→</i> share screen</p><p>During a call, the iOS control (Control Center, Lock Screen or Action button) or the Android Quick Settings tile opens the app on the share screen for this call. No extra permission.</p></li>
+        <li><p class="route">Session controls <i>→</i> Cloud Functions</p><p>Start session: creates <code>shareSessions/{sessionId}</code> with <code>status</code> active, <code>started_at</code>, <code>stop_rule</code> (the call, minutes or the 1-hour limit) and <code>stop_at</code> (capped at <code>expires_at</code>, 1 hour away), <code>call_id</code> (the call connected now; none for a manual share), <code>share_back_allowed</code>, <code>precision</code> and the sharer snapshot; plus the sharer-only <code>private/meta</code>. Then the share sheet opens. Only one session runs at a time.</p></li>
+        <li><p class="route">Share sheet <i>→</i> viewer's browser</p><p>Messages, WhatsApp, Mail or Copy link; the app never sends texts itself. If the sheet closes without a choice, the session is deleted before anyone can see it. Copy link counts as sent, and Send link again reopens the sheet with the same link. Share links always open the web page, even when the recipient has the app: the app doesn't claim the <code>/s/</code> path.</p></li>
+        <li><p class="route">Live map page <i>↔</i> Cloud Functions</p><p>Only the page's own script sends the link token, so link previews never count as an open; a preview shows only the sharer's name. If the token matches an active session, the function signs the page in anonymously for that one session, records the first browser as <code>viewer_uid</code>, sets <code>first_viewed_at</code> on the first open and sends the view alert.</p></li>
+        <li><p class="route"><span class="swatch call" aria-hidden="true" style="display:inline-block;margin-right:6px;vertical-align:1px"></span>Session controls <i>→</i> <code>shareSessions</code></p><p><code>call_active</code> is true only while the call in <code>call_id</code> is connected; once that call ends it stays false, and a later call never turns it back on. If the app comes back while the same call is still connected, it sets it again. Stop sets <code>status</code> to stopped with <code>ended_at</code> and <code>end_reason</code> (stopped, call, timer or limit).</p></li>
+        <li><p class="route"><code>shareSessions</code> <i>→</i> live map page</p><p>The page follows <code>status</code>, <code>call_active</code>, <code>share_back_allowed</code>, <code>precision</code>, <code>ping_interval_s</code> and the sharer snapshot taken at the start; it never reads <code>users</code> or <code>private/meta</code>. Reads stay open after the end: "Alex stopped sharing at 9:52 pm" after Stop, otherwise "Sharing ended at 9:52 pm", and "No longer being shared" for a link opened later.</p></li>
+        <li><p class="route">Cloud Functions <i>→</i> APNs and FCM <i>→</i> apps</p><p>Alerts to every phone in <code>users/{userId}/devices</code>: the first open, a call ending while sharing, and sharing expiring. On iOS, APNs also carries Live Activity updates (status and stop time) to the <code>live_activity_token</code> in <code>private/meta</code>; the phone works out the distance from the viewer's latest share-back ping. Five minutes before the limit, the app, the Live Activity and the Android notification show a quiet "Sharing stops at 10:38 pm · 1-hour limit".</p></li>
+        <li><p class="route">Cloud Functions <i>↔</i> Firestore</p><p>The call watchdog clears <code>call_active</code> when <code>last_ping_at</code> is more than 2 minutes old. When <code>call_active</code> turns false, a function sets <code>viewer_sharing</code> to false. A scheduled stop ends each session at the earlier of <code>stop_at</code> and <code>expires_at</code>, even if the app was killed, and a call-tied session 10 minutes after the watchdog clears <code>call_active</code>. Pings and viewer pings go 24 hours after the end; session metadata and call logs after 30 days.</p></li>
+      </ol>
+    </div>
+    <div class="lane">
+      <h3><span class="swatch" aria-hidden="true"></span>Sign-in, profile, maps and hosting</h3>
+      <ol>
+        <li><p class="route">Sign in <i>↔</i> Firebase Authentication</p><p>Name and mobile number, confirmed with a 6-digit text code (filled in from Messages where the phone allows). A new code after 30 seconds. The same flow signs back in on a new phone. Viewers get only the anonymous, one-session sign-in.</p></li>
+        <li><p class="route">Profile and mascot <i>→</i> <code>users</code>, <code>devices</code>, <code>callLogs</code></p><p>The app saves the profile, mascot choice, <code>settings</code> and <code>last_viewer_name</code>; signing in on a new phone restores them, never a session. It registers each phone's push token in <code>devices</code> (deleted at sign-out or when the token stops working), reads the <code>mascots</code> library, and links each call to its session by <code>call_id</code>. Deleting the account stops any session and deletes everything at once.</p></li>
+        <li><p class="route">App and live map page <i>→</i> Maps API</p><p>The Maps API draws the map in the app and on the viewer page; the viewer's browser also looks up the nearest street or area for the text line ("Near Harbor Way · 1.2 km north-east of you"). Nothing is geocoded or stored on the backend. While Alex is approximate, the line names only the area and Open in Maps opens the rounded point.</p></li>
+        <li><p class="route">Firebase Hosting <i>→</i> live map page</p><p>Serves the page itself, the sharer's mascot render and its accessory layer. The apps bundle the same renders; if a render can't load, the marker falls back to the flat SVG, then a plain lamplight disc.</p></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="life-title" class="lc">
+  <h2 id="life-title">Session lifecycle</h2>
+  <figure>
+    <div class="scroll" tabindex="0" role="region" aria-label="Session lifecycle, scrolls sideways">
+      <svg class="dg" viewBox="0 0 1200 258" role="img" aria-labelledby="lc1-title lc1-desc">
+        <title id="lc1-title">Session lifecycle</title>
+        <desc id="lc1-desc">Offered becomes Active when the sharer taps Share; a manual share starts at Active. Active becomes Stopped when Stop is tapped, the call ends with no timer set, the timer runs out, or the server reaches expires_at. Pings are deleted 24 hours after the end and metadata after 30 days. Declining the banner shares nothing.</desc>
+        <defs>
+          <marker id="lc-ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 Z"/></marker>
+        </defs>
+        <text class="t-label-muted" x="371" y="22" text-anchor="middle">Manual share, or Quick start during a call</text>
+        <line class="e" x1="371" y1="30" x2="371" y2="80" marker-end="url(#lc-ah)"/>
+
+        <rect class="box" x="20" y="80" width="170" height="74" rx="10"/>
+        <circle class="dot-call" cx="40" cy="103.5" r="3.5"/>
+        <text class="t-title" x="50" y="108">Offered</text>
+        <text class="t-muted" x="36" y="128">Share banner on a call,</text>
+        <text class="t-muted" x="36" y="143">app open, not sharing</text>
+
+        <line class="e" x1="190" y1="117" x2="280" y2="117" marker-end="url(#lc-ah)"/>
+        <text class="t-label" x="235" y="109" text-anchor="middle">taps Share</text>
+
+        <rect class="box-sharer" x="280" y="80" width="182" height="74" rx="10"/>
+        <text class="t-title" x="296" y="104">Active</text>
+        <text class="t-muted" x="296" y="124">Pings every 3–60 s</text>
+        <text class="t-muted" x="296" y="139">Ends with the call or a timer</text>
+        <text class="t-label-muted" x="296" y="176">Viewer: Live, or Last seen</text>
+
+        <line class="e" x1="462" y1="117" x2="706" y2="117" marker-end="url(#lc-ah)"/>
+        <text class="t-label" x="584" y="109" text-anchor="middle">stops at the first of</text>
+        <text class="t-muted" x="584" y="138" text-anchor="middle"><tspan class="t-stop">Stop sharing</tspan> tapped · <tspan class="mono">stopped</tspan></text>
+        <text class="t-muted" x="584" y="154" text-anchor="middle"><tspan class="t-call">The call ends</tspan>, rule is the call · <tspan class="mono">call</tspan></text>
+        <text class="t-muted" x="584" y="170" text-anchor="middle"><tspan class="mono">stop_at</tspan> passes · <tspan class="mono">timer</tspan></text>
+        <text class="t-muted" x="584" y="186" text-anchor="middle"><tspan class="mono">expires_at</tspan>, the 1 h limit · <tspan class="mono">limit</tspan></text>
+
+        <rect class="box" x="706" y="80" width="170" height="74" rx="10"/>
+        <text class="t-title" x="722" y="104">Stopped</text>
+        <text class="t-muted" x="722" y="124">Last location frozen</text>
+        <text class="t-muted" x="722" y="139">ended_at, end_reason set</text>
+        <text class="t-label-muted" x="722" y="176">Viewer: Sharing ended at 9:52 pm</text>
+        <text class="t-label-muted" x="722" y="192">At 1 h: Share again, new link</text>
+
+        <line class="e" x1="876" y1="117" x2="966" y2="117" marker-end="url(#lc-ah)"/>
+        <text class="t-label" x="921" y="109" text-anchor="middle">scheduled</text>
+
+        <rect class="box" x="966" y="80" width="214" height="74" rx="10"/>
+        <text class="t-title" x="982" y="104">Cleaned up</text>
+        <text class="t-muted" x="982" y="124">Pings: 24 h after the end</text>
+        <text class="t-muted" x="982" y="139">Metadata, call logs: 30 days</text>
+        <text class="t-label-muted" x="982" y="176">Later opens: No longer being shared</text>
+
+        <line class="e" x1="105" y1="154" x2="105" y2="198" marker-end="url(#lc-ah)"/>
+        <text class="t-label" x="113" y="180">declines</text>
+        <rect class="box" x="20" y="198" width="170" height="48" rx="10"/>
+        <text class="t-title" x="36" y="219">Nothing shared</text>
+        <text class="t-muted" x="36" y="236">Nothing leaves the phone</text>
+      </svg>
+    </div>
+    <figcaption>A call-triggered session goes Offered, Active, Stopped, Cleaned up; a manual share or Quick start leads to the same share screen, and only one session runs at a time. The session records why it ended in <code>end_reason</code>. A scheduled function stops it at the earlier of <code>stop_at</code> and <code>expires_at</code>, at most 1 hour after the start, even if the app was killed; a session tied to the call stops 10 minutes after the watchdog clears <code>call_active</code>. A call that drops counts as a call end, and the sharer gets a call-end alert either way. On Android without the Phone permission, sessions use a 30-minute timer instead of the call.</figcaption>
+  </figure>
+
+  <h2 class="spaced">Share-back lifecycle</h2>
+  <figure>
+    <div class="scroll" tabindex="0" role="region" aria-label="Share-back lifecycle, scrolls sideways">
+      <svg class="dg" viewBox="0 0 1200 270" role="img" aria-labelledby="lc2-title lc2-desc">
+        <title id="lc2-title">Share-back lifecycle</title>
+        <desc id="lc2-desc">Share back starts Off. The sharer may ask once per call, after the viewer has opened the link, which moves it to Asked. When the viewer taps Share my location and the browser allows it, it becomes Sharing back, from Off or from Asked. Hiding the page pauses it and the sharer sees Last seen; showing the page resumes it. When the call ends, share back stops from any state, even if the sharer's own timer keeps going.</desc>
+        <defs>
+          <marker id="lc2-ah" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path class="ah-viewer" d="M0,0 L10,5 L0,10 Z"/></marker>
+          <marker id="lc2-ah-ink" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 Z"/></marker>
+        </defs>
+        <path class="e-viewer-thin" d="M105 80 V40 H690 V80" marker-end="url(#lc2-ah)"/>
+        <text class="t-label t-viewer" x="398" y="33" text-anchor="middle">Share my location, without being asked</text>
+
+        <rect class="box" x="20" y="80" width="170" height="74" rx="10"/>
+        <text class="t-title" x="36" y="104">Off</text>
+        <text class="t-muted" x="36" y="124">The default</text>
+        <text class="t-muted" x="36" y="139">The viewer only watches</text>
+
+        <line class="e" x1="190" y1="117" x2="310" y2="117" marker-end="url(#lc2-ah-ink)"/>
+        <text class="t-label t-viewer" x="250" y="109" text-anchor="middle">Ask to share</text>
+        <text class="t-label-muted" x="250" y="135" text-anchor="middle">sharer, once per call</text>
+
+        <rect class="box" x="310" y="80" width="250" height="74" rx="10"/>
+        <text class="t-title" x="326" y="104">Asked</text>
+        <text class="t-muted" x="326" y="124">"Alex asked to see where you are"</text>
+        <text class="t-muted" x="326" y="139">Waits until answered or the call ends</text>
+
+        <line class="e-viewer-thin" x1="560" y1="117" x2="606" y2="117" marker-end="url(#lc2-ah)"/>
+        <text class="t-label t-viewer" x="583" y="109" text-anchor="middle">allows</text>
+
+        <rect class="box-viewer" x="606" y="80" width="170" height="74" rx="10"/>
+        <text class="t-title t-viewer" x="622" y="104">Sharing back</text>
+        <text class="t-muted" x="622" y="124">Writes viewerPings</text>
+        <text class="t-muted" x="622" y="139">Both maps show both</text>
+
+        <line class="e" x1="666" y1="154" x2="666" y2="196" marker-end="url(#lc2-ah-ink)"/>
+        <text class="t-label-muted" x="658" y="180" text-anchor="end">page hidden</text>
+        <line class="e" x1="716" y1="196" x2="716" y2="154" marker-end="url(#lc2-ah-ink)"/>
+        <text class="t-label-muted" x="724" y="180">page open again</text>
+
+        <rect class="box" x="606" y="196" width="170" height="62" rx="10"/>
+        <text class="t-title" x="622" y="219">Paused</text>
+        <text class="t-muted" x="622" y="238">The sharer sees Last seen</text>
+
+        <line class="e" x1="776" y1="117" x2="980" y2="117" marker-end="url(#lc2-ah-ink)"/>
+        <path class="e" d="M776 227 H900 V117"/>
+        <text class="t-label" x="878" y="109" text-anchor="middle"><tspan class="mono t-call">call_active</tspan> false, any state</text>
+        <text class="t-label-muted" x="908" y="174">the call ends, or no check-in for 2 min;</text>
+        <text class="t-label-muted" x="908" y="189">a function sets <tspan class="mono">viewer_sharing</tspan> false,</text>
+        <text class="t-label-muted" x="908" y="204">even if the sharer's timer keeps going;</text>
+        <text class="t-label-muted" x="908" y="219">never back on for a later call</text>
+
+        <rect class="box" x="980" y="80" width="200" height="74" rx="10"/>
+        <text class="t-title" x="996" y="104">Stopped</text>
+        <text class="t-muted" x="996" y="124">Rules refuse new viewerPings</text>
+        <text class="t-muted" x="996" y="139">Deleted 24 h after the session</text>
+
+        <text class="t-label-muted" x="20" y="186">Only the first browser, and only if the</text>
+        <text class="t-label-muted" x="20" y="201">sharer allows it. Browser location</text>
+        <text class="t-label-muted" x="20" y="216">denied: the view stays one-way</text>
+        <text class="t-label-muted" x="326" y="186">Declined or ignored: nothing changes;</text>
+        <text class="t-label-muted" x="326" y="201">the sharer still sees "Watching"</text>
+      </svg>
+    </div>
+    <figcaption>Share back is opt-in for the viewer and tied to the session's own call. Rules accept the viewer's writes only from <code>viewer_uid</code>, while the session is active and before <code>expires_at</code>, with <code>share_back_allowed</code> and <code>call_active</code> true and a check-in in the last 2 minutes. If the app checks in again while the same call is still connected, <code>call_active</code> comes back and the viewer can tap Share my location again; Ask to share stays used. The sharer is never told about a decline. The arrow to Stopped applies from Off, Asked and Paused too.</figcaption>
+  </figure>
+</section>
+
+<section aria-labelledby="q-title">
+  <h2 id="q-title">Open questions for the FSD</h2>
+  <p class="sub measure">None remain. Everything this map raised is now settled in the FSD. One item is pending outside the spec: engineering is confirming in a spike that Android's audio mode (<code>MODE_IN_CALL</code>) can tell a call is in progress before the Phone permission is granted (§8).</p>
+</section>
+
+</main>
+
+<footer>Built from Track Me Live — FSD.md as revised October 18, 2026. Covers v1 only; v2 items such as trusted contacts, SOS and share history are left out. The PDF of the FSD embeds the system map from this page.</footer>
+
+</div>
+<script>
+  (function () {
+    var root = document.documentElement;
+    var btn = document.getElementById('theme');
+    var stored = null;
+    try { stored = localStorage.getItem('tml-arch-theme'); } catch (e) {}
+    if (stored === 'light' || stored === 'dark') root.setAttribute('data-theme', stored);
+    function current() {
+      return root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+    function label() {
+      var next = current() === 'dark' ? 'Light' : 'Dark';
+      btn.textContent = next;
+      btn.setAttribute('aria-label', 'Switch to the ' + next.toLowerCase() + ' theme');
+    }
+    label();
+    btn.addEventListener('click', function () {
+      var next = current() === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('tml-arch-theme', next); } catch (e) {}
+      label();
+    });
+  })();
+</script>
+</body>
+</html>

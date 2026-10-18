@@ -1,0 +1,58 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-17T12:00:00Z"},
+  "title": "Track Me Live Wireframes",
+  "launch": {"view": "canvas", "page": "live-together"},
+  "pages": [
+    {"id": "wireframes", "name": "Wireframes"},
+    {"id": "live-together", "name": "Live Together"}
+  ],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 390, "h": 844, "title": "Onboarding", "is_interactive": true},
+    "SignUp.dc.html": {"x": 470, "y": 0, "w": 390, "h": 844, "title": "Sign-up", "is_interactive": true},
+    "SignUpCode.dc.html": {"x": 940, "y": 0, "w": 390, "h": 844, "title": "Sign-up · code", "is_interactive": true},
+    "MascotPicker.dc.html": {"x": 1410, "y": 0, "w": 390, "h": 844, "title": "Mascot picker", "is_interactive": true},
+    "Home.dc.html": {"x": 1880, "y": 0, "w": 390, "h": 844, "title": "Home", "is_interactive": true},
+    "CallOverlay.dc.html": {"x": 2350, "y": 0, "w": 390, "h": 844, "title": "Call offer", "is_interactive": true},
+    "Share.dc.html": {"x": 2820, "y": 0, "w": 390, "h": 844, "title": "Share screen", "is_interactive": true},
+    "LiveTracking.dc.html": {"x": 3290, "y": 0, "w": 390, "h": 844, "title": "Live map", "is_interactive": true},
+    "Settings.dc.html": {"x": 3760, "y": 0, "w": 390, "h": 844, "title": "Settings", "is_interactive": true},
+    "ViewerLive.dc.html": {"x": 0, "y": 1260, "w": 390, "h": 844, "title": "Viewer · live"},
+    "ViewerStates.dc.html": {"x": 470, "y": 1260, "w": 1240, "h": 900, "title": "Viewer · other states"},
+    "LT1-Invite.dc.html": {"x": 0, "y": 0, "w": 390, "h": 844, "title": "1 · Alex shares during the call (concept)", "page": "live-together", "radius": 44},
+    "LT2-ViewerJoin.dc.html": {"x": 470, "y": 0, "w": 390, "h": 844, "title": "2 · Mom opens the link (concept)", "page": "live-together", "radius": 44},
+    "LT3-ViewerBoth.dc.html": {"x": 940, "y": 0, "w": 390, "h": 844, "title": "3 · Mom shares back (concept)", "page": "live-together", "radius": 44},
+    "LT4-SharerBoth.dc.html": {"x": 1410, "y": 0, "w": 390, "h": 844, "title": "4 · Alex sees them both (concept)", "page": "live-together", "radius": 44},
+    "LT5-MiniMap.dc.html": {"x": 1880, "y": 0, "w": 390, "h": 844, "title": "5 · Back on the call (Android) (concept)", "page": "live-together", "radius": 44},
+    "LT6-LiveActivity.dc.html": {"x": 2350, "y": 0, "w": 390, "h": 400, "title": "5 · Back on the call (iOS) (concept)", "page": "live-together", "radius": 32}
+  },
+  "order": [
+    "Main.dc.html",
+    "SignUp.dc.html",
+    "SignUpCode.dc.html",
+    "MascotPicker.dc.html",
+    "Home.dc.html",
+    "CallOverlay.dc.html",
+    "Share.dc.html",
+    "LiveTracking.dc.html",
+    "Settings.dc.html",
+    "ViewerLive.dc.html",
+    "ViewerStates.dc.html",
+    "LT1-Invite.dc.html",
+    "LT2-ViewerJoin.dc.html",
+    "LT3-ViewerBoth.dc.html",
+    "LT4-SharerBoth.dc.html",
+    "LT5-MiniMap.dc.html",
+    "LT6-LiveActivity.dc.html"
+  ],
+  "notes": {
+    "row-app": {"x": 0, "y": -300, "text": "Sharer app · iOS + Android", "kind": "title1", "maxW": 4150},
+    "row-viewer": {"x": 0, "y": 960, "text": "Viewer link · any browser, no install", "kind": "title1", "maxW": 1710},
+    "flow": {"x": 4230, "y": 0, "w": 340, "fill": "blue", "text": "Flow\n\nFirst launch: Onboarding (3 pages) → Sign-up (name and number, then the 6-digit text code) → Mascot picker → Home\n\nOn a call, app open: Call offer → Share screen → share sheet → Live map. Alerts are asked right after the first link is sent.\n\nOn a call, app closed: Quick start → Share screen\n\nManual: Home → Share screen → share sheet → Live map\n\nStop sharing → Sharing ended → Home\n\nThe person on the call opens the link → Viewer · live\n\nNot in v1: Contacts, Share history, SOS"},
+    "reference": {"x": 4230, "y": 780, "w": 340, "fill": "blue", "text": "Screen reference\n\nThe click-through prototype (prototype/index.html) is the screen reference for v1, on iOS and Android. These frames are kept in sync with it."},
+    "lt-title": {"x": 0, "y": -300, "text": "Live Together · concept screens: the prototype is the reference", "kind": "title1", "maxW": 2740, "page": "live-together"},
+    "lt-ref": {"x": 2820, "y": 0, "w": 340, "fill": "blue", "page": "live-together", "text": "Concept: the prototype is the reference\n\nThe click-through prototype (prototype/index.html) is the screen reference for v1. These Live Together screens are concept art, dark only, kept in sync with it: same moments and wording, colors taken from the dark token values."},
+    "lt-how": {"x": 2350, "y": 480, "w": 340, "fill": "purple", "page": "live-together", "text": "How it works\n\n1. During the call, Alex opens the share screen (from the call offer or Quick start), keeps “Let them share back” on and sends the link.\n2. Mom opens the link and sees Alex live, with where Alex is in words (“Near Market Street”), Show Alex and Open in Maps.\n3. Alex can tap Ask to share, once per call. Mom taps Share my location, and the browser asks once.\n4. Both maps now show both people and the distance between them.\n5. Alex goes back to the call: the green call pill in the status bar on iPhone, Back to call on Android. A mini map (Android; tap it for expand, close and stop) or the Live Activity (iOS) keeps them in view.\n\nShare back always stops when the call ends."}
+  },
+  "designSystems": []
+}

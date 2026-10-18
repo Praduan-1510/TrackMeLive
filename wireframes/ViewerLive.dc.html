@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Viewer, live</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap">
+<style>
+body{margin:0}
+a{color:#222222}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #FFFFFF; color: #222222; font-family: 'Balsamiq Sans', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif; font-size: 15px; line-height: 1.4">
+  <div style="flex: none; display: flex; align-items: center; padding: 10px 16px; background: #EDEDED; border-bottom: 2px solid #222222">
+    <div style="flex: 1; min-width: 0; display: flex; align-items: center; min-height: 34px; padding: 0 14px; box-sizing: border-box; border: 2px solid #8A8A8A; border-radius: 17px; background: #FFFFFF; color: #4D4D4D; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">trackme.live/s/[link token]</div>
+  </div>
+
+  <main style="flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px 20px 16px">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <div style="flex: none; width: 44px; height: 44px; box-sizing: border-box; border: 2px solid #222222; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">Fox</div>
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25">
+        <b style="font-size: 16px">Alex</b>
+        <span style="display: flex; align-items: center; gap: 6px; color: #4D4D4D; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 50%; background: #222222"></span>Live · updated 3 s ago</span>
+      </div>
+      <span style="flex: none; display: flex; align-items: center; gap: 6px; padding: 2px 10px; border: 2px solid #222222; border-radius: 999px; font-size: 13px; font-weight: 700"><span style="width: 8px; height: 8px; border-radius: 50%; background: #222222"></span>On your call</span>
+    </div>
+
+    <h1 style="margin: 0; font-size: 19px; line-height: 1.25">Alex is sharing their location with you</h1>
+    <p style="margin: 0; display: flex; align-items: flex-start; gap: 8px; font-weight: 700"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style="flex: none; margin-top: 3px"><path d="M12 2.5a7 7 0 0 0-7 7c0 5.2 7 12 7 12s7-6.8 7-12a7 7 0 0 0-7-7z" fill="none" stroke="#222222" stroke-width="2"></path><circle cx="12" cy="9.5" r="2.5" fill="#222222"></circle></svg>Near Market Street</p>
+    <p style="margin: -4px 0 0; color: #4D4D4D; font-size: 14px">Visible until your call ends.</p>
+    <div style="display: flex; gap: 8px">
+      <button type="button" style="flex: 1; min-height: 44px; border: 2px solid #222222; border-radius: 10px; background: #FFFFFF; color: #222222; font-family: inherit; font-size: 15px; font-weight: 700">Show Alex</button>
+      <button type="button" style="flex: 1; min-height: 44px; border: 2px solid #222222; border-radius: 10px; background: #FFFFFF; color: #222222; font-family: inherit; font-size: 15px; font-weight: 700">Open in Maps</button>
+    </div>
+
+    <div role="img" aria-label="Map: Alex, live, near Market Street" style="position: relative; flex: 1; min-height: 0; border: 2px solid #222222; border-radius: 14px; overflow: hidden; background: #EFEFEF">
+      <svg width="100%" height="100%" viewBox="0 0 346 340" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block">
+        <rect x="0" y="0" width="346" height="340" fill="#EFEFEF"></rect>
+        <path d="M0 236 L346 182 M126 0 L196 340 M0 62 L346 86 M272 0 L242 340" stroke="#D6D6D6" stroke-width="14" fill="none"></path>
+        <rect x="214" y="104" width="44" height="52" fill="#E2E2E2"></rect>
+        <path d="M188 330 L180 290 L172 250 L166 205" stroke="#8A8A8A" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round" fill="none"></path>
+        <g fill="#6B6B6B" font-size="11" font-family="'Balsamiq Sans', system-ui, sans-serif">
+          <text x="140" y="24" transform="rotate(78 140 24)">Market St</text>
+          <text x="14" y="228" transform="rotate(-9 14 228)">Harbor Way</text>
+        </g>
+      </svg>
+      <div style="position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; box-sizing: border-box; border: 3px solid #222222; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px">Fox</div>
+      <div style="position: absolute; left: 50%; top: 50%; margin: 30px 0 0 -26px; width: 52px; text-align: center; padding: 1px 0; background: #FFFFFF; border: 2px solid #222222; border-radius: 999px; font-size: 12px; font-weight: 700">Alex</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 2px dashed #222222; border-radius: 12px">
+      <div style="display: flex; align-items: center; gap: 12px">
+        <span aria-hidden="true" style="flex: none; width: 36px; height: 36px; box-sizing: border-box; border: 2px solid #222222; border-radius: 50%; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24"><path d="M21 3 L3 10.5 L11 13 L13.5 21 Z" fill="#222222"></path></svg></span>
+        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3"><b>Let Alex see you too</b><span style="color: #6B6B6B; font-size: 13px">Only during this call. Nothing to install.</span></div>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <button type="button" style="flex: none; min-height: 44px; padding: 0 14px; border: 0; background: transparent; color: #4D4D4D; font-family: inherit; font-size: 15px; font-weight: 700">Not now</button>
+        <button type="button" style="flex: 1; min-height: 44px; border: 0; border-radius: 10px; background: #222222; color: #FFFFFF; font-family: inherit; font-size: 15px; font-weight: 700">Share my location</button>
+      </div>
+    </div>
+    <div style="text-align: center; color: #6B6B6B; font-size: 12px">Your browser will ask for permission first.</div>
+    <div style="font-size: 12px; color: #4D4D4D">[ The street is looked up in the browser, never stored. Once you share back the line adds "· 1.2 km south-west of you". While Alex is approximate it names only the area: "In the Market area". ]</div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

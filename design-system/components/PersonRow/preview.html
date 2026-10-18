@@ -1,0 +1,50 @@
+<!-- @dsCard group="Lists" height=330 subtitle="People in a Live Together session" -->
+<div class="tml-rows">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    .tml-rows { display: flex; flex-direction: column; gap: 16px; box-sizing: border-box; min-height: 330px; padding: 16px; background: var(--ground); font-family: var(--font-text); color: var(--ink); }
+    .tml-rows .label { margin: 0 0 -8px 16px; font-size: 13px; line-height: 18px; color: var(--ink-secondary); }
+    .tml-rows .list { border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+    .tml-rows .row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 16px; box-sizing: border-box; }
+    .tml-rows .sep { height: 1px; margin-left: 68px; background: var(--separator); }
+    .tml-rows .av { flex: none; width: 40px; height: 40px; box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .tml-rows .av-sharer { background: var(--surface-raised); border: 2px solid var(--lamplight); }
+    .tml-rows .av-sharer img { width: 32px; height: 32px; display: block; }
+    .tml-rows .av-viewer { background: var(--crossing); color: var(--on-crossing); font-family: var(--font-display); font-size: 16px; font-weight: 700; }
+    .tml-rows .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .tml-rows .t1 { font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.43px; }
+    .tml-rows .t2 { font-size: 15px; line-height: 20px; letter-spacing: -0.23px; color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+    .tml-rows .st { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 15px; line-height: 20px; font-weight: 600; }
+    .tml-rows .st .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .tml-rows .st-sharer { color: var(--lamplight-text); }
+    .tml-rows .st-sharer .dot { background: var(--lamplight); }
+    .tml-rows .st-viewer { color: var(--crossing-text); }
+    .tml-rows .st-viewer .dot { background: var(--crossing); }
+    .tml-rows .st-watch { color: var(--ink-secondary); }
+    .tml-rows .st-watch .dot { box-sizing: border-box; border: 2px solid var(--ink-secondary); }
+  </style>
+
+  <p class="label">Both live</p>
+  <div class="list">
+    <div class="row">
+      <div class="av av-sharer"><img src="/_blob/17d932d1022a882a756e8882bc1ba3aa" onerror="this.onerror=null;this.src='../../assets/Mascots/fox.png'" alt=""></div>
+      <div class="txt"><span class="t1">You</span><span class="t2">Precise · updating every 4 s</span></div>
+      <span class="st st-sharer"><span class="dot"></span>Live</span>
+    </div>
+    <div class="sep"></div>
+    <div class="row">
+      <div class="av av-viewer">M</div>
+      <div class="txt"><span class="t1">Mom</span><span class="t2">Sharing back · updated 3 s ago</span></div>
+      <span class="st st-viewer"><span class="dot"></span>Live</span>
+    </div>
+  </div>
+
+  <p class="label">Before Mom shares back</p>
+  <div class="list">
+    <div class="row">
+      <div class="av av-viewer">M</div>
+      <div class="txt"><span class="t1">Mom</span><span class="t2">Opened your link at 9:40 pm</span></div>
+      <span class="st st-watch"><span class="dot"></span>Watching</span>
+    </div>
+  </div>
+</div>

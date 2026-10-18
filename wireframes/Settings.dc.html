@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans:wght@400;700&display=swap">
+<style>
+body{margin:0}
+a{color:#222222}a:hover{color:#000000}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; padding: 12px 20px 0; display: flex; flex-direction: column; gap: 7px; background: #FFFFFF; color: #222222; font-family: 'Balsamiq Sans', 'Comic Sans MS', 'Chalkboard SE', system-ui, sans-serif; font-size: 14px; line-height: 1.3">
+  <h1 style="margin: 0; font-size: 22px; line-height: 1.15">Settings</h1>
+
+  <section style="display: flex; flex-direction: column">
+    <h2 style="margin: 0 0 2px; font-size: 13px; color: #6B6B6B">Sharing</h2>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; border-bottom: 1px solid #D6D6D6"><span style="display: flex; flex-direction: column">Offer to share when I'm on a call<span style="color: #6B6B6B; font-size: 12px">When Track Me Live is open</span></span><input type="checkbox" role="switch" checked style="flex: none; width: 20px; height: 20px; margin: 0; accent-color: #222222"></label>
+    <div role="group" aria-label="Location detail" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; border-bottom: 1px solid #D6D6D6">
+      <span>Location detail</span>
+      <span style="display: flex; gap: 6px">
+        <label style="display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 8px; box-sizing: border-box; border: 2px solid #222222; border-radius: 9px; background: #E6E6E6; font-size: 13px; font-weight: 700"><input type="radio" name="set-precision" checked style="margin: 0; accent-color: #222222">Precise</label>
+        <label style="display: flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 8px; box-sizing: border-box; border: 2px solid #222222; border-radius: 9px; font-size: 13px"><input type="radio" name="set-precision" style="margin: 0; accent-color: #222222">Approximate</label>
+      </span>
+    </div>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0; border: 0; border-bottom: 1px solid #D6D6D6; background: transparent; color: #222222; font-family: inherit; font-size: 14px; text-align: left">Default stop time<span style="color: #4D4D4D">When the call ends ›</span></button>
+  </section>
+
+  <section style="display: flex; flex-direction: column">
+    <h2 style="margin: 0 0 2px; font-size: 13px; color: #6B6B6B">Live Together</h2>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; border-bottom: 1px solid #D6D6D6"><span style="display: flex; flex-direction: column">Let people share back<span style="color: #6B6B6B; font-size: 12px">Only during a call. Off for each call if you turn it off.</span></span><input type="checkbox" role="switch" checked style="flex: none; width: 20px; height: 20px; margin: 0; accent-color: #222222"></label>
+  </section>
+
+  <section style="display: flex; flex-direction: column">
+    <h2 style="margin: 0 0 2px; font-size: 13px; color: #6B6B6B">Alerts</h2>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; border-bottom: 1px solid #D6D6D6">When my link is opened<input type="checkbox" role="switch" checked style="flex: none; width: 20px; height: 20px; margin: 0; accent-color: #222222"></label>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; border-bottom: 1px solid #D6D6D6">When a call ends while I'm sharing<input type="checkbox" role="switch" checked style="flex: none; width: 20px; height: 20px; margin: 0; accent-color: #222222"></label>
+    <label style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; border-bottom: 1px solid #D6D6D6">When sharing expires<input type="checkbox" role="switch" checked style="flex: none; width: 20px; height: 20px; margin: 0; accent-color: #222222"></label>
+  </section>
+
+  <section style="display: flex; flex-direction: column">
+    <h2 style="margin: 0 0 2px; font-size: 13px; color: #6B6B6B">Appearance</h2>
+    <div role="group" aria-label="Appearance" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 2px solid #222222; border-radius: 10px; overflow: hidden">
+      <button type="button" aria-pressed="true" style="min-height: 34px; border: 0; background: #E6E6E6; color: #222222; font-family: inherit; font-size: 13px; font-weight: 700">System</button>
+      <button type="button" aria-pressed="false" style="min-height: 34px; border: 0; border-left: 2px solid #222222; background: #FFFFFF; color: #4D4D4D; font-family: inherit; font-size: 13px">Light</button>
+      <button type="button" aria-pressed="false" style="min-height: 34px; border: 0; border-left: 2px solid #222222; background: #FFFFFF; color: #4D4D4D; font-family: inherit; font-size: 13px">Dark</button>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column">
+    <h2 style="margin: 0 0 2px; font-size: 13px; color: #6B6B6B">Permissions</h2>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0; border: 0; border-bottom: 1px solid #D6D6D6; background: transparent; color: #222222; font-family: inherit; font-size: 14px; text-align: left">Location<span style="color: #4D4D4D">While using the app</span></button>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 0; border: 0; border-bottom: 1px solid #D6D6D6; background: transparent; color: #222222; font-family: inherit; font-size: 14px; text-align: left"><span style="display: flex; flex-direction: column">Phone (Android)<span style="color: #6B6B6B; font-size: 12px">So sharing can stop when your call ends</span></span><span style="color: #4D4D4D">Allowed</span></button>
+    <button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; padding: 0; border: 0; border-bottom: 1px solid #D6D6D6; background: transparent; color: #222222; font-family: inherit; font-size: 14px; text-align: left">Notifications<span style="color: #4D4D4D">Allowed</span></button>
+    <p style="margin: 4px 0 0; color: #6B6B6B; font-size: 12px">Sharing starts while the app is open and keeps going in the background until it stops.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 4px">
+    <h2 style="margin: 0; font-size: 13px; color: #6B6B6B">Your data</h2>
+    <button type="button" style="min-height: 44px; border: 2px solid #C2410C; border-radius: 12px; background: #FFFFFF; color: #9A3412; font-family: inherit; font-size: 15px; font-weight: 700">Delete account and all data</button>
+    <p style="margin: 0; color: #6B6B6B; font-size: 12px">Location points are deleted 24 hours after a session ends. Session details are kept for 30 days, then deleted.</p>
+  </section>
+
+  <div style="flex: 1"></div>
+
+  <nav aria-label="Main" style="display: flex; margin: 0 -20px; padding: 0 20px 4px; border-top: 2px solid #222222">
+    <a href="Home.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 48px; color: #6B6B6B; text-decoration: none">Home</a>
+    <a href="MascotPicker.dc.html" style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 48px; color: #6B6B6B; text-decoration: none">Mascot</a>
+    <a href="Settings.dc.html" aria-current="page" style="flex: 1; display: flex; align-items: center; justify-content: center; min-height: 48px; color: #222222; font-weight: 700; text-decoration: underline">Settings</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

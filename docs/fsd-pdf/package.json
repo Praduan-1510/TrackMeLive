@@ -1,0 +1,19 @@
+{
+  "name": "track-me-live-fsd-pdf",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Builds the branded PDF of Track Me Live — FSD.md with headless Chrome.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "preview": "node preview.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "marked": "15.0.12",
+    "pdfjs-dist": "4.10.38",
+    "playwright-core": "1.47.2"
+  }
+}

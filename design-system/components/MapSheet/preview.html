@@ -1,0 +1,69 @@
+<!-- @dsCard group="Surfaces" height=500 width=390 subtitle="Floating glass sheet over the map, markers at 52 and 48pt" -->
+<div class="tml-sheet-demo">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    .tml-sheet-demo { position: relative; width: 390px; height: 500px; overflow: hidden; background: var(--map-land); font-family: var(--font-text); color: var(--ink); }
+    .tml-sheet-demo .tml-map, .tml-sheet-demo .overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+    .tml-sheet-demo .m-land { fill: var(--map-land); }
+    .tml-sheet-demo .m-water { fill: var(--map-water); }
+    .tml-sheet-demo .m-park { fill: var(--map-park); }
+    .tml-sheet-demo .m-road path { stroke: var(--map-road); stroke-width: 8; fill: none; stroke-linecap: round; }
+    .tml-sheet-demo .m-major path { stroke: var(--map-road-major); stroke-width: 14; fill: none; stroke-linecap: round; }
+    .tml-sheet-demo .line { stroke: var(--ink); stroke-opacity: 0.6; stroke-width: 2; stroke-dasharray: 4 7; stroke-linecap: round; fill: none; }
+    .tml-sheet-demo .mk { position: absolute; width: 0; height: 0; }
+    .tml-sheet-demo .halo { position: absolute; border-radius: 50%; }
+    .tml-sheet-demo .disc { position: absolute; box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-marker); }
+    .tml-sheet-demo .s .halo { left: -40px; top: -40px; width: 80px; height: 80px; background: var(--lamplight-halo); }
+    .tml-sheet-demo .s .disc { left: -26px; top: -26px; width: 52px; height: 52px; background: var(--surface); border: 3px solid var(--lamplight); box-shadow: 0 0 0 1px var(--on-lamplight), var(--shadow-marker); }
+    .tml-sheet-demo .s img { width: 40px; height: 40px; display: block; }
+    .tml-sheet-demo .v .halo { left: -36px; top: -36px; width: 72px; height: 72px; background: var(--crossing-halo); }
+    .tml-sheet-demo .v .disc { left: -24px; top: -24px; width: 48px; height: 48px; background: var(--crossing); border: 3px solid var(--surface); color: var(--on-crossing); font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+    .tml-sheet-demo .chip { position: absolute; transform: translate(-50%, -50%); padding: 3px 10px; border-radius: var(--radius-pill); background: var(--ink); color: var(--ground); font-family: var(--font-display); font-size: 15px; line-height: 20px; font-weight: 700; letter-spacing: -0.1px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .tml-sheet-demo .sheet { position: absolute; left: 8px; right: 8px; bottom: 8px; box-sizing: border-box; padding: 10px 20px 20px; border-radius: var(--radius-sheet); background: var(--glass-fill); box-shadow: inset 0 0 0 1px var(--glass-edge), inset 0 1px 0 var(--glass-highlight); -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%); display: flex; flex-direction: column; gap: 14px; }
+    .tml-sheet-demo .grab { width: 36px; height: 5px; border-radius: 3px; margin: 0 auto; background: var(--ink-tertiary); opacity: 0.45; }
+    .tml-sheet-demo .head { display: flex; flex-direction: column; gap: 4px; }
+    .tml-sheet-demo .title { display: flex; align-items: center; gap: 10px; }
+    .tml-sheet-demo h3 { margin: 0; font-family: var(--font-display); font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.3px; }
+    .tml-sheet-demo .badge { display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; min-height: 22px; border-radius: var(--radius-pill); background: var(--lamplight-wash); color: var(--lamplight-text); font-family: var(--font-display); font-size: 11px; line-height: 13px; font-weight: 800; letter-spacing: 0.6px; }
+    .tml-sheet-demo .badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--lamplight); }
+    .tml-sheet-demo .sub { margin: 0; font-size: 16px; line-height: 21px; letter-spacing: -0.31px; color: var(--ink-secondary); }
+    .tml-sheet-demo .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .tml-sheet-demo .tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--radius-md); background: var(--surface-raised); }
+    .tml-sheet-demo .tile b { font-family: var(--font-display); font-size: 17px; line-height: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tml-sheet-demo .tile span { font-size: 13px; line-height: 18px; color: var(--ink-secondary); }
+    .tml-sheet-demo .actions { display: flex; gap: 10px; }
+    .tml-sheet-demo .btn { flex: 1; min-height: 50px; border: 0; border-radius: var(--radius-pill); font-family: var(--font-text); font-size: 17px; line-height: 22px; font-weight: 600; letter-spacing: -0.43px; cursor: pointer; }
+    .tml-sheet-demo .btn:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .tml-sheet-demo .btn-neutral { background: var(--surface-raised); color: var(--ink); }
+    .tml-sheet-demo .btn-stop { flex: 1.3; background: var(--flare-wash); color: var(--flare-text); }
+  </style>
+
+  <svg class="tml-map" viewBox="0 0 390 500" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect class="m-land" x="0" y="0" width="390" height="500"></rect>
+    <path class="m-water" d="M-10 300 C 80 280 160 330 250 300 C 320 280 360 270 400 276 L 400 520 L -10 520 Z"></path>
+    <rect class="m-park" x="250" y="10" width="124" height="96" rx="18"></rect>
+    <g class="m-road"><path d="M-10 40 L400 14"></path><path d="M-10 134 L400 106"></path><path d="M60 -10 L84 520"></path><path d="M200 -10 L214 520"></path><path d="M340 -10 L352 520"></path></g>
+    <g class="m-major"><path d="M-10 214 C 120 196 240 164 400 96"></path></g>
+  </svg>
+  <svg class="overlay" aria-hidden="true"><line class="line" x1="112" y1="150" x2="290" y2="62"></line></svg>
+  <div class="mk s" style="left: 112px; top: 150px"><div class="halo"></div><div class="disc"><img src="/_blob/17d932d1022a882a756e8882bc1ba3aa" onerror="this.onerror=null;this.src='../../assets/Mascots/fox.png'" alt=""></div></div>
+  <div class="mk v" style="left: 290px; top: 62px"><div class="halo"></div><div class="disc">M</div></div>
+  <div class="chip" style="left: 201px; top: 106px">1.2 km</div>
+
+  <div class="sheet">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="head">
+      <div class="title"><h3>Live Together</h3><span class="badge"><i></i>LIVE</span></div>
+      <p class="sub">Mom opened your link at 9:40 pm and is sharing back.</p>
+    </div>
+    <div class="tiles">
+      <div class="tile"><b>1.2 km</b><span>apart</span></div>
+      <div class="tile"><b>14 min</b><span>sharing</span></div>
+      <div class="tile"><b>Call end</b><span>stops at</span></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-neutral" type="button">Change timer</button>
+      <button class="btn btn-stop" type="button">Stop sharing</button>
+    </div>
+  </div>
+</div>

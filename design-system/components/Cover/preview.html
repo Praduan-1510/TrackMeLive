@@ -1,0 +1,44 @@
+<!-- @dsCard height=288 -->
+<div class="tml-cover">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    .tml-cover { position: relative; width: 960px; height: 288px; overflow: hidden; background: var(--ground); }
+    .tml-cover svg { position: absolute; left: 0; top: 0; width: 960px; height: 288px; }
+    .tml-cover .cv-ink { fill: var(--ink); }
+    .tml-cover .cv-lamp { fill: var(--lamplight); }
+    .tml-cover .cv-cross { fill: var(--crossing); }
+    .tml-cover .cv-flare { fill: var(--flare); }
+    .tml-cover .cv-dot { fill: var(--lamplight); }
+    .tml-cover .cv-ring { fill: none; stroke: var(--lamplight); stroke-width: 2; }
+    .tml-cover .cv-text { position: absolute; left: 40px; bottom: 36px; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
+    .tml-cover .cv-name { margin: 0; font-family: var(--font-display); font-size: 88px; line-height: 0.95; font-weight: 800; letter-spacing: -1px; color: var(--ink); }
+    .tml-cover .cv-tag { margin: 0; font-family: var(--font-text); font-size: 14px; line-height: 20px; color: var(--ink-secondary); }
+  </style>
+  <svg viewBox="0 0 960 288" aria-hidden="true">
+    <!-- blocks: ink slab 260x240 at radius-sheet (38), lamplight 200x152 at radius-lg (26), crossing pill 120x64 (rx 32, half the short side), flare disc 40 across (space-8 + space-2) -->
+    <!-- arrangement: one tall ink slab bleeding off the right edge, three satellites to its left, 24px (space-6) gaps and top inset -->
+    <!-- pattern: literal motif, a dotted ping trail ending in a halo, because the product is a stream of location pings drawn as round dots on the map -->
+    <!-- steps and radii: dot pitch about 16px (space-4), dots 8px (space-2), halo rings 16 and 28; radius-lg, radius-sheet -->
+    <rect class="cv-ink" x="744" y="24" width="260" height="240" rx="38"></rect>
+    <rect class="cv-lamp" x="520" y="24" width="200" height="152" rx="26"></rect>
+    <rect class="cv-cross" x="520" y="200" width="120" height="64" rx="32"></rect>
+    <circle class="cv-flare" cx="684" cy="232" r="20"></circle>
+    <circle class="cv-dot" cx="776" cy="240" r="4"></circle>
+    <circle class="cv-dot" cx="786" cy="225" r="4"></circle>
+    <circle class="cv-dot" cx="797" cy="210" r="4"></circle>
+    <circle class="cv-dot" cx="809" cy="196" r="4"></circle>
+    <circle class="cv-dot" cx="822" cy="182" r="4"></circle>
+    <circle class="cv-dot" cx="836" cy="169" r="4"></circle>
+    <circle class="cv-dot" cx="850" cy="155" r="4"></circle>
+    <circle class="cv-dot" cx="863" cy="140" r="4"></circle>
+    <circle class="cv-dot" cx="875" cy="124" r="4"></circle>
+    <circle class="cv-dot" cx="886" cy="107" r="4"></circle>
+    <circle class="cv-ring" cx="898" cy="84" r="16"></circle>
+    <circle class="cv-ring" cx="898" cy="84" r="28"></circle>
+    <circle class="cv-dot" cx="898" cy="84" r="8"></circle>
+  </svg>
+  <div class="cv-text">
+    <p class="cv-name">Track Me<br>Live</p>
+    <p class="cv-tag">Share where you are, the moment you're on the phone.</p>
+  </div>
+</div>

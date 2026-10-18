@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>render</title></head>
+<body style="margin:0;background:transparent">
+<div id="out"></div>
+<script type="module">
+// ?m=fox  or  ?m=hero,hero:dusk,agent:rose  (name or name:color), &size=1024
+// Accessories: fox@glasses (wearing it, one scene) or fox@glasses/layer (the accessory alone,
+// as an overlay for fox.png). See jobs.mjs.
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { renderJob } from './jobs.mjs';
+
+const out = document.getElementById('out');
+const q = new URLSearchParams(location.search);
+const size = Number(q.get('size')) || 1024;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(size, size);
+renderer.setClearColor(0x000000, 0);
+for (const job of (q.get('m') || 'fox').split(',')) {
+  const pre = document.createElement('pre');
+  pre.dataset.job = job;
+  try {
+    pre.textContent = renderJob(THREE, renderer, job).toDataURL('image/png');
+  } catch (e) {
+    pre.textContent = 'ERROR ' + (e && e.stack || e);
+  }
+  out.append(pre);
+}
+</script>
+</body>
+</html>
