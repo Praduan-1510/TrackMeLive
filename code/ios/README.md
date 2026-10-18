@@ -199,6 +199,7 @@ These are written but have never been compiled for iOS or run:
   - asset catalogs, the app icon, Info.plist processing, signing and entitlements;
   - the `@State` and `#Preview` macros (their plugins ship only with Xcode);
   - anything iOS-only that Catalyst marks unavailable beyond the Live Activity APIs.
+- **TMLCore's tests for iOS.** `scripts/test-core.sh` compiles and runs them for macOS, and `scripts/typecheck.sh` checks only TMLCore's sources for Catalyst (Swift Testing isn't available for Catalyst with the Command Line Tools). So a test that calls an API whose signature differs between its `#if os(iOS)` and `#else` branches compiles here and fails only in CI's Xcode build, as `DisplayStyle.resolve()` did in Sprint 1. Give both branches the same signature, defaults included.
 - **Liquid Glass and layout.**
   - Whether the glass prominent button, tab bar and navigation bars look like the prototype.
   - Spacing and the art sizes on an iPhone 17 Pro.

@@ -29,9 +29,16 @@ struct MainTabView: View {
         }
         // The selected tab reads in lamplight-text, as in the prototype; content resets the tint to ink.
         .tint(TMLColor.lamplightText)
+        // A share ending (Stop, the timer, the limit, the server) shows the ended screen on Home.
+        .onChange(of: model.dependencies.sharing.state) { model.shareStateDidChange() }
     }
 }
 
 #Preview("Tabs") {
     MainTabView().environment(AppModel.preview())
+}
+
+#Preview("Tabs, sharing") {
+    MainTabView().environment(AppModel.preview(sharing: .live(.sample(options: ShareOptions(
+        viewerName: "Mom", stop: .minutes(.minutes30), shareBack: false, precision: .precise)))))
 }

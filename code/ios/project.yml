@@ -80,6 +80,12 @@ targets:
         NSLocationWhenInUseUsageDescription: >-
           Track Me Live uses your location only while you're sharing. Nobody sees it until you send
           your link, and it stops when you do.
+        # The share screen's one-time precise request while Precise Location is off for the app
+        # (FSD §8; LiveLocationAccess.precisePurposeKey). It lasts for that share only.
+        NSLocationTemporaryUsageDescriptionDictionary:
+          SharePrecise: >-
+            Precise location lets the person you share with see exactly where you are, for this
+            share only.
         # The share session's Live Activity (Lock Screen and Dynamic Island), updated often by push.
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true

@@ -153,6 +153,15 @@ enum class MascotAccessory(val wire: String) {
     }
 }
 
+/** shareSessions/{sessionId}/alerts doc ids: which alert (FSD §4 View notification). link_opened only in v1; call_ended and expiry come later. */
+enum class AlertKind(val wire: String) {
+    @PropertyName("link_opened") LINK_OPENED("link_opened");
+
+    companion object {
+        fun fromWire(value: String?): AlertKind? = entries.firstOrNull { it.wire == value }
+    }
+}
+
 // ---------- Firestore documents ----------
 
 /** users.settings: the app settings (FSD §4 Settings), restored when signing in on a new phone. New accounts start with the defaults below, as in the prototype (x-decisions Q-SETTINGS). */
@@ -307,7 +316,7 @@ data class Device(
     /** ios or android. */
     @get:PropertyName("platform") @set:PropertyName("platform")
     var platform: DevicePlatform = DevicePlatform.IOS,
-    /** The APNs (iOS) or FCM (Android) token for alerts (FSD §5). */
+    /** The FCM registration token, on both platforms (on iOS, FCM delivers through APNs; FSD §5; x-decisions Q-ALERT-PUSH). */
     @get:PropertyName("push_token") @set:PropertyName("push_token")
     var pushToken: String = "",
     /** iOS only: the Live Activity push-to-start token. Null on Android or until iOS issues one. */
@@ -383,6 +392,9 @@ data class ShareSession(
     /** The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING). */
     @get:PropertyName("last_ping_at") @set:PropertyName("last_ping_at")
     var lastPingAt: Timestamp = Timestamp(0, 0),
+    /** recorded_at of the newest ping; null until the first one. The sharer's app writes it in the same batch as each ping, with the check-in, and firestore.rules hold every ping to it: recorded_at at least MIN_PING_SPACING_SECONDS (2) after it, which keeps pings in order and bounds how fast they're written (x-decisions Q-PING-WRITE). createSession writes null. Optional only so sessions started before it existed still read; treat a missing field as null. Not for display: Last seen uses the newest ping's recorded_at. */
+    @get:PropertyName("last_fix_at") @set:PropertyName("last_fix_at")
+    var lastFixAt: Timestamp? = null,
     /** The ping interval in use, in seconds (e.g. 3.5). createSession writes 5; the sharer's app overwrites it with the interval actually in use and whenever it changes with the battery steps: 3–5 above 20%, 15 from 20% to 10%, 60 under 10% (x-decisions Q-PING-INTERVAL-INIT). */
     @get:PropertyName("ping_interval_s") @set:PropertyName("ping_interval_s")
     var pingIntervalS: Double = 0.0,
@@ -423,6 +435,7 @@ data class ShareSession(
         const val CALL_ENDED_AT = "call_ended_at"
         const val SHARE_BACK_ALLOWED = "share_back_allowed"
         const val LAST_PING_AT = "last_ping_at"
+        const val LAST_FIX_AT = "last_fix_at"
         const val PING_INTERVAL_S = "ping_interval_s"
         const val PRECISION = "precision"
         const val PRECISION_NEXT = "precision_next"
@@ -462,7 +475,7 @@ data class SessionPrivateMeta(
     }
 }
 
-/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at. Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. */
+/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, 0 ≤ accuracy_m ≤ MAX_ACCURACY_METERS, recorded_at no later than server time + PING_CLOCK_SKEW_SECONDS, a doc id of 1 to PING_ID_MAX_LENGTH characters [A-Za-z0-9_-], on a session that is active and before both stop_at and expires_at. The sharer's pings also go in one batch with the session's check-in and last_fix_at, in order and at least 2 s apart (x-decisions Q-PING-WRITE). Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. */
 data class Ping(
     /** Latitude, WGS 84 degrees. */
     @get:PropertyName("lat") @set:PropertyName("lat")
@@ -523,6 +536,42 @@ data class ViewerSignIn(
     object Fields {
         const val ROLE = "role"
         const val CREATED_AT = "created_at"
+    }
+}
+
+/** Function-only: makes each alert fire once per session, however often its trigger runs (x-decisions Q-ALERT-ONCE). Deleted with the session (30-day purge, deleteAccount, discardSession). Firestore: shareSessions/{sessionId}/alerts/{kind}. */
+data class AlertDelivery(
+    /** Which alert; also the doc id. */
+    @get:PropertyName("kind") @set:PropertyName("kind")
+    var kind: AlertKind = AlertKind.LINK_OPENED,
+    /** sending while an attempt holds lease_until or a retry is due; sent once every device was tried; skipped when the user's alert setting was off. */
+    @get:PropertyName("state") @set:PropertyName("state")
+    var state: String = "",
+    /** users/{userId}/devices ids FCM accepted the alert for, so a retry never sends to them twice. */
+    @get:PropertyName("delivered") @set:PropertyName("delivered")
+    var delivered: List<String> = emptyList(),
+    /** Attempts that claimed the alert. */
+    @get:PropertyName("attempts") @set:PropertyName("attempts")
+    var attempts: Int = 0,
+    /** Until then an attempt is in flight and no other may send. */
+    @get:PropertyName("lease_until") @set:PropertyName("lease_until")
+    var leaseUntil: Timestamp = Timestamp(0, 0),
+    /** When the first attempt claimed it. */
+    @get:PropertyName("created_at") @set:PropertyName("created_at")
+    var createdAt: Timestamp = Timestamp(0, 0),
+    /** Server timestamp of the last change. */
+    @get:PropertyName("updated_at") @set:PropertyName("updated_at")
+    var updatedAt: Timestamp = Timestamp(0, 0),
+) {
+    /** Firestore field names, for queries and partial updates. */
+    object Fields {
+        const val KIND = "kind"
+        const val STATE = "state"
+        const val DELIVERED = "delivered"
+        const val ATTEMPTS = "attempts"
+        const val LEASE_UNTIL = "lease_until"
+        const val CREATED_AT = "created_at"
+        const val UPDATED_AT = "updated_at"
     }
 }
 
@@ -889,6 +938,10 @@ object TmlPaths {
     fun viewerSignIn(sessionId: String, viewerUid: String): String = "shareSessions/$sessionId/viewerSignIns/$viewerUid"
     /** The collection holding shareSessions/{sessionId}/viewerSignIns/{viewerUid}. */
     fun viewerSignInCollection(sessionId: String): String = "shareSessions/$sessionId/viewerSignIns"
+    /** shareSessions/{sessionId}/alerts/{kind} */
+    fun alertDelivery(sessionId: String, kind: String): String = "shareSessions/$sessionId/alerts/$kind"
+    /** The collection holding shareSessions/{sessionId}/alerts/{kind}. */
+    fun alertDeliveryCollection(sessionId: String): String = "shareSessions/$sessionId/alerts"
     /** mascots/{mascotId} */
     fun mascot(mascotId: String): String = "mascots/$mascotId"
     /** The collection holding mascots/{mascotId}. */
@@ -922,6 +975,16 @@ object TmlSchemaConstants {
     const val CALL_STOP_GRACE_MINUTES = 10
     /** Never fewer than 1 ping per 60 s while active. (FSD §4 Battery-aware pings, §7) */
     const val MAX_PING_INTERVAL_SECONDS = 60
+    /** firestore.rules: each ping's recorded_at is at least 2 s after the previous one's (shareSessions.last_fix_at). The fastest cadence is a ping every 3 s, so 1 s of jitter is allowed. (FSD §4 Battery-aware pings, §7; x-decisions Q-PING-WRITE) */
+    const val MIN_PING_SPACING_SECONDS = 2
+    /** firestore.rules: a ping's recorded_at may be at most 60 s ahead of the server's time (pings and viewerPings). (FSD §7; x-decisions Q-PING-WRITE) */
+    const val PING_CLOCK_SKEW_SECONDS = 60
+    /** firestore.rules: a session's first ping may be recorded at most 5 minutes before started_at (a fix taken just before Share, or a phone clock a little behind). (FSD §7; x-decisions Q-PING-WRITE) */
+    const val FIRST_PING_BEFORE_START_MINUTES = 5
+    /** firestore.rules: accuracy_m is at most 100 km (pings and viewerPings); anything coarser isn't a location. (FSD §6; x-decisions Q-PING-WRITE) */
+    const val MAX_ACCURACY_METERS = 100000
+    /** firestore.rules: ping and viewer ping doc ids are 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids (20 characters) fit. (FSD §6; x-decisions Q-PING-WRITE) */
+    const val PING_ID_MAX_LENGTH = 64
     /** From 20% to 10% battery. (FSD §4 Battery-aware pings) */
     const val PING_INTERVAL_LOW_BATTERY_SECONDS = 15
     /** Under 10% battery. (FSD §4 Battery-aware pings) */

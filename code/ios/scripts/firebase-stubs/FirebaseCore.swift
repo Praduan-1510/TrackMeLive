@@ -1,5 +1,10 @@
 // Stub of the FirebaseCore surface used by code/ios/Firebase, from firebase-ios-sdk 12.19.2 headers (ObjC: no Sendable).
 import Foundation
+// FirebaseCore/Sources/Public/FirebaseCore/FIRTimestamp.h: NS_SWIFT_NAME(Timestamp), +timestampWithDate:.
+open class Timestamp: NSObject {
+    public convenience init(date: Date) { self.init() }
+    open func dateValue() -> Date { Date() }
+}
 open class FirebaseOptions: NSObject {
     public init(googleAppID: String, gcmSenderID: String) {}
     open var apiKey: String?

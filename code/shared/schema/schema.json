@@ -13,6 +13,7 @@
     { "name": "ping", "path": "shareSessions/{sessionId}/pings/{pingId}", "def": "Ping" },
     { "name": "viewerPing", "path": "shareSessions/{sessionId}/viewerPings/{pingId}", "def": "Ping" },
     { "name": "viewerSignIn", "path": "shareSessions/{sessionId}/viewerSignIns/{viewerUid}", "def": "ViewerSignIn", "x-access": "functions-only" },
+    { "name": "alertDelivery", "path": "shareSessions/{sessionId}/alerts/{kind}", "def": "AlertDelivery", "x-access": "functions-only" },
     { "name": "mascot", "path": "mascots/{mascotId}", "def": "Mascot" },
     { "name": "callLog", "path": "callLogs/{callLogId}", "def": "CallLog" }
   ],
@@ -171,7 +172,7 @@
       "type": "object",
       "properties": {
         "platform": { "$ref": "#/$defs/DevicePlatform", "description": "ios or android." },
-        "push_token": { "type": "string", "minLength": 1, "description": "The APNs (iOS) or FCM (Android) token for alerts (FSD §5)." },
+        "push_token": { "type": "string", "minLength": 1, "description": "The FCM registration token, on both platforms (on iOS, FCM delivers through APNs; FSD §5; x-decisions Q-ALERT-PUSH)." },
         "live_activity_start_token": { "type": ["string", "null"], "description": "iOS only: the Live Activity push-to-start token. Null on Android or until iOS issues one." },
         "updated_at": { "$ref": "#/$defs/Timestamp", "description": "When the tokens were last written." }
       },
@@ -208,6 +209,7 @@
         "call_ended_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the session's call ended; null while it is connected or for a manual share. Once set, call_active can never become true again for this session, which tells a real call end apart from the watchdog clearing call_active (x-decisions Q-CALL-ENDED-AT)." },
         "share_back_allowed": { "type": "boolean", "description": "The Let them share back switch for this session (on by default from Settings). When false the viewer's page never offers Share my location." },
         "last_ping_at": { "$ref": "#/$defs/Timestamp", "description": "The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING)." },
+        "last_fix_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "recorded_at of the newest ping; null until the first one. The sharer's app writes it in the same batch as each ping, with the check-in, and firestore.rules hold every ping to it: recorded_at at least MIN_PING_SPACING_SECONDS (2) after it, which keeps pings in order and bounds how fast they're written (x-decisions Q-PING-WRITE). createSession writes null. Optional only so sessions started before it existed still read; treat a missing field as null. Not for display: Last seen uses the newest ping's recorded_at." },
         "ping_interval_s": { "type": "number", "exclusiveMinimum": 0, "maximum": 60, "description": "The ping interval in use, in seconds (e.g. 3.5). createSession writes 5; the sharer's app overwrites it with the interval actually in use and whenever it changes with the battery steps: 3–5 above 20%, 15 from 20% to 10%, 60 under 10% (x-decisions Q-PING-INTERVAL-INIT)." },
         "precision": { "$ref": "#/$defs/Precision", "description": "The precision of the pings being written now." },
         "precision_next": { "anyOf": [{ "$ref": "#/$defs/Precision" }, { "type": "null" }], "description": "A precision change made mid-session, waiting for the next ping: that ping is written at the new precision, and the same write sets precision to it and precision_next back to null. Null when no change is pending (x-decisions Q-PING-FIELDS)." },
@@ -236,12 +238,12 @@
     },
     "Ping": {
       "x-collection": "shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}",
-      "description": "One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at.",
+      "description": "One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, 0 ≤ accuracy_m ≤ MAX_ACCURACY_METERS, recorded_at no later than server time + PING_CLOCK_SKEW_SECONDS, a doc id of 1 to PING_ID_MAX_LENGTH characters [A-Za-z0-9_-], on a session that is active and before both stop_at and expires_at. The sharer's pings also go in one batch with the session's check-in and last_fix_at, in order and at least 2 s apart (x-decisions Q-PING-WRITE).",
       "type": "object",
       "properties": {
         "lat": { "type": "number", "minimum": -90, "maximum": 90, "description": "Latitude, WGS 84 degrees." },
         "lng": { "type": "number", "minimum": -180, "maximum": 180, "description": "Longitude, WGS 84 degrees." },
-        "accuracy_m": { "type": "number", "minimum": 0, "description": "The fix's horizontal accuracy in meters, as the platform reports it. While the sharer is approximate it is max(raw accuracy, 500), matching the rounded point; firestore.rules reject a ping under 500 while the session (as written in the same batch, so a precision_next change counts) is approximate (x-decisions Q-PING-FIELDS, Q-ACCURACY-APPROX)." },
+        "accuracy_m": { "type": "number", "minimum": 0, "maximum": 100000, "description": "The fix's horizontal accuracy in meters, as the platform reports it. While the sharer is approximate it is max(raw accuracy, 500), matching the rounded point; firestore.rules reject a ping under 500 while the session (as written in the same batch, so a precision_next change counts) is approximate (x-decisions Q-PING-FIELDS, Q-ACCURACY-APPROX)." },
         "recorded_at": { "$ref": "#/$defs/Timestamp", "description": "When the fix was taken. Last seen always uses the newest ping's recorded_at." }
       },
       "required": ["lat", "lng", "accuracy_m", "recorded_at"],
@@ -270,6 +272,24 @@
         "created_at": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp of the first redeem by this uid." }
       },
       "required": ["role", "created_at"],
+      "additionalProperties": false
+    },
+    "AlertKind": { "description": "shareSessions/{sessionId}/alerts doc ids: which alert (FSD §4 View notification). link_opened only in v1; call_ended and expiry come later.", "type": "string", "enum": ["link_opened"] },
+    "AlertDelivery": {
+      "x-collection": "shareSessions/{sessionId}/alerts/{kind}",
+      "x-access": "functions-only",
+      "description": "Function-only: makes each alert fire once per session, however often its trigger runs (x-decisions Q-ALERT-ONCE). Deleted with the session (30-day purge, deleteAccount, discardSession).",
+      "type": "object",
+      "properties": {
+        "kind": { "$ref": "#/$defs/AlertKind", "description": "Which alert; also the doc id." },
+        "state": { "type": "string", "enum": ["sending", "sent", "skipped"], "description": "sending while an attempt holds lease_until or a retry is due; sent once every device was tried; skipped when the user's alert setting was off." },
+        "delivered": { "type": "array", "items": { "type": "string" }, "description": "users/{userId}/devices ids FCM accepted the alert for, so a retry never sends to them twice." },
+        "attempts": { "type": "integer", "minimum": 1, "description": "Attempts that claimed the alert." },
+        "lease_until": { "$ref": "#/$defs/Timestamp", "description": "Until then an attempt is in flight and no other may send." },
+        "created_at": { "$ref": "#/$defs/Timestamp", "description": "When the first attempt claimed it." },
+        "updated_at": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp of the last change." }
+      },
+      "required": ["kind", "state", "delivered", "attempts", "lease_until", "created_at", "updated_at"],
       "additionalProperties": false
     },
     "CallLog": {
@@ -525,6 +545,11 @@
     { "name": "watchdog-timeout-seconds", "value": 120, "fsd": "§6 Design decisions", "description": "If the app is killed or offline for 2 minutes, a scheduled function clears call_active." },
     { "name": "call-stop-grace-minutes", "value": 10, "fsd": "§4 Auto-expiry, §9", "description": "With the call stop rule, the session stops 10 minutes after the watchdog clears call_active." },
     { "name": "max-ping-interval-seconds", "value": 60, "fsd": "§4 Battery-aware pings, §7", "description": "Never fewer than 1 ping per 60 s while active." },
+    { "name": "min-ping-spacing-seconds", "value": 2, "fsd": "§4 Battery-aware pings, §7; x-decisions Q-PING-WRITE", "description": "firestore.rules: each ping's recorded_at is at least 2 s after the previous one's (shareSessions.last_fix_at). The fastest cadence is a ping every 3 s, so 1 s of jitter is allowed." },
+    { "name": "ping-clock-skew-seconds", "value": 60, "fsd": "§7; x-decisions Q-PING-WRITE", "description": "firestore.rules: a ping's recorded_at may be at most 60 s ahead of the server's time (pings and viewerPings)." },
+    { "name": "first-ping-before-start-minutes", "value": 5, "fsd": "§7; x-decisions Q-PING-WRITE", "description": "firestore.rules: a session's first ping may be recorded at most 5 minutes before started_at (a fix taken just before Share, or a phone clock a little behind)." },
+    { "name": "max-accuracy-meters", "value": 100000, "fsd": "§6; x-decisions Q-PING-WRITE", "description": "firestore.rules: accuracy_m is at most 100 km (pings and viewerPings); anything coarser isn't a location." },
+    { "name": "ping-id-max-length", "value": 64, "fsd": "§6; x-decisions Q-PING-WRITE", "description": "firestore.rules: ping and viewer ping doc ids are 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids (20 characters) fit." },
     { "name": "ping-interval-low-battery-seconds", "value": 15, "fsd": "§4 Battery-aware pings", "description": "From 20% to 10% battery." },
     { "name": "ping-interval-critical-battery-seconds", "value": 60, "fsd": "§4 Battery-aware pings", "description": "Under 10% battery." },
     { "name": "low-battery-percent", "value": 20, "fsd": "§4 Battery-aware pings", "description": "Above this, a ping every 3–5 s." },
@@ -580,7 +605,11 @@
     { "id": "Q-VIEWER-SIGNINS", "question": "How does the cleanup find every viewer and watcher Auth user?", "decision": "redeemLinkToken mints uid v_<sessionId>_<96 random bits, base64url> per browser and writes shareSessions/{sessionId}/viewerSignIns/{uid} {role, created_at} in the transaction that decides the role. The 24-hour cleanup deletes those Auth users, then the docs.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
     { "id": "Q-CLEANUP-MARK", "question": "How does the 24-hour cleanup find what's due without revisiting every ended session?", "decision": "A function-owned shareSessions.cleaned_at, null until the cleanup has deleted the session's pings, viewerPings and viewer sign-ins. Each run takes stopped sessions with cleaned_at null and ended_at at least 24 hours ago, then sets cleaned_at. A session ended late, with ended_at set back to when it was due, is still found. (Replaces the jobState/cleanup high-water mark, which could skip those.)", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
     { "id": "Q-MALFORMED-SESSION", "question": "What happens to a session doc that doesn't match the schema?", "decision": "It is never left active. When createSession finds it behind users.active_session_id, or the stop job finds it due, it is force-ended from its raw fields: status stopped, ended_at = the earliest of its stop_at and expires_at (where they are timestamps) and now, end_reason timer when stop_at came first, otherwise limit, viewer_sharing false, cleaned_at null. Logged as an error.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
-    { "id": "Q-CALLLOG-ID", "question": "Who writes callLogs, and with what id?", "decision": "createSession, for a call-triggered share, in its transaction; callLogId = the session id (each session has at most one call). Clients have no access. The 30-day purge deletes it with the session.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" }
+    { "id": "Q-CALLLOG-ID", "question": "Who writes callLogs, and with what id?", "decision": "createSession, for a call-triggered share, in its transaction; callLogId = the session id (each session has at most one call). Clients have no access. The 30-day purge deletes it with the session.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-PING-WRITE", "question": "How does the sharer's app write a ping, and how do the rules keep pings in order and at the FSD §7 cadence?", "decision": "One batch per ping: create shareSessions/{id}/pings/{auto id} {lat, lng, accuracy_m, recorded_at}, and update shareSessions/{id} with last_ping_at = server time (the check-in) and last_fix_at = that same recorded_at, plus ping_interval_s, precision and precision_next when they change. The rules refuse a ping without both. recorded_at must be at least MIN_PING_SPACING_SECONDS (2) after the session's last_fix_at, or, for the first ping, at most FIRST_PING_BEFORE_START_MINUTES (5) before started_at, and at most PING_CLOCK_SKEW_SECONDS (60) ahead of server time. So pings arrive in order, a queued offline backlog still lands (its spacing is kept), and a client can't write faster than one ping per 2 s beyond a 60 s burst. A retried batch that already landed is refused (its recorded_at is no longer ahead of last_fix_at); the app treats that refusal, when last_fix_at ≥ its recorded_at, as written. last_fix_at changed without a ping must still move forward and stay within the clock-skew bound. viewerPings get the same field bounds (accuracy, id, clock skew) but no spacing yet.", "decided": "2026-10-18", "status": "decided Oct 18 (Sprint 2); confirm" },
+    { "id": "Q-READ-ENDED", "question": "How does a reader know a session has ended before the stop job marks it stopped?", "decision": "Readers (the apps and the viewer page) treat a session as ended from the earlier of stop_at and expires_at, even while status still says active: end_reason limit when that time is expires_at (stop_at == expires_at included), otherwise timer, and ended_at that time, which is exactly what the stop job writes within a minute (x-decisions Q-SESSION-END). Judge now by the server's clock when known. From that moment the rules refuse the viewer's ping reads (permission-denied on a live listener) and every sharer write, and redeemLinkToken answers session_ended, so a page whose ping listener is refused re-reads the session doc and shows the ended state, never 'signal lost'. The viewer keeps reading the session doc after the end (status, ended_at, end_reason, sharer) and never a location.", "decided": "2026-10-18", "status": "decided Oct 18 (Sprint 2); confirm" },
+    { "id": "Q-ALERT-PUSH", "question": "How do alerts reach the phones?", "decision": "FCM HTTP v1 for both platforms, from Cloud Functions (firebase-admin messaging); iOS through FCM's APNs link (the APNs auth key uploaded to FCM). devices.push_token is the FCM registration token on both. A token FCM reports as unregistered or invalid is deleted (FSD §8 Retention), unless the app rewrote it meanwhile.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-ALERT-ONCE", "question": "How does the view alert fire exactly once?", "decision": "A trigger on the viewer's viewerSignIns doc (created once, in the transaction that sets first_viewed_at) claims shareSessions/{sessionId}/alerts/link_opened in a transaction before sending, and records each device FCM accepted. A retry sends only to devices not yet reached; a duplicate delivery finds it sent. Android tag and APNs collapse id link_opened:{sessionId}, so a resend replaces the notification and doesn't stack. Not sent once the session is over or more than 10 minutes after the open.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" }
   ],
 
   "x-open-questions": [

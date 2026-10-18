@@ -6,11 +6,6 @@ enum AppTab: Hashable {
     case home, mascot, settings
 }
 
-/// Screens pushed on Home's navigation stack.
-enum HomeDestination: Hashable {
-    case share
-}
-
 /// The app's composition root: the account flow (TMLCore's `AccountModel`), the tabs and their
 /// models, and deep links. Views read it from the environment; the logic lives in TMLCore.
 @Observable
@@ -20,11 +15,12 @@ final class AppModel {
     @ObservationIgnored let dependencies: AppDependencies
 
     var selectedTab: AppTab = .home
-    var homePath: [HomeDestination] = []
 
     /// The Mascot and Settings tabs' models, made once per signed-in account.
     private(set) var mascotTab: MascotPickerModel?
     private(set) var settingsTab: SettingsModel?
+    /// Sharing from Home: the location step, then the share, live and ended screens on Home's stack.
+    private(set) var shareFlow: ShareFlowModel?
     /// The picker a new account sees after sign-up (onboarding mode).
     private(set) var mascotSetup: MascotPickerModel?
 
@@ -102,6 +98,12 @@ final class AppModel {
             permissions: dependencies.permissions,
             onAccountDeleted: { [weak self] in self?.resetTabs() }
         )
+        shareFlow = ShareFlowModel(
+            sharing: dependencies.sharing,
+            access: dependencies.locationAccess,
+            permissions: dependencies.permissions,
+            profile: { [weak self] in self?.profile }
+        )
         profileUpdatesDidChange()
     }
 
@@ -109,8 +111,13 @@ final class AppModel {
         tabsUID = nil
         mascotTab = nil
         settingsTab = nil
-        homePath = []
+        shareFlow = nil
         selectedTab = .home
+    }
+
+    /// Call when the share's state changes: the ended screen replaces the live one.
+    func shareStateDidChange() {
+        shareFlow?.stateDidChange()
     }
 
     // MARK: Deep links
@@ -122,13 +129,12 @@ final class AppModel {
             return
         }
         selectedTab = .home
-        switch route {
-        case .share:
-            homePath = [.share]
-        case .live, .stop:
-            // TODO(sharing): the live map and the Stop sharing confirmation.
-            homePath = []
+        // The profile is still loading: open it once the tabs' models exist.
+        guard let shareFlow else {
+            pendingRoute = route
+            return
         }
+        Task { await shareFlow.open(route) }
     }
 
     func handleOpenURL(_ url: URL) {
@@ -147,7 +153,7 @@ final class AppModel {
 
 extension AppModel {
     /// For previews: in-memory fakes, signed in on the tabs, or signed out at onboarding.
-    static func preview(signedIn: Bool = true, mascot: TMLMascotId = .fox) -> AppModel {
-        AppModel(dependencies: .preview(signedIn: signedIn, mascot: mascot))
+    static func preview(signedIn: Bool = true, mascot: TMLMascotId = .fox, sharing: ShareState = .idle) -> AppModel {
+        AppModel(dependencies: .preview(signedIn: signedIn, mascot: mascot, sharing: sharing))
     }
 }
