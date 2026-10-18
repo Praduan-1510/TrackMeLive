@@ -1,0 +1,12 @@
+18:15:12.417 HOST  === s12_open_app_mid_call: no Phone permission; the call is already connected when the app is opened from cold
+18:15:12.466 HOST  device time 18:15:11
+18:15:12.493 HOST  pm revoke READ_PHONE_STATE
+18:15:13.590 HOST  app force-stopped (not running)
+18:15:13.642 HOST  adb emu gsm call 5551234
+18:15:15.828 HOST  AudioService mode is now MODE_RINGTONE
+18:15:17.871 HOST  adb emu gsm accept 5551234
+18:15:20.009 HOST  AudioService mode is now MODE_IN_CALL
+18:15:23.048 HOST  bring app to front
+18:15:28.149 HOST  adb emu gsm cancel 5551234
+18:15:30.277 HOST  AudioService mode is now MODE_NORMAL
+18:15:35.368 HOST  === end s12_open_app_mid_call

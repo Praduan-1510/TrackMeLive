@@ -1,0 +1,149 @@
+# Track Me Live for iOS. Generate the Xcode project with:
+#   tools/xcodegen/bin/xcodegen generate      (scripts/bootstrap-xcodegen.sh installs XcodeGen)
+# run.sh does that, then builds and launches in the Simulator. TrackMeLive.xcodeproj is generated
+# and gitignored: change this file, not the project.
+name: TrackMeLive
+
+options:
+  bundleIdPrefix: live.trackme
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+  groupSortPosition: top
+  xcodeVersion: "27.0"
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1" # iPhone. iPad comes later (the design system already covers it).
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your team here (or in Xcode) for device builds. Simulator builds don't need one:
+    # run.sh signs them "to run locally".
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    ENABLE_PREVIEWS: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  TMLCore:
+    path: Packages/TMLCore
+
+targets:
+  TrackMeLive:
+    type: application
+    platform: iOS
+    sources:
+      - path: TrackMeLive
+        excludes:
+          - "**/*.md"
+      - path: Shared
+    dependencies:
+      - package: TMLCore
+      - target: TrackMeLiveWidgets
+        embed: true
+        codeSign: true
+    info:
+      path: TrackMeLive/Info.plist
+      properties:
+        CFBundleDisplayName: Track Me Live
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # Capabilities. Background Modes: location, so a share keeps going in the background after it
+        # starts in the app ("While using the app" is all it needs; the app never asks for Always).
+        UIBackgroundModes:
+          - location
+        NSLocationWhenInUseUsageDescription: >-
+          Track Me Live uses your location only while you're sharing. Nobody sees it until you send
+          your link, and it stops when you do.
+        # The share session's Live Activity (Lock Screen and Dynamic Island), updated often by push.
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        # Deep links from the Live Activity and the Share location control: trackmelive://share|live|stop
+        CFBundleURLTypes:
+          - CFBundleURLName: live.trackme.app
+            CFBundleURLSchemes:
+              - trackmelive
+    entitlements:
+      path: TrackMeLive/TrackMeLive.entitlements
+      properties:
+        # Push: alerts (link opened, call ended, sharing expired) and Live Activity updates via APNs.
+        aps-environment: development
+        # App Groups: the app and the widget extension share UserDefaults (pending deep links).
+        com.apple.security.application-groups:
+          - group.live.trackme.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: live.trackme.app
+        PRODUCT_NAME: TrackMeLive
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+
+  TrackMeLiveWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TrackMeLiveWidgets
+      - path: Shared
+    dependencies:
+      - package: TMLCore
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: ActivityKit.framework
+      - sdk: AppIntents.framework
+    info:
+      path: TrackMeLiveWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Track Me Live
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: TrackMeLiveWidgets/TrackMeLiveWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.live.trackme.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: live.trackme.app.widgets
+        PRODUCT_NAME: TrackMeLiveWidgets
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
+
+schemes:
+  TrackMeLive:
+    build:
+      targets:
+        TrackMeLive: all
+        TrackMeLiveWidgets: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - package: TMLCore/TMLCoreTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,14 @@
+18:12:33.854 HOST  === s1_nophone_foreground: no Phone permission; call answered, then the app is opened and stays open until the call ends
+18:12:33.970 HOST  device time 18:12:33
+18:12:34.018 HOST  pm revoke READ_PHONE_STATE
+18:12:35.137 HOST  bring app to front
+18:12:38.363 HOST  app cmd clear
+18:12:40.024 HOST  adb emu gsm call 5551234
+18:12:44.480 HOST  AudioService mode is now MODE_RINGTONE
+18:12:46.557 HOST  adb emu gsm accept 5551234
+18:12:49.913 HOST  AudioService mode is now MODE_IN_CALL
+18:12:52.959 HOST  bring app to front
+18:12:58.061 HOST  adb emu gsm cancel 5551234
+18:13:00.346 HOST  AudioService mode is now MODE_NORMAL
+18:13:04.622 HOST  process: pid=5112  curProcState=2 mRepProcState=2 setProcState=2 lastStateTime=-29s260ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:13:05.756 HOST  === end s1_nophone_foreground

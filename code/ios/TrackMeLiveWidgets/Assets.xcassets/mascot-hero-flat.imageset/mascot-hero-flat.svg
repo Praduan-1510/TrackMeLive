@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Hero">
+  <title>Hero</title>
+  <path d="M16 54 L8 40 L22 40 L16 22 L32 30 L34 10 L46 26 L58 8 L62 28 L78 18 L74 38 L88 38 L80 54 Z" fill="#EC7E2A"/>
+  <circle cx="48" cy="58" r="27" fill="#EFC3A2"/>
+  <path d="M21 56 Q21 32 48 30 Q75 32 75 56 L68 46 L62 54 L56 43 L49 52 L42 43 L36 54 L29 46 Z" fill="#EC7E2A"/>
+  <path d="M17 40 Q48 26 79 40" stroke="#3B2A22" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <circle cx="38" cy="33" r="7.5" fill="#C9A25A"/>
+  <circle cx="38" cy="33" r="5.2" fill="#2EA7A0"/>
+  <circle cx="58" cy="33" r="7.5" fill="#C9A25A"/>
+  <circle cx="58" cy="33" r="5.2" fill="#2EA7A0"/>
+  <path d="M30 54 L42 57" stroke="#A3561C" stroke-width="3" stroke-linecap="round"/>
+  <path d="M66 54 L54 57" stroke="#A3561C" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="38" cy="64" rx="4.5" ry="5.6" fill="#3A1D10"/>
+  <ellipse cx="58" cy="64" rx="4.5" ry="5.6" fill="#3A1D10"/>
+  <circle cx="36.6" cy="62" r="1.8" fill="#FFFFFF"/>
+  <circle cx="56.6" cy="62" r="1.8" fill="#FFFFFF"/>
+  <path d="M41 72 Q48 72 55 72 Q53 79 48 79 Q43 79 41 72 Z" fill="#5B1D22"/>
+  <ellipse cx="28" cy="70" rx="4" ry="2.4" fill="#F4A99F"/>
+  <ellipse cx="68" cy="70" rx="4" ry="2.4" fill="#F4A99F"/>
+</svg>

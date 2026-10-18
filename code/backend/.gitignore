@@ -1,0 +1,10 @@
+# The repo root ignores .env.*, but functions params files aren't secrets and
+# the emulators need this one. Secrets go in Secret Manager, never here.
+!functions/.env.demo-trackmelive
+functions/.env.local
+
+# Emulator exports from ./run.sh --export-on-exit
+.emulator-data/
+
+# Copy of code/shared/schema/generated/ts/schema.ts, made by the functions build
+functions/src/shared/

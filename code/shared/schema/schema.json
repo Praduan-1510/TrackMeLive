@@ -1,0 +1,415 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trackme.live/schema/firestore.schema.json",
+  "title": "Track Me Live Firestore schema",
+  "description": "Field-by-field contract for the Firestore collections in FSD §6 (revised Oct 18, 2026), plus the createSession and redeemLinkToken callable payloads and the viewer's auth claims. Source of truth for the generated TypeScript, Swift and Kotlin types (code/shared/schema/build.mjs). Field names are exactly as written in the FSD (snake_case). Choices the FSD left open were decided on Oct 18 (x-decisions, each still to be confirmed); anything still open is under x-open-questions. Conventions: every listed field is always written; a field with no value yet is null, never absent (x-decisions Q-NULL). Timestamps are Firestore Timestamps.",
+  "x-fsd": "Track Me Live — FSD.md, §6 Database schema, revised Oct 18, 2026",
+  "x-collections": [
+    { "name": "user", "path": "users/{userId}", "def": "User" },
+    { "name": "device", "path": "users/{userId}/devices/{deviceId}", "def": "Device" },
+    { "name": "trustedContact", "path": "users/{userId}/trustedContacts/{contactId}", "def": "TrustedContact", "x-version": "v2" },
+    { "name": "shareSession", "path": "shareSessions/{sessionId}", "def": "ShareSession" },
+    { "name": "sessionPrivateMeta", "path": "shareSessions/{sessionId}/private/meta", "def": "SessionPrivateMeta" },
+    { "name": "ping", "path": "shareSessions/{sessionId}/pings/{pingId}", "def": "Ping" },
+    { "name": "viewerPing", "path": "shareSessions/{sessionId}/viewerPings/{pingId}", "def": "Ping" },
+    { "name": "mascot", "path": "mascots/{mascotId}", "def": "Mascot" },
+    { "name": "callLog", "path": "callLogs/{callLogId}", "def": "CallLog" }
+  ],
+  "$defs": {
+    "Timestamp": {
+      "x-tml-kind": "timestamp",
+      "description": "A Firestore Timestamp. In JSON exports it appears as {seconds, nanoseconds}. TypeScript: any object with seconds/nanoseconds/toMillis/toDate (admin and web SDK Timestamps both fit). Swift: Date. Kotlin: com.google.firebase.Timestamp.",
+      "type": "object",
+      "properties": {
+        "seconds": { "type": "integer" },
+        "nanoseconds": { "type": "integer", "minimum": 0, "maximum": 999999999 }
+      },
+      "required": ["seconds", "nanoseconds"],
+      "additionalProperties": false
+    },
+    "EpochMillis": {
+      "x-tml-kind": "epoch-millis",
+      "description": "Milliseconds since the Unix epoch, UTC. Used in callable function payloads, where Firestore Timestamps don't travel.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "PersonName": {
+      "description": "A person's name: 1–24 characters after trimming; typing stops at 24 (FSD §4 Sign up, Who it's for). Stored trimmed, so no leading or trailing whitespace. Length counts grapheme clusters (what a person sees as one character): Swift String.count, Kotlin/Java BreakIterator.getCharacterInstance, JS Intl.Segmenter. minLength/maxLength below are those grapheme counts (x-tml-length; x-decisions Q-NAME-LENGTH).",
+      "x-tml-length": "graphemes",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24,
+      "pattern": "^\\S(?:.*\\S)?$"
+    },
+    "LinkToken": {
+      "description": "The share link's token: 128 random bits in base64url without padding (22 characters). Plaintext only in the createSession response, the link itself and the redeemLinkToken request (x-decisions Q-TOKEN-HASH).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22}$"
+    },
+
+    "SessionStatus": {
+      "description": "shareSessions.status (FSD §6, §4 Auto-expiry).",
+      "type": "string",
+      "enum": ["active", "stopped"]
+    },
+    "StopRule": {
+      "description": "shareSessions.stop_rule: when the session stops. call: when the call ends (only during a call). minutes: a timer (In 15 min, In 30 min, In 1 hour), with stop_minutes set and stop_at = now + minutes capped at expires_at. limit: \"At the 1-hour limit\" (stop_at = expires_at). x-decisions Q-STOP-RULE.",
+      "type": "string",
+      "enum": ["call", "minutes", "limit"]
+    },
+    "StopMinutes": {
+      "description": "The timer choices on the share screen and the timer sheet (FSD §4 Stop rule): 15, 30 or 60 minutes.",
+      "type": "integer",
+      "enum": [15, 30, 60]
+    },
+    "DefaultStop": {
+      "description": "Settings › Default stop time: when the call ends, or 15, 30 or 60 minutes. Without a call, or on Android without the Phone permission, a 'call' default falls back to 30 minutes (FSD §4 Stop rule). x-decisions Q-SETTINGS.",
+      "enum": ["call", 15, 30, 60]
+    },
+    "EndReason": {
+      "description": "shareSessions.end_reason (FSD §4 Auto-expiry): stopped (the sharer tapped Stop), call (the call ended and the stop rule was the call), timer (stop_at passed), limit (the 1-hour expires_at passed, including when stop_at equals expires_at; x-decisions Q-END-REASON-LIMIT).",
+      "type": "string",
+      "enum": ["stopped", "call", "timer", "limit"]
+    },
+    "Precision": {
+      "description": "Location detail (FSD §4): precise, or approximate (each point rounded to about 500 m on the phone before it is written).",
+      "type": "string",
+      "enum": ["precise", "approximate"]
+    },
+    "DevicePlatform": {
+      "description": "users/{userId}/devices.platform. The sharer app runs on iOS and Android (FSD §1).",
+      "type": "string",
+      "enum": ["ios", "android"]
+    },
+    "ViewerRole": {
+      "description": "The role a browser gets from redeemLinkToken: viewer for the first browser to redeem the link (it can share back and see Ask to share), watcher for every later one, such as a forwarded link (FSD §6 Viewer access; x-decisions Q-VIEWER-ROLE).",
+      "type": "string",
+      "enum": ["viewer", "watcher"]
+    },
+    "MascotId": {
+      "description": "The 12 base characters (FSD §11), as named in design-system/assets/Mascots and the prototype. Fox is the default.",
+      "type": "string",
+      "enum": ["fox", "ghost", "robot", "astronaut", "hero", "star", "ninja", "neko", "ace", "detective", "cowboy", "agent"]
+    },
+    "MascotSet": {
+      "description": "The three sets (FSD §11): Classics, Anime, Movie night. Wire ids as in the prototype (x-decisions Q-MASCOT-SET-IDS).",
+      "type": "string",
+      "enum": ["classics", "anime", "movie"]
+    },
+    "MascotColor": {
+      "description": "Mascot colors (FSD §11): Original, Moss, Lagoon, Dusk, Rose. Original is every mascot's default_color. Wire ids as in design-system/assets/Mascots/colors.",
+      "type": "string",
+      "enum": ["original", "moss", "lagoon", "dusk", "rose"]
+    },
+    "MascotAccessory": {
+      "description": "The three v1 accessories (FSD §11). No accessory is null on the field that holds one; the prototype's 'none' is client-side only (x-decisions Q-ACCESSORY-NONE).",
+      "type": "string",
+      "enum": ["headphones", "glasses", "headlamp"]
+    },
+
+    "UserSettings": {
+      "description": "users.settings: the app settings (FSD §4 Settings), restored when signing in on a new phone. New accounts start with the defaults below, as in the prototype (x-decisions Q-SETTINGS).",
+      "type": "object",
+      "properties": {
+        "offer_on_call": { "type": "boolean", "default": true, "description": "Offer to share when I'm on a call (works while the app is open)." },
+        "precision": { "$ref": "#/$defs/Precision", "default": "precise", "description": "Location detail: the default for new shares." },
+        "default_stop": { "$ref": "#/$defs/DefaultStop", "default": "call", "description": "Default stop time: call, or 15, 30 or 60 minutes." },
+        "share_back": { "type": "boolean", "default": true, "description": "Let people share back: the default for the share screen's switch." },
+        "alert_link_opened": { "type": "boolean", "default": true, "description": "Alert when the person opens the link (the first open only)." },
+        "alert_call_ended": { "type": "boolean", "default": true, "description": "Alert when a call ends while sharing." },
+        "alert_expiry": { "type": "boolean", "default": true, "description": "Alert when sharing expires." }
+      },
+      "required": ["offer_on_call", "precision", "default_stop", "share_back", "alert_link_opened", "alert_call_ended", "alert_expiry"],
+      "additionalProperties": false
+    },
+    "SharerSnapshot": {
+      "description": "shareSessions.sharer: the sharer's name and mascot, taken when the session starts (FSD §6), so the viewer never reads users. A share keeps the mascot it started with.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/PersonName", "description": "The sharer's name, the only name the viewer sees." },
+        "mascot_id": { "$ref": "#/$defs/MascotId", "description": "The sharer's mascot when the session started." },
+        "mascot_color": { "$ref": "#/$defs/MascotColor", "description": "The mascot's color when the session started." },
+        "mascot_accessory": { "anyOf": [{ "$ref": "#/$defs/MascotAccessory" }, { "type": "null" }], "description": "The accessory when the session started, or null for none." }
+      },
+      "required": ["name", "mascot_id", "mascot_color", "mascot_accessory"],
+      "additionalProperties": false
+    },
+    "ViewerClaims": {
+      "x-auth": "custom-claims",
+      "description": "Custom claims on the browser's session-scoped sign-in: redeemLinkToken mints one custom token per browser, carrying these claims. Viewer Auth users are deleted with the session's cleanup (FSD §8; x-decisions Q-VIEWER-SIGNIN). Firestore rules use sid to scope reads to that one session, and role to allow viewerPings and viewer_sharing writes only for the viewer (x-decisions Q-VIEWER-ROLE).",
+      "type": "object",
+      "properties": {
+        "sid": { "type": "string", "description": "The shareSessions doc id the sign-in may read." },
+        "role": { "$ref": "#/$defs/ViewerRole", "description": "viewer (the first browser) or watcher." }
+      },
+      "required": ["sid", "role"],
+      "additionalProperties": false
+    },
+
+    "User": {
+      "x-collection": "users/{userId}",
+      "description": "Profile, the user's customized mascot, the last \"who it's for\" name and the app settings, restored when signing in on a new phone (FSD §6). The phone number is held only by Firebase Authentication, never in Firestore (x-decisions Q-PHONE-FORMAT). Readable by its owner and Cloud Functions only; viewers never read users.",
+      "type": "object",
+      "properties": {
+        "name": { "$ref": "#/$defs/PersonName", "description": "The user's name, 1–24 characters after trimming. Viewers see it with the mascot." },
+        "mascot_id": { "$ref": "#/$defs/MascotId", "description": "FK to mascots/{id}. Every account has a mascot; Fox is the default (FSD §4 Mascot marker)." },
+        "mascot_color": { "$ref": "#/$defs/MascotColor", "description": "The chosen color; original by default." },
+        "mascot_accessory": { "anyOf": [{ "$ref": "#/$defs/MascotAccessory" }, { "type": "null" }], "description": "The chosen accessory, or null for none. Must be one the mascot supports (mascots.accessories)." },
+        "last_viewer_name": { "anyOf": [{ "$ref": "#/$defs/PersonName" }, { "type": "null" }], "description": "The last \"who it's for\" name, used to fill in the share screen (FSD §4 Who it's for). Null when never given; a share without a name leaves it unchanged." },
+        "settings": { "$ref": "#/$defs/UserSettings", "description": "The app settings (FSD §4 Settings)." },
+        "active_session_id": { "type": ["string", "null"], "description": "Function-owned: the user's one active shareSessions doc id, set by createSession and cleared when the session ends; null when not sharing. Only one session runs at a time (FSD §4 Manual sharing; x-decisions Q-ONE-SESSION)." },
+        "created_at": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp, when the profile was created (x-decisions Q-USER-TIMESTAMPS)." },
+        "updated_at": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp, on every profile write." }
+      },
+      "required": ["name", "mascot_id", "mascot_color", "mascot_accessory", "last_viewer_name", "settings", "active_session_id", "created_at", "updated_at"],
+      "additionalProperties": false
+    },
+    "Device": {
+      "x-collection": "users/{userId}/devices/{deviceId}",
+      "description": "One per signed-in phone, for alerts (FSD §6). deviceId is a per-install UUID (x-decisions Q-DEVICE-ID). Deleted when the person signs out or the token stops working (FSD §8 Retention).",
+      "type": "object",
+      "properties": {
+        "platform": { "$ref": "#/$defs/DevicePlatform", "description": "ios or android." },
+        "push_token": { "type": "string", "minLength": 1, "description": "The APNs (iOS) or FCM (Android) token for alerts (FSD §5)." },
+        "live_activity_start_token": { "type": ["string", "null"], "description": "iOS only: the Live Activity push-to-start token. Null on Android or until iOS issues one." },
+        "updated_at": { "$ref": "#/$defs/Timestamp", "description": "When the tokens were last written." }
+      },
+      "required": ["platform", "push_token", "live_activity_start_token", "updated_at"],
+      "additionalProperties": false
+    },
+    "TrustedContact": {
+      "x-collection": "users/{userId}/trustedContacts/{contactId}",
+      "x-version": "v2",
+      "description": "v2 only: subcollection scoped per user; unused in v1 (FSD §6). Typed here so nothing writes it by accident.",
+      "type": "object",
+      "properties": {
+        "contact_user_id": { "type": "string", "description": "The contact's userId." },
+        "relation": { "type": "string", "description": "The relation; values not specified in the FSD." }
+      },
+      "required": ["contact_user_id", "relation"],
+      "additionalProperties": false
+    },
+    "ShareSession": {
+      "x-collection": "shareSessions/{sessionId}",
+      "description": "One doc per active or past share, holding only what the viewer may see (FSD §6). Created only by the createSession function, never by a client (x-decisions Q-CLIENT-CREATE). The viewer reads it and its pings with a session-scoped sign-in while it is active; after it ends, only this doc, for the ended state (x-decisions Q-VIEWER-SIGNIN). Session metadata is kept 30 days (FSD §8).",
+      "type": "object",
+      "properties": {
+        "status": { "$ref": "#/$defs/SessionStatus", "description": "active while sharing; stopped once ended (with ended_at and end_reason)." },
+        "started_at": { "$ref": "#/$defs/Timestamp", "description": "When the session started." },
+        "expires_at": { "$ref": "#/$defs/Timestamp", "description": "The hard 1-hour limit, set when the session starts (started_at + 1 hour). A scheduled function stops the session at the earlier of stop_at and expires_at, even if the app was killed." },
+        "stop_rule": { "$ref": "#/$defs/StopRule", "description": "When the session stops: call, minutes or limit." },
+        "stop_minutes": { "anyOf": [{ "$ref": "#/$defs/StopMinutes" }, { "type": "null" }], "description": "15, 30 or 60 when stop_rule is minutes; null otherwise (x-decisions Q-STOP-RULE)." },
+        "stop_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "Null for the call rule. Set when a timer (now + stop_minutes, capped at expires_at) or the limit (= expires_at) is chosen. ended_at records the actual end (x-decisions Q-STOP-AT)." },
+        "ended_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When it actually stopped; null while active." },
+        "end_reason": { "anyOf": [{ "$ref": "#/$defs/EndReason" }, { "type": "null" }], "description": "Why it stopped; null while active. The viewer shows \"Alex stopped sharing at …\" for stopped, otherwise \"Sharing ended at …\"." },
+        "call_id": { "type": ["string", "null"], "description": "The call that was connected when the session started: a per-device unique id (the CallKit UUID on iOS, a generated UUID on Android). Null for a manual share. The app never knows who is on the call (x-decisions Q-CALL-TIME)." },
+        "call_active": { "type": "boolean", "description": "True only while that call is connected. Once it ends it stays false for the rest of the session; a later call never turns it back on. The watchdog clears it after 2 minutes without a check-in; the app sets it again if the same call is still connected, unless call_ended_at is set." },
+        "call_ended_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the session's call ended; null while it is connected or for a manual share. Once set, call_active can never become true again for this session, which tells a real call end apart from the watchdog clearing call_active (x-decisions Q-CALL-ENDED-AT)." },
+        "share_back_allowed": { "type": "boolean", "description": "The Let them share back switch for this session (on by default from Settings). When false the viewer's page never offers Share my location." },
+        "last_ping_at": { "$ref": "#/$defs/Timestamp", "description": "The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING)." },
+        "ping_interval_s": { "type": "number", "exclusiveMinimum": 0, "maximum": 60, "description": "The ping interval in use, in seconds (e.g. 3.5). createSession writes 5; the sharer's app overwrites it with the interval actually in use and whenever it changes with the battery steps: 3–5 above 20%, 15 from 20% to 10%, 60 under 10% (x-decisions Q-PING-INTERVAL-INIT)." },
+        "precision": { "$ref": "#/$defs/Precision", "description": "The precision of the pings being written now." },
+        "precision_next": { "anyOf": [{ "$ref": "#/$defs/Precision" }, { "type": "null" }], "description": "A precision change made mid-session, waiting for the next ping: that ping is written at the new precision, and the same write sets precision to it and precision_next back to null. Null when no change is pending (x-decisions Q-PING-FIELDS)." },
+        "sharer": { "$ref": "#/$defs/SharerSnapshot", "description": "Snapshot of the sharer's name and mascot, taken when the session starts." },
+        "first_viewed_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "Set by redeemLinkToken on the first open (which sends the one view notification); null until then. Link previews never set it." },
+        "viewer_sharing": { "type": "boolean", "description": "True while the viewer shares back. Written only by the viewer (role viewer, viewer_uid) while the session is active, before expires_at, with share_back_allowed and call_active true and last_ping_at under 2 minutes old; a Cloud Function sets it false when call_active turns false." },
+        "share_back_requested_at": { "anyOf": [{ "$ref": "#/$defs/Timestamp" }, { "type": "null" }], "description": "When the sharer tapped Ask to share; null if never. At most once per call (each session has at most one call), so a non-null value means Ask to share is used." }
+      },
+      "required": ["status", "started_at", "expires_at", "stop_rule", "stop_minutes", "stop_at", "ended_at", "end_reason", "call_id", "call_active", "call_ended_at", "share_back_allowed", "last_ping_at", "ping_interval_s", "precision", "precision_next", "sharer", "first_viewed_at", "viewer_sharing", "share_back_requested_at"],
+      "additionalProperties": false
+    },
+    "SessionPrivateMeta": {
+      "x-collection": "shareSessions/{sessionId}/private/meta",
+      "description": "Sharer-only fields: readable by the sharer and Cloud Functions, never by the viewer (FSD §6).",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "The sharer's userId." },
+        "link_token_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the link token, lowercase hex, no pepper; the plaintext token is never stored. redeemLinkToken finds the session with a collection-group query on this field (x-decisions Q-TOKEN-HASH, Q-LINK-FORMAT)." },
+        "viewer_uid": { "type": ["string", "null"], "description": "The first browser to redeem the link becomes the session's viewer (role viewer); null until the first open. Only it can share back or see Ask to share." },
+        "viewer_name": { "anyOf": [{ "$ref": "#/$defs/PersonName" }, { "type": "null" }], "description": "The optional \"who it's for\" name, used only on the sharer's screens; null when not given." },
+        "activity_push_token": { "type": ["string", "null"], "description": "iOS only: this session's Live Activity update token, for Live Activity updates over APNs. Null on Android or before the activity starts (x-decisions Q-DEVICE-ID)." }
+      },
+      "required": ["user_id", "link_token_hash", "viewer_uid", "viewer_name", "activity_push_token"],
+      "additionalProperties": false
+    },
+    "Ping": {
+      "x-collection": "shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}",
+      "description": "One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before expires_at.",
+      "type": "object",
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90, "description": "Latitude, WGS 84 degrees." },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180, "description": "Longitude, WGS 84 degrees." },
+        "accuracy_m": { "type": "number", "minimum": 0, "description": "The fix's horizontal accuracy in meters, as the platform reports it. While the sharer is approximate it is max(raw accuracy, 500), matching the rounded point; firestore.rules reject a ping under 500 while the session (as written in the same batch, so a precision_next change counts) is approximate (x-decisions Q-PING-FIELDS, Q-ACCURACY-APPROX)." },
+        "recorded_at": { "$ref": "#/$defs/Timestamp", "description": "When the fix was taken. Last seen always uses the newest ping's recorded_at." }
+      },
+      "required": ["lat", "lng", "accuracy_m", "recorded_at"],
+      "additionalProperties": false
+    },
+    "Mascot": {
+      "x-collection": "mascots/{mascotId}",
+      "description": "Base character library: the set it belongs to and the accessories each one supports (FSD §6, §11). The doc id is the MascotId.",
+      "type": "object",
+      "properties": {
+        "character": { "$ref": "#/$defs/MascotId", "description": "The mascot id ('fox'), the same as the doc id. Display names live in the apps' strings (x-decisions Q-MASCOT-CHARACTER)." },
+        "set": { "$ref": "#/$defs/MascotSet", "description": "Classics, Anime or Movie night." },
+        "default_color": { "$ref": "#/$defs/MascotColor", "description": "original for every character in v1." },
+        "accessories": { "type": "array", "items": { "$ref": "#/$defs/MascotAccessory" }, "uniqueItems": true, "description": "The accessories it takes (FSD §11 matrix; the astronaut takes none)." }
+      },
+      "required": ["character", "set", "default_color", "accessories"],
+      "additionalProperties": false
+    },
+    "CallLog": {
+      "x-collection": "callLogs/{callLogId}",
+      "description": "Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8).",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "The sharer's userId." },
+        "session_id": { "type": "string", "description": "The shareSessions doc id." },
+        "call_id": { "type": "string", "description": "The call's per-device unique id (the CallKit UUID on iOS, a generated UUID on Android), as stored in shareSessions.call_id." },
+        "call_time": { "$ref": "#/$defs/Timestamp", "description": "Server timestamp of when the call was first seen (x-decisions Q-CALL-TIME)." }
+      },
+      "required": ["user_id", "session_id", "call_id", "call_time"],
+      "additionalProperties": false
+    },
+
+    "CreateSessionRequest": {
+      "x-api": "createSession",
+      "x-api-role": "request",
+      "description": "Callable createSession, request: the payload agreed between the apps and code/backend from FSD §4 (Live map link, Stop rule, Let them share back, Location detail, Who it's for) and §5. The server takes the sharer snapshot from users/{uid}, sets expires_at = started_at + 1 hour, last_ping_at = started_at and ping_interval_s = 5, and computes stop_at. One session at a time: when users.active_session_id points to a live session, the call fails with already-exists and details {reason: \"active_session\", session_id}; a stale pointer (stopped, expired or deleted session) doesn't block.",
+      "type": "object",
+      "properties": {
+        "stop_rule": { "$ref": "#/$defs/StopRule", "description": "call only during a call (call_id set)." },
+        "stop_minutes": { "anyOf": [{ "$ref": "#/$defs/StopMinutes" }, { "type": "null" }], "description": "Required when stop_rule is minutes, otherwise null. Choices that would end after expires_at aren't offered." },
+        "call_id": { "type": ["string", "null"], "description": "The connected call's per-device id, or null for a manual share." },
+        "share_back_allowed": { "type": "boolean", "description": "The share screen's switch. The server forces false without a call." },
+        "precision": { "$ref": "#/$defs/Precision", "description": "Precise or approximate." },
+        "viewer_name": { "anyOf": [{ "$ref": "#/$defs/PersonName" }, { "type": "null" }], "description": "Optional \"who it's for\" name, trimmed; stored in private/meta.viewer_name and users.last_viewer_name." }
+      },
+      "required": ["stop_rule", "stop_minutes", "call_id", "share_back_allowed", "precision"],
+      "additionalProperties": false
+    },
+    "CreateSessionResponse": {
+      "x-api": "createSession",
+      "x-api-role": "response",
+      "description": "Callable createSession, response. link_token is returned once, in plaintext; only its hash is stored (private/meta.link_token_hash).",
+      "type": "object",
+      "properties": {
+        "session_id": { "type": "string", "description": "The new shareSessions doc id." },
+        "link_token": { "$ref": "#/$defs/LinkToken", "description": "The link token, plaintext, returned only here." },
+        "link_url": { "type": "string", "description": "The share link, <viewer origin>/s/<token> (https://trackme.live/s/<token> in production), built by the server so the apps don't hard-code the host." },
+        "started_at": { "$ref": "#/$defs/EpochMillis", "description": "started_at, epoch ms." },
+        "expires_at": { "$ref": "#/$defs/EpochMillis", "description": "expires_at, epoch ms." }
+      },
+      "required": ["session_id", "link_token", "link_url", "started_at", "expires_at"],
+      "additionalProperties": false
+    },
+    "RedeemLinkTokenRequest": {
+      "x-api": "redeemLinkToken",
+      "x-api-role": "request",
+      "description": "Callable redeemLinkToken, request: the viewer page's own script sends the token from location.pathname (/s/<token>). It's the only way to look a token up; clients never query by it, and link previews never call it (FSD §6 Viewer access).",
+      "type": "object",
+      "properties": {
+        "link_token": { "$ref": "#/$defs/LinkToken", "description": "The token from the link." }
+      },
+      "required": ["link_token"],
+      "additionalProperties": false
+    },
+    "RedeemLinkTokenResponse": {
+      "x-api": "redeemLinkToken",
+      "x-api-role": "response",
+      "description": "Callable redeemLinkToken, response. The function hashes the token, finds the active session, sets first_viewed_at and the view notification on the first open, records the first browser as viewer_uid, and returns a custom token carrying the {sid, role} claims (ViewerClaims). The page signs in with it, so it never reads the private doc.",
+      "type": "object",
+      "properties": {
+        "custom_token": { "type": "string", "description": "Firebase custom token for signInWithCustomToken, minted per browser, with the ViewerClaims {sid, role}." },
+        "session_id": { "type": "string", "description": "The shareSessions doc id to listen to." },
+        "role": { "$ref": "#/$defs/ViewerRole", "description": "viewer for the first browser, watcher after that." },
+        "can_share_back": { "type": "boolean", "description": "True when role is viewer and the session allows share back right now (share_back_allowed and call_active). The page keeps following the session doc for later changes." }
+      },
+      "required": ["custom_token", "session_id", "role", "can_share_back"],
+      "additionalProperties": false
+    }
+  },
+
+  "x-catalog": {
+    "description": "The v1 mascot library (FSD §11), for seeding mascots/{id} and for the pickers. Accessory support matches mascots/model/accessories.mjs ACCESSORY_SUPPORT and the prototype's ACC_FOR.",
+    "mascots": [
+      { "id": "fox", "set": "classics", "accessories": ["headphones", "glasses", "headlamp"] },
+      { "id": "ghost", "set": "classics", "accessories": ["headphones", "glasses", "headlamp"] },
+      { "id": "robot", "set": "classics", "accessories": ["headlamp"] },
+      { "id": "astronaut", "set": "classics", "accessories": [] },
+      { "id": "hero", "set": "anime", "accessories": ["glasses"] },
+      { "id": "star", "set": "anime", "accessories": ["headphones", "glasses", "headlamp"] },
+      { "id": "ninja", "set": "anime", "accessories": ["headphones"] },
+      { "id": "neko", "set": "anime", "accessories": ["glasses", "headlamp"] },
+      { "id": "ace", "set": "movie", "accessories": ["headphones", "headlamp"] },
+      { "id": "detective", "set": "movie", "accessories": ["glasses"] },
+      { "id": "cowboy", "set": "movie", "accessories": ["glasses"] },
+      { "id": "agent", "set": "movie", "accessories": ["headphones", "glasses", "headlamp"] }
+    ],
+    "defaultMascot": "fox",
+    "defaultColor": "original"
+  },
+
+  "x-constants": [
+    { "name": "name-max-length", "value": 24, "fsd": "§4 Sign up, Who it's for", "description": "Names are 1–24 grapheme clusters after trimming; typing stops at 24." },
+    { "name": "session-limit-minutes", "value": 60, "fsd": "§4 Auto-expiry", "description": "Hard limit: expires_at = started_at + 60 minutes." },
+    { "name": "default-stop-minutes", "value": 30, "fsd": "§4 Stop rule", "description": "Default timer without a call, or on Android without the Phone permission." },
+    { "name": "initial-ping-interval-seconds", "value": 5, "fsd": "§4 Battery-aware pings; x-decisions Q-PING-INTERVAL-INIT", "description": "createSession writes ping_interval_s = 5 until the app writes the interval in use." },
+    { "name": "expiry-warning-minutes", "value": 5, "fsd": "§4 1-hour warning", "description": "The quiet \"Sharing stops at …\" line appears 5 minutes before expires_at." },
+    { "name": "check-in-interval-seconds", "value": 30, "fsd": "§6 Design decisions", "description": "The app refreshes last_ping_at at least every 30 seconds, even without a GPS fix." },
+    { "name": "share-back-freshness-seconds", "value": 120, "fsd": "§6 Viewer access", "description": "Viewer writes need last_ping_at under 2 minutes old." },
+    { "name": "watchdog-timeout-seconds", "value": 120, "fsd": "§6 Design decisions", "description": "If the app is killed or offline for 2 minutes, a scheduled function clears call_active." },
+    { "name": "call-stop-grace-minutes", "value": 10, "fsd": "§4 Auto-expiry, §9", "description": "With the call stop rule, the session stops 10 minutes after the watchdog clears call_active." },
+    { "name": "max-ping-interval-seconds", "value": 60, "fsd": "§4 Battery-aware pings, §7", "description": "Never fewer than 1 ping per 60 s while active." },
+    { "name": "ping-interval-low-battery-seconds", "value": 15, "fsd": "§4 Battery-aware pings", "description": "From 20% to 10% battery." },
+    { "name": "ping-interval-critical-battery-seconds", "value": 60, "fsd": "§4 Battery-aware pings", "description": "Under 10% battery." },
+    { "name": "low-battery-percent", "value": 20, "fsd": "§4 Battery-aware pings", "description": "Above this, a ping every 3–5 s." },
+    { "name": "critical-battery-percent", "value": 10, "fsd": "§4 Battery-aware pings", "description": "Under this, a ping every 60 s." },
+    { "name": "live-stale-ping-intervals", "value": 3, "fsd": "§7 Offline behavior", "description": "A person shows as Live while their newest ping is under 3 ping intervals old…" },
+    { "name": "live-stale-min-seconds", "value": 15, "fsd": "§7 Offline behavior", "description": "…and at least 15 s; then \"Last seen\"." },
+    { "name": "no-fix-timeout-seconds", "value": 30, "fsd": "§7 Offline behavior", "description": "The sharer's app shows No GPS signal after 30 s without a fix better than 100 m." },
+    { "name": "no-fix-accuracy-meters", "value": 100, "fsd": "§7 Offline behavior", "description": "A fix counts when it is better than 100 m." },
+    { "name": "approximate-rounding-meters", "value": 500, "fsd": "§4 Location detail", "description": "Approximate rounds each point to about 500 m on the phone." },
+    { "name": "approximate-circle-diameter-meters", "value": 1000, "fsd": "§4 Location detail", "description": "Both maps show a soft circle 1 km across around the rounded point." },
+    { "name": "ping-retention-hours", "value": 24, "fsd": "§6, §8 Retention", "description": "pings and viewerPings are deleted 24 hours after the session ends." },
+    { "name": "metadata-retention-days", "value": 30, "fsd": "§8 Retention", "description": "Session metadata and call logs are purged after 30 days." },
+    { "name": "otp-length", "value": 6, "fsd": "§4 Sign up", "description": "The text code has 6 digits." },
+    { "name": "otp-resend-seconds", "value": 30, "fsd": "§4 Sign up", "description": "A new code can be sent after 30 seconds." },
+    { "name": "link-token-bits", "value": 128, "fsd": "§6 Viewer access; x-decisions Q-TOKEN-HASH", "description": "The link token is 128 random bits…" },
+    { "name": "link-token-length", "value": 22, "fsd": "§6 Viewer access; x-decisions Q-TOKEN-HASH", "description": "…in base64url without padding: 22 characters." },
+    { "name": "share-link-path", "value": "/s/", "fsd": "§4 Live map link; x-decisions Q-LINK-FORMAT", "description": "Share links are <viewer origin>/s/<token>; the apps never claim this path for universal links or App Links." }
+  ],
+
+  "x-decisions": [
+    { "id": "Q-STOP-RULE", "question": "Stored stop_rule values, and does the session record the chosen minutes?", "decision": "stop_rule is call | minutes | limit, plus stop_minutes (15 | 30 | 60), set only when stop_rule is minutes, otherwise null.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-STOP-AT", "question": "Is stop_at null for the call rule?", "decision": "Null for the call rule. It's set when a timer or the limit is chosen; ended_at records the actual end.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-NULL", "question": "Absent vs null fields.", "decision": "Every field is always written; null means not set yet.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-SETTINGS", "question": "users.settings field list.", "decision": "{offer_on_call: bool, precision: precise | approximate, default_stop: call | 15 | 30 | 60, share_back: bool, alert_link_opened: bool, alert_call_ended: bool, alert_expiry: bool}. Defaults, as in the prototype: true, precise, call, true, true, true, true.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-ACCESSORY-NONE", "question": "How is no accessory stored?", "decision": "null. The prototype's 'none' is client-side only.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-MASCOT-CHARACTER", "question": "What is mascots.character?", "decision": "The mascot id ('fox'). Display names live in client strings.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-MASCOT-SET-IDS", "question": "Set wire ids.", "decision": "classics, anime, movie.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-LAST-PING", "question": "last_ping_at at session start.", "decision": "Set to started_at when the session starts (createSession), so the 2-minute watchdog can't clear call_active before the first ping. Never null.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-PING-INTERVAL-INIT", "question": "Who writes ping_interval_s first, and what number?", "decision": "createSession writes 5; the sharer's app overwrites it with the interval actually in use, in seconds as a number (e.g. 3.5), and whenever it changes with the battery steps (FSD §7).", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-PING-FIELDS", "question": "Accuracy and precision on pings.", "decision": "Pings (and viewerPings) carry accuracy_m (number). Precision lives on the session: precision, plus precision_next for a mid-session change; no per-ping flag.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-CALL-TIME", "question": "callLogs.call_time and call_id.", "decision": "call_time is a server timestamp of when the call was first seen. call_id is a per-device unique id (the CallKit UUID on iOS, a generated UUID on Android), stored on the session as call_id.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-TOKEN-HASH", "question": "Link token and hash format.", "decision": "The token is 128 random bits, base64url (22 characters). Only SHA-256(token), lowercase hex, no pepper, is stored, in private/meta.link_token_hash.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-VIEWER-ROLE", "question": "How does a page learn it is the session's viewer?", "decision": "The callable redeemLinkToken {link_token} returns {custom_token, session_id, role: viewer | watcher, can_share_back} and sets the {sid, role} claims on the custom token (custom_token confirmed by the backend, which needs it for signInWithCustomToken). role is viewer for the first browser (it can share back), watcher after that, so the page never reads the private doc.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-LINK-FORMAT", "question": "Link shape and lookup.", "decision": "<viewer origin>/s/<token> (https://trackme.live/s/<token> in production). redeemLinkToken finds the session with a collection-group query on private.link_token_hash; clients never query by token.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-DEVICE-ID", "question": "devices/{deviceId} id and Live Activity tokens.", "decision": "deviceId is a per-install UUID; fields platform, push_token, live_activity_start_token (iOS, nullable), updated_at. The per-activity update token is on the session's private doc as activity_push_token (renamed from live_activity_token).", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-PHONE-FORMAT", "question": "users.phone format, and is it needed in Firestore?", "decision": "E.164, held only by Firebase Authentication. users.phone is removed from Firestore (data minimisation).", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-USER-TIMESTAMPS", "question": "users created_at / updated_at.", "decision": "users gets created_at and updated_at, both server timestamps.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-CLIENT-CREATE", "question": "Can a client create a session directly?", "decision": "No. Sessions start only through the createSession function (FSD §5); rules deny client creates.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-ONE-SESSION", "question": "How is one session at a time enforced?", "decision": "A function-owned users/{uid}.active_session_id, set at start and cleared at end.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-CALL-ENDED-AT", "question": "How does the backend tell a real call end from the watchdog clearing call_active?", "decision": "shareSessions.call_ended_at. Once set, call_active can never become true again for that session.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-END-REASON-LIMIT", "question": "end_reason when stop_at equals expires_at.", "decision": "limit.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-VIEWER-SIGNIN", "question": "Viewer sign-in and what it can read after the end.", "decision": "A custom token per browser. After a session ends the viewer can read only the session doc (for the ended state), never pings. Viewer Auth users are deleted with the session's cleanup (FSD §8 Retention).", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-APPEARANCE", "question": "Is Appearance (System, Light, Dark) part of users.settings?", "decision": "No. Appearance stays on the device.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-TIMESTAMPS-SCOPE", "question": "Which docs get created_at/updated_at?", "decision": "users only.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-ACCURACY-APPROX", "question": "accuracy_m while the sharer is approximate.", "decision": "max(raw accuracy, 500) meters, matching the rounded point.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" },
+    { "id": "Q-NAME-LENGTH", "question": "Do name lengths count code points or what people see?", "decision": "1–24 grapheme clusters after trimming (Swift String.count, Kotlin BreakIterator, JS Intl.Segmenter), so the server never rejects a name an app let someone type.", "decided": "2026-10-18", "status": "decided Oct 18; confirm" }
+  ],
+
+  "x-open-questions": [
+    { "id": "Q-REGION", "question": "Firestore region, the user's call, and it can never change: asia-south1 (Mumbai) if most users are in India, otherwise us-central1. Must be confirmed before Oct 27, 2026." }
+  ]
+}

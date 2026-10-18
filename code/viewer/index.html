@@ -1,0 +1,42 @@
+<!doctype html>
+<!--
+  Track Me Live web viewer (Sprint 0 shell): the page a viewer opens from a share link, in any
+  browser, with no install. One full-viewport page: the map behind everything, a glass bar and a
+  glass sheet over it. The loading skeleton below paints before any script runs; src/main.ts then
+  shows the live state from sample data (src/sample.ts). No network requests beyond this origin.
+
+  npm run dev (http://localhost:5173) · npm run build · npm run typecheck
+  Review: ?state=loading | ?state=live, ?theme=light | ?theme=dark
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Loading · Track Me Live</title>
+    <meta name="description" content="A live location, shared with you by link. Opens in your browser.">
+    <!-- Share links are private: keep them out of search results, and keep the link out of the
+         Referer header when someone opens Maps from the page. -->
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="preload" href="/fonts/gabarito-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/fonts/material-symbols-rounded-subset.woff2" as="font" type="font/woff2" crossorigin>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <!-- While the page trades the link for a session: a skeleton, never a blank map. -->
+    <main class="vp" aria-busy="true">
+      <div class="glassbar skel" aria-hidden="true"><span class="sk av"></span><span class="sk-lines"><span class="sk w60"></span><span class="sk w40"></span></span></div>
+      <div class="vp-body"><div class="vp-gap"></div>
+        <div class="sheet skel"><div class="grab" aria-hidden="true"></div><span class="sk w70 tall" aria-hidden="true"></span><span class="sk w90" aria-hidden="true"></span><span class="sk w50" aria-hidden="true"></span><h1 class="sr-only" tabindex="-1">Loading the live location</h1></div>
+      </div>
+    </main>
+    <div id="map" class="map" role="region" aria-label="Map"></div>
+    <!-- Announcements: one polite region for changes only, and an alert reserved for the ended heading. -->
+    <div id="status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="alert" class="sr-only" role="alert" aria-atomic="true"></div>
+    <noscript><p class="noscript">Track Me Live needs JavaScript to show the live map. Turn it on for this site and reload the page.</p></noscript>
+  </body>
+</html>

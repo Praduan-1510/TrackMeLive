@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- tokens.json ground (dark). -->
+    <color name="window_ground">#0B1012</color>
+</resources>

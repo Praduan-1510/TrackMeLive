@@ -1,0 +1,9 @@
+18:22:24.595 HOST  === s10_selftests: a normal app tries MODE_IN_CALL; then acts like a VoIP app (no call)
+18:22:24.644 HOST  device time 18:22:24
+18:22:24.666 HOST  bring app to front
+18:22:26.750 HOST  app cmd clear
+18:22:27.846 HOST  app cmd selftest-incall
+18:22:29.935 HOST  app cmd voip-on
+18:22:34.054 HOST  mode while the spike acts like a VoIP app: MODE_IN_COMMUNICATION
+18:22:34.077 HOST  app cmd voip-off
+18:22:38.216 HOST  === end s10_selftests

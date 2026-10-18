@@ -1,0 +1,20 @@
+{
+  "name": "@tml/viewer",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Track Me Live web viewer: the page a viewer opens from a share link, in any browser, no install.",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.2"
+  }
+}

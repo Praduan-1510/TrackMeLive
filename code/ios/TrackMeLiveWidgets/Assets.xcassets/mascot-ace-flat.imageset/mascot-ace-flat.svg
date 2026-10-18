@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-label="Ace">
+  <title>Ace</title>
+  <ellipse cx="18" cy="52" rx="4" ry="7" fill="#6E4229"/>
+  <ellipse cx="78" cy="52" rx="4" ry="7" fill="#6E4229"/>
+  <circle cx="48" cy="50" r="30" fill="#7B4A2F"/>
+  <path d="M18 46 Q18 18 48 18 Q78 18 78 46 Q72 33 48 32 Q24 33 18 46 Z" fill="#17110E"/>
+  <path d="M30 40 L44 41" stroke="#17110E" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M66 40 L52 41" stroke="#17110E" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M26 46 Q36 43 45 46 Q46 56 37 58 Q27 57 26 46 Z" fill="#4A3019" stroke="#D8B56A" stroke-width="1.6"/>
+  <path d="M70 46 Q60 43 51 46 Q50 56 59 58 Q69 57 70 46 Z" fill="#4A3019" stroke="#D8B56A" stroke-width="1.6"/>
+  <path d="M45 46 Q48 44.5 51 46" stroke="#D8B56A" stroke-width="1.6" fill="none"/>
+  <path d="M38 64 Q48 61 58 64 L58 70 Q56 79 48 80 Q40 79 38 70 Z" fill="#16100D"/>
+  <path d="M42 69 Q48 71 54 68" stroke="#7B4A2F" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <rect x="24" y="60" width="11" height="4" rx="2" fill="#E9C9A1" transform="rotate(-25 29.5 62)"/>
+</svg>

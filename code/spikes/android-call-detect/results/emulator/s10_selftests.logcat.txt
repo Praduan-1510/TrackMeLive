@@ -1,0 +1,28 @@
+10-18 18:22:24.234 I/CallSpike( 7114): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:24.235 I/CallSpike( 7114): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:26.326 I/CallSpike( 7114): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:26.327 I/CallSpike( 7114): CMD | clear | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:26.327 I/CallSpike( 7114): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:26.361 I/CallSpike( 7114): HB | mode=NORMAL(0) telephony=IDLE | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:27.421 I/CallSpike( 7114): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:27.422 I/CallSpike( 7114): CMD | selftest-incall | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:27.423 I/CallSpike( 7114): SELFTEST | setMode(IN_CALL) from a normal app: before=NORMAL after=NORMAL -> IGNORED (only MODIFY_PHONE_STATE holders can set it) | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:27.423 I/CallSpike( 7114): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:29.513 I/CallSpike( 7114): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:29.514 I/CallSpike( 7114): CMD | voip-on | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:29.662 I/CallSpike( 7114): SELFTEST | VoIP self-test ON: setMode(IN_COMMUNICATION) + silent VOICE_COMMUNICATION player; getMode()=IN_COMMUNICATION | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:29.664 I/CallSpike( 7114): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:29.675 I/CallSpike( 7114): MODE_CB | onModeChanged NORMAL -> IN_COMMUNICATION(3): VoIP or voice chat, not a cellular call | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:29.677 I/CallSpike( 7114): PROBE | mode IN_COMMUNICATION: getCallState=IDLE, getCallStateForSubscription=IDLE, TelecomManager.isInCall=false | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:29.679 I/CallSpike( 7114): PLAYBACK | active players by usage (callback): VOICE_COMMUNICATION | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:29.878 I/CallSpike( 7114): MODE_POLL | getMode() NORMAL -> IN_COMMUNICATION(3): VoIP or voice chat, not a cellular call | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:31.388 I/CallSpike( 7114): HB | mode=IN_COMMUNICATION(3) telephony=IDLE | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:33.646 I/CallSpike( 7114): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:33.646 I/CallSpike( 7114): CMD | voip-off | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:33.756 I/CallSpike( 7114): SELFTEST | VoIP self-test OFF: getMode()=NORMAL | imp=FOREGROUND ui=paused fgs=false
+10-18 18:22:33.759 I/CallSpike( 7114): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:33.764 I/CallSpike( 7114): PLAYBACK | active players by usage (callback): none | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:33.766 I/CallSpike( 7114): MODE_CB | onModeChanged IN_COMMUNICATION -> NORMAL(0): no call | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:33.767 I/CallSpike( 7114): PROBE | mode NORMAL: getCallState=IDLE, getCallStateForSubscription=IDLE, TelecomManager.isInCall=false | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:33.907 I/CallSpike( 7114): MODE_POLL | getMode() IN_COMMUNICATION -> NORMAL(0): no call | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:22:36.429 I/CallSpike( 7114): HB | mode=NORMAL(0) telephony=IDLE | imp=FOREGROUND ui=resumed fgs=false

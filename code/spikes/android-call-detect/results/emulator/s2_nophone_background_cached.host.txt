@@ -1,0 +1,15 @@
+18:13:07.996 HOST  === s2_nophone_background_cached: no Phone permission; app left with HOME, no service (it stays the "previous app": not cached, not frozen)
+18:13:08.087 HOST  device time 18:13:07
+18:13:08.125 HOST  bring app to front
+18:13:10.232 HOST  app cmd clear
+18:13:11.357 HOST  press HOME (app to background)
+18:13:31.552 HOST  process: pid=5112  curProcState=15 mRepProcState=15 setProcState=15 lastStateTime=-19s581ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:13:31.587 HOST  adb emu gsm call 5551234
+18:13:33.780 HOST  AudioService mode is now MODE_RINGTONE
+18:13:35.853 HOST  adb emu gsm accept 5551234
+18:13:38.068 HOST  AudioService mode is now MODE_IN_CALL
+18:13:44.122 HOST  adb emu gsm cancel 5551234
+18:13:46.355 HOST  AudioService mode is now MODE_NORMAL
+18:13:50.492 HOST  process: pid=5112  curProcState=15 mRepProcState=15 setProcState=15 lastStateTime=-38s525ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:13:50.528 HOST  bring app to front
+18:13:55.993 HOST  === end s2_nophone_background_cached

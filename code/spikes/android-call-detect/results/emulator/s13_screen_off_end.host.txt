@@ -1,0 +1,17 @@
+18:24:02.201 HOST  === s13_screen_off_end: no Phone permission, service on: the screen goes off during the call and the call ends with the screen off
+18:24:02.251 HOST  device time 18:24:01
+18:24:02.273 HOST  pm revoke READ_PHONE_STATE
+18:24:03.343 HOST  bring app to front
+18:24:05.433 HOST  app cmd clear
+18:24:06.511 HOST  app cmd fgs-start
+18:24:08.595 HOST  adb emu gsm call 5551234
+18:24:10.706 HOST  AudioService mode is now MODE_RINGTONE
+18:24:12.743 HOST  adb emu gsm accept 5551234
+18:24:14.854 HOST  AudioService mode is now MODE_IN_CALL
+18:24:16.896 HOST  screen off (KEYCODE_SLEEP)
+18:24:31.972 HOST  adb emu gsm cancel 5551234
+18:24:34.090 HOST  AudioService mode is now MODE_NORMAL
+18:24:38.134 HOST  screen on
+18:24:40.254 HOST  bring app to front
+18:24:42.321 HOST  app cmd fgs-stop
+18:24:44.454 HOST  === end s13_screen_off_end

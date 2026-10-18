@@ -1,0 +1,14 @@
+18:20:15.880 HOST  === s7_phone_not_running: Phone granted; app process killed (not force-stopped): does the PHONE_STATE receiver start it?
+18:20:15.930 HOST  device time 18:20:15
+18:20:15.956 HOST  bring app to front
+18:20:18.017 HOST  press HOME (app to background)
+18:20:21.085 HOST  am kill (kills the background process; the app is not put in the stopped state)
+18:20:23.193 HOST  process: not running
+18:20:23.217 HOST  adb emu gsm call 5551234
+18:20:25.351 HOST  AudioService mode is now MODE_RINGTONE
+18:20:27.384 HOST  adb emu gsm accept 5551234
+18:20:29.505 HOST  AudioService mode is now MODE_IN_CALL
+18:20:35.536 HOST  adb emu gsm cancel 5551234
+18:20:37.666 HOST  AudioService mode is now MODE_NORMAL
+18:20:41.752 HOST  process: pid=7114  curProcState=19 mRepProcState=19 setProcState=19 lastStateTime=-18s345ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=true isFrozen=false 
+18:20:42.844 HOST  === end s7_phone_not_running

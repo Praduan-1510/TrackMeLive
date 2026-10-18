@@ -1,0 +1,10 @@
+18:14:49.435 HOST  === s11_missed_call: no Phone permission; app open; a call rings and is never answered
+18:14:49.495 HOST  device time 18:14:49
+18:14:49.526 HOST  pm revoke READ_PHONE_STATE
+18:14:50.604 HOST  bring app to front
+18:14:53.689 HOST  app cmd clear
+18:14:54.783 HOST  adb emu gsm call 5551234
+18:14:56.998 HOST  AudioService mode is now MODE_RINGTONE
+18:15:03.036 HOST  adb emu gsm cancel 5551234
+18:15:05.156 HOST  AudioService mode is now MODE_NORMAL
+18:15:10.252 HOST  === end s11_missed_call

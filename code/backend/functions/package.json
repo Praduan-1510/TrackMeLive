@@ -1,0 +1,28 @@
+{
+  "name": "trackmelive-functions",
+  "private": true,
+  "description": "Track Me Live Cloud Functions (Sprint 0: createSession).",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "sync:schema": "node scripts/sync-schema.mjs",
+    "build": "npm run --silent sync:schema && tsc -p tsconfig.json",
+    "build:watch": "npm run --silent sync:schema && tsc -p tsconfig.json --watch",
+    "lint": "npm run --silent sync:schema && eslint . && tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf lib src/shared"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "eslint": "10.12.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
+  }
+}

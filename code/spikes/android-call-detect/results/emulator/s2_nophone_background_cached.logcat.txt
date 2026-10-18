@@ -1,0 +1,42 @@
+10-18 18:13:07.723 I/CallSpike( 5112): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:13:07.727 I/CallSpike( 5112): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:13:09.845 I/CallSpike( 5112): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:13:09.848 I/CallSpike( 5112): CMD | clear | imp=FOREGROUND ui=paused fgs=false
+10-18 18:13:09.849 I/CallSpike( 5112): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:13:10.972 I/CallSpike( 5112): UI | activity paused | imp=FOREGROUND ui=paused fgs=false
+10-18 18:13:11.146 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=FOREGROUND ui=paused fgs=false
+10-18 18:13:11.487 I/CallSpike( 5112): UI | activity stopped (app in background) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:16.163 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:21.181 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:26.224 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:31.254 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:31.324 I/Telecom (  658): CallsManager: setCallState NEW -> RINGING, call: [Call id=TC@5, state=NEW, tpac=ComponentInfo{com.android.phone/com.android.services.telephony.TelephonyConnectionService}, 1, UserHandle{0}, cmgr=ComponentInfo{com.android.p
+10-18 18:13:31.355 I/Telecom (  658): PhoneStateBroadcaster: Broadcasted state change: 1: NCSSF.aC->ICFG.sF->ICFG.sF->ICFG.sF@AkM
+10-18 18:13:31.488 I/Telecom (  658): CallAudioModeStateMachine$RingingFocusState: enter: AudioManager#setMode(MODE_RINGTONE): ICSBC.oSC->CAM.oCER->CAMSM.pM_2002(cgab)@AkU
+10-18 18:13:31.537 I/CallSpike( 5112): MODE_CB | onModeChanged NORMAL -> RINGTONE(1): a call is ringing (not answered yet) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:31.544 I/CallSpike( 5112): PROBE | mode RINGTONE: getCallState=SecurityException, getCallStateForSubscription=SecurityException, TelecomManager.isInCall=SecurityException | imp=CACHED ui=stopped fgs=false
+10-18 18:13:31.755 I/CallSpike( 5112): MODE_POLL | getMode() NORMAL -> RINGTONE(1): a call is ringing (not answered yet) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:31.770 I/CallSpike( 5112): PLAYBACK | active players by usage (callback): RINGTONE | imp=CACHED ui=stopped fgs=false
+10-18 18:13:35.550 I/Telecom (  658): CallsManager: setCallState RINGING -> ACTIVE, call: [Call id=TC@5, state=RINGING, tpac=ComponentInfo{com.android.phone/com.android.services.telephony.TelephonyConnectionService}, 1, UserHandle{0}, cmgr=ComponentInfo{com.an
+10-18 18:13:35.556 I/Telecom (  658): PhoneStateBroadcaster: Broadcasted state change: 2: CSW.sA(cap)@AmE
+10-18 18:13:35.560 I/Telecom (  658): CallAudioModeStateMachine$SimCallFocusState: enter: AudioManager#setMode(MODE_IN_CALL): CSW.sA->CAMSM.pM_1002(cap)@AmE
+10-18 18:13:35.582 I/CallSpike( 5112): PLAYBACK | active players by usage (callback): none | imp=CACHED ui=stopped fgs=false
+10-18 18:13:36.099 I/CallSpike( 5112): MODE_POLL | getMode() RINGTONE -> IN_CALL(2): cellular call (dialing, active or held) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:36.101 I/CallSpike( 5112): DERIVED | CALL START by audio mode (IN_CALL, via poll) -> app would show the share banner | imp=CACHED ui=stopped fgs=false
+10-18 18:13:36.109 I/CallSpike( 5112): PROBE | mode IN_CALL: getCallState=SecurityException, getCallStateForSubscription=SecurityException, TelecomManager.isInCall=SecurityException | imp=CACHED ui=stopped fgs=false
+10-18 18:13:36.120 I/CallSpike( 5112): MODE_CB | onModeChanged RINGTONE -> IN_CALL(2): cellular call (dialing, active or held) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:36.621 I/CallSpike( 5112): HB | mode=IN_CALL(2) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:41.645 I/CallSpike( 5112): HB | mode=IN_CALL(2) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:43.719 I/Telecom (  658): CallsManager: setCallState ACTIVE -> DISCONNECTED, call: [Call id=TC@5, state=ACTIVE, tpac=ComponentInfo{com.android.phone/com.android.services.telephony.TelephonyConnectionService}, 1, UserHandle{0}, cmgr=ComponentInfo{co
+10-18 18:13:43.743 I/Telecom (  658): CallAudioModeStateMachine$OtherFocusState: enter: AudioManager#setMode(2): CSW.sDc->CAMSM.pM_1001(cap)@Anc
+10-18 18:13:43.751 I/Telecom (  658): PhoneStateBroadcaster: Broadcasted state change: 0: CSW.sDc(cap)@Anc
+10-18 18:13:43.906 I/CallSpike( 5112): PLAYBACK | active players by usage (callback): VOICE_COMMUNICATION | imp=CACHED ui=stopped fgs=false
+10-18 18:13:44.854 I/CallSpike( 5112): PLAYBACK | active players by usage (callback): none | imp=CACHED ui=stopped fgs=false
+10-18 18:13:44.865 I/Telecom (  658): CallAudioModeStateMachine$UnfocusedState: enter: AudioManager#setMode(MODE_NORMAL): CSW.sDc->ICTP.r->ICTP.cUTP->CAMSM.pM_3002(cap)@Anc
+10-18 18:13:45.023 I/CallSpike( 5112): MODE_CB | onModeChanged IN_CALL -> NORMAL(0): no call | imp=CACHED ui=stopped fgs=false
+10-18 18:13:45.028 I/CallSpike( 5112): PROBE | mode NORMAL: getCallState=SecurityException, getCallStateForSubscription=SecurityException, TelecomManager.isInCall=SecurityException | imp=CACHED ui=stopped fgs=false
+10-18 18:13:45.161 I/CallSpike( 5112): MODE_POLL | getMode() IN_CALL -> NORMAL(0): no call | imp=CACHED ui=stopped fgs=false
+10-18 18:13:46.670 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=CACHED ui=stopped fgs=false
+10-18 18:13:47.026 I/CallSpike( 5112): DERIVED | CALL END by audio mode (NORMAL for 2000 ms; call lasted 10.9 s) | imp=CACHED ui=stopped fgs=false
+10-18 18:13:50.190 I/CallSpike( 5112): UI | activity resumed (app in foreground) | imp=FOREGROUND ui=resumed fgs=false
+10-18 18:13:51.689 I/CallSpike( 5112): HB | mode=NORMAL(0) telephony=n/a | imp=FOREGROUND ui=resumed fgs=false

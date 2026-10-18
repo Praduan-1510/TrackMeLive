@@ -1,0 +1,12 @@
+18:21:05.898 HOST  === s8_outgoing: Phone granted; outgoing call from the dialer; app behind the dialer with the service on
+18:21:05.942 HOST  device time 18:21:05
+18:21:05.964 HOST  bring app to front
+18:21:08.047 HOST  app cmd clear
+18:21:09.137 HOST  app cmd fgs-start
+18:21:11.228 HOST  dial 5551234 with ACTION_CALL
+18:21:13.374 HOST  AudioService mode is now MODE_IN_CALL
+18:21:21.409 HOST  hang up on the device (KEYCODE_ENDCALL)
+18:21:23.531 HOST  AudioService mode is now MODE_NORMAL
+18:21:27.595 HOST  bring app to front
+18:21:29.688 HOST  app cmd fgs-stop
+18:21:31.844 HOST  === end s8_outgoing

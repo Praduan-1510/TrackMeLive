@@ -1,0 +1,19 @@
+18:21:34.040 HOST  === s9_waiting_and_hold: Phone granted, service on: call waiting and hold (the emulator modem never delivered the second call)
+18:21:34.089 HOST  device time 18:21:33
+18:21:34.111 HOST  bring app to front
+18:21:36.192 HOST  app cmd clear
+18:21:37.281 HOST  app cmd fgs-start
+18:21:39.370 HOST  adb emu gsm call 5551234
+18:21:41.505 HOST  AudioService mode is now MODE_RINGTONE
+18:21:43.537 HOST  adb emu gsm accept 5551234
+18:21:45.645 HOST  AudioService mode is now MODE_IN_CALL
+18:21:49.678 HOST  adb emu gsm call 5559876
+18:21:55.733 HOST  adb emu gsm hold 5551234
+18:21:57.784 HOST  adb emu gsm accept 5559876
+18:22:03.834 HOST  adb emu gsm cancel 5559876
+18:22:11.919 HOST  mode with only the held call left: MODE_IN_CALL
+18:22:11.945 HOST  adb emu gsm cancel 5551234
+18:22:14.085 HOST  AudioService mode is now MODE_NORMAL
+18:22:18.138 HOST  bring app to front
+18:22:20.236 HOST  app cmd fgs-stop
+18:22:22.390 HOST  === end s9_waiting_and_hold

@@ -1,0 +1,16 @@
+18:18:25.976 HOST  === s5b_phone_background_frozen: Phone granted; app pushed to cached by another app, no service (frozen)
+18:18:26.020 HOST  device time 18:18:25
+18:18:26.047 HOST  bring app to front
+18:18:28.103 HOST  app cmd clear
+18:18:29.160 HOST  press HOME (app to background)
+18:18:31.217 HOST  open Settings, then HOME again, so the spike is no longer the previous app
+18:18:59.398 HOST  process: pid=6192  curProcState=16 mRepProcState=16 setProcState=16 lastStateTime=-29s794ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=true 
+18:18:59.420 HOST  adb emu gsm call 5551234
+18:19:01.563 HOST  AudioService mode is now MODE_RINGTONE
+18:19:03.595 HOST  adb emu gsm accept 5551234
+18:19:05.716 HOST  AudioService mode is now MODE_IN_CALL
+18:19:11.753 HOST  adb emu gsm cancel 5551234
+18:19:13.883 HOST  AudioService mode is now MODE_NORMAL
+18:19:17.963 HOST  process: pid=6192  curProcState=16 mRepProcState=16 setProcState=16 lastStateTime=-48s365ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=true isFrozen=false 
+18:19:17.985 HOST  bring app to front
+18:19:23.105 HOST  === end s5b_phone_background_frozen

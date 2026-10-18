@@ -1,0 +1,13 @@
+18:17:07.807 HOST  === s4_phone_foreground: Phone granted; call answered, then the app is opened and stays open
+18:17:07.853 HOST  device time 18:17:07
+18:17:07.877 HOST  pm grant READ_PHONE_STATE
+18:17:08.934 HOST  bring app to front
+18:17:11.994 HOST  app cmd clear
+18:17:13.087 HOST  adb emu gsm call 5551234
+18:17:15.197 HOST  AudioService mode is now MODE_RINGTONE
+18:17:17.252 HOST  adb emu gsm accept 5551234
+18:17:19.363 HOST  AudioService mode is now MODE_IN_CALL
+18:17:22.399 HOST  bring app to front
+18:17:27.468 HOST  adb emu gsm cancel 5551234
+18:17:29.598 HOST  AudioService mode is now MODE_NORMAL
+18:17:34.690 HOST  === end s4_phone_foreground

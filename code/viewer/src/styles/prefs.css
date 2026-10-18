@@ -1,0 +1,36 @@
+/* The person's settings win: more contrast, less transparency, forced colors and reduced motion.
+   Ported from the prototype's rules for Mom's page (prototype/css/app.css). */
+
+@media (prefers-contrast: more) {
+  :root { --edge: 2px; }
+  /* Solid glass, a firmer edge. */
+  .glassbar, .sheet {
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--glass-edge);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  /* Markers: a 2px keyline and a firmer name capsule. */
+  .mk .disc { box-shadow: 0 0 0 2px var(--vw-keyline); }
+  .mk .name span { box-shadow: inset 0 0 0 2px var(--ink-tertiary); }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glassbar, .sheet { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+@media (forced-colors: active) {
+  .glassbar, .sheet, .btn, .mk .disc, .pill, .shareback, .mk .name span { border: 1px solid CanvasText; }
+  /* The map keeps its marks in system colors; status is never color alone. */
+  .mk .disc { border: 3px solid Highlight; }
+  .m-trail circle { fill: Highlight; }
+  .glassbar .t2 .d, .pill .d { forced-color-adjust: none; background: CanvasText; }
+  .skel .sk { forced-color-adjust: none; background: GrayText; }
+}
+
+/* Reduce Motion: nothing bobs, breathes, pans or slides in. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; }
+  .mk .halo, .mk .ripple, .mk .disc, .mk .name, .skel .sk, .vp.enter .glassbar > *, .vp.enter .sheet > * { animation: none !important; }
+  .world, .map-pan, .btn { transition: none !important; }
+  .btn:active { transform: none; }
+}

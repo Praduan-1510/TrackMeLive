@@ -1,0 +1,15 @@
+18:17:36.854 HOST  === s5_phone_background_cached: Phone granted; app left with HOME, no service (stays the "previous app", not frozen)
+18:17:36.901 HOST  device time 18:17:36
+18:17:36.924 HOST  bring app to front
+18:17:38.984 HOST  app cmd clear
+18:17:40.058 HOST  press HOME (app to background)
+18:18:00.179 HOST  process: pid=6192  curProcState=15 mRepProcState=15 setProcState=15 lastStateTime=-19s592ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:18:00.200 HOST  adb emu gsm call 5551234
+18:18:02.298 HOST  AudioService mode is now MODE_RINGTONE
+18:18:04.325 HOST  adb emu gsm accept 5551234
+18:18:06.424 HOST  AudioService mode is now MODE_IN_CALL
+18:18:12.456 HOST  adb emu gsm cancel 5551234
+18:18:14.598 HOST  AudioService mode is now MODE_NORMAL
+18:18:18.678 HOST  process: pid=6192  curProcState=15 mRepProcState=15 setProcState=15 lastStateTime=-38s95ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:18:18.700 HOST  bring app to front
+18:18:23.815 HOST  === end s5_phone_background_cached

@@ -1,0 +1,76 @@
+/* The map behind everything: a stylized street map in the map tokens, the sharer's marker and trail.
+   Labels are caption-2 (11px or more, sentence case) with a halo in the color under them.
+   Shadows go on markers only (tokens.json shadow note). */
+
+.map { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: var(--map-land); contain: strict; }
+.mapsvg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* The drawing and the markers pan together to keep the sharer in the open band. */
+.world, .map-pan { transition: transform var(--dur-pan) var(--ease-pan); }
+.map.instant .world, .map.instant .map-pan { transition: none; }
+.map-pan { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+
+.m-land { fill: var(--map-land); }
+.m-block { fill: var(--map-road); opacity: .3; }
+.m-road { fill: none; stroke: var(--map-road); stroke-width: 9; stroke-linecap: round; }
+.m-casing { fill: none; stroke: var(--map-land); stroke-width: 26; stroke-linecap: round; }
+.m-major { fill: none; stroke: var(--map-road-major); stroke-width: 16; stroke-linecap: round; }
+.m-park { fill: var(--map-park); stroke: var(--map-park); stroke-width: 6; stroke-linejoin: round; }
+/* The water's land-colored edge keeps blocks and streets off the shoreline. */
+.m-water { fill: var(--map-water); stroke: var(--map-land); stroke-width: 10; stroke-linejoin: round; }
+.m-pond { fill: var(--map-water); }
+.m-pier { fill: var(--map-land); stroke: var(--map-land); stroke-width: 3; stroke-linejoin: round; }
+
+.m-label {
+  fill: var(--map-label); font: 600 11px var(--font-text); letter-spacing: .06px;
+  paint-order: stroke; stroke: var(--map-land); stroke-width: 3px; stroke-linejoin: round;
+}
+.m-label.on-road { stroke: var(--map-road); }
+.m-label.on-major { stroke: var(--map-road-major); }
+.m-label.on-park { stroke: var(--map-park); }
+.m-label.on-water { stroke: var(--map-water); letter-spacing: 1.6px; }
+
+/* Every dot is full strength (3:1 on every map fill); age shows by size. */
+.m-trail circle { fill: var(--vw-trail); }
+
+/* ---------- Markers ---------- */
+.mk { position: absolute; width: 0; height: 0; }
+.mk[hidden] { display: none; }
+.mk .halo, .mk .ripple, .mk .area { position: absolute; border-radius: 50%; pointer-events: none; }
+.mk.sharer .halo { left: -40px; top: -40px; width: 80px; height: 80px; background: var(--lamplight-halo); }
+.mk.sharer .ripple { left: -26px; top: -26px; width: 52px; height: 52px; box-shadow: 0 0 0 2px var(--lamplight); opacity: 0; }
+.mk .disc {
+  position: absolute; left: -26px; top: -26px; width: 52px; height: 52px;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--vw-disc); border: 3px solid var(--lamplight);
+  /* The 1px keyline outside the ring holds the marker at 3:1 on every map fill. */
+  box-shadow: 0 0 0 1px var(--vw-keyline), var(--shadow-marker);
+}
+.mk .disc img { width: 42px; height: 42px; object-fit: contain; }
+/* A render that can't load: the flat SVG, then a plain lamplight disc. */
+.mk .disc.no-art { background: var(--lamplight); }
+.mk .disc.no-art img { visibility: hidden; }
+.mk .name { position: absolute; left: -80px; top: 34px; width: 160px; display: flex; justify-content: center; pointer-events: none; }
+.mk .name span {
+  padding: 2px var(--space-2); border-radius: var(--radius-pill);
+  background: var(--surface); color: var(--ink); font: var(--t-caption-1); letter-spacing: 0; white-space: nowrap;
+  box-shadow: inset 0 0 0 var(--edge) var(--separator);
+}
+/* Approximate: a soft lamplight circle 1 km across (500 m radius, 83px at 6 m per px), no halo. */
+.mk .area { display: none; left: -83px; top: -83px; width: 166px; height: 166px; background: var(--lamplight-halo); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lamplight) 45%, transparent); }
+.mk.approx .area { display: block; }
+.mk.approx .halo { display: none; }
+
+/* Live animation runs only for a moment: on arrival, after each ping and on Show (about 2.6 s). */
+.mk.arrive .disc { animation: mk-in .55s var(--ease-spring) both; }
+.mk.arrive .halo { animation: fade-in .5s ease-out .1s both; }
+.mk.arrive .name { animation: name-in .4s var(--ease-out) .22s both; }
+.mk.pinged .halo { animation: halo 1.3s ease-in-out 2; }
+.mk.pinged .ripple { animation: ripple 1.3s var(--ease-out) 2; }
+.mk.pinged .disc { animation: bob 1.3s ease-in-out 2; }
+@keyframes mk-in { from { transform: scale(.35); opacity: 0; } }
+@keyframes name-in { from { transform: translateY(-4px); opacity: 0; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes halo { 50% { transform: scale(1.12); opacity: .7; } }
+@keyframes ripple { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(2.2); opacity: 0; } }
+@keyframes bob { 50% { transform: translateY(-3px); } }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background before Compose draws: tokens.json ground (light). -->
+    <color name="window_ground">#F4F5F2</color>
+    <!-- Adaptive icon background: brand/logo/android-icon-background.svg (lamplight). -->
+    <color name="ic_launcher_background">#F2A033</color>
+</resources>

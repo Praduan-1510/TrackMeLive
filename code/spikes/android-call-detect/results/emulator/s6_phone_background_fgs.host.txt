@@ -1,0 +1,17 @@
+18:19:25.267 HOST  === s6_phone_background_fgs: Phone granted; app in the background with the location foreground service
+18:19:25.314 HOST  device time 18:19:24
+18:19:25.337 HOST  bring app to front
+18:19:27.400 HOST  app cmd clear
+18:19:28.458 HOST  app cmd fgs-start
+18:19:30.582 HOST  press HOME (app to background)
+18:19:50.746 HOST  process: pid=6192  curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-32s691ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:19:50.784 HOST  adb emu gsm call 5551234
+18:19:52.915 HOST  AudioService mode is now MODE_RINGTONE
+18:19:54.951 HOST  adb emu gsm accept 5551234
+18:19:57.057 HOST  AudioService mode is now MODE_IN_CALL
+18:20:03.110 HOST  adb emu gsm cancel 5551234
+18:20:05.314 HOST  AudioService mode is now MODE_NORMAL
+18:20:09.395 HOST  process: pid=6192  curProcState=4 mRepProcState=4 setProcState=4 lastStateTime=-51s347ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=false 
+18:20:09.417 HOST  bring app to front
+18:20:11.476 HOST  app cmd fgs-stop
+18:20:13.679 HOST  === end s6_phone_background_fgs

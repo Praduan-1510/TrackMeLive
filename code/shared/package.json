@@ -1,0 +1,20 @@
+{
+  "name": "@tml/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Track Me Live shared contracts: design tokens and the Firestore schema, generated for Swift, Kotlin, TypeScript and CSS. No dependencies.",
+  "type": "module",
+  "exports": {
+    "./schema": "./schema/generated/ts/schema.ts",
+    "./tokens.css": "./tokens/generated/css/tokens.css"
+  },
+  "scripts": {
+    "build": "node tokens/build.mjs && node schema/build.mjs",
+    "check": "node tokens/build.mjs --check && node schema/build.mjs --check",
+    "build:tokens": "node tokens/build.mjs",
+    "build:schema": "node schema/build.mjs"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

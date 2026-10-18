@@ -1,0 +1,16 @@
+18:16:08.327 HOST  === s2b_nophone_background_frozen: no Phone permission; app pushed to cached by another app, no service (frozen)
+18:16:08.373 HOST  device time 18:16:07
+18:16:08.395 HOST  bring app to front
+18:16:10.480 HOST  app cmd clear
+18:16:11.568 HOST  press HOME (app to background)
+18:16:13.629 HOST  open Settings, then HOME again, so the spike is no longer the previous app
+18:16:41.803 HOST  process: pid=6192  curProcState=16 mRepProcState=16 setProcState=16 lastStateTime=-29s803ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=true 
+18:16:41.827 HOST  adb emu gsm call 5551234
+18:16:43.949 HOST  AudioService mode is now MODE_RINGTONE
+18:16:45.992 HOST  adb emu gsm accept 5551234
+18:16:48.150 HOST  AudioService mode is now MODE_IN_CALL
+18:16:54.187 HOST  adb emu gsm cancel 5551234
+18:16:56.341 HOST  AudioService mode is now MODE_NORMAL
+18:17:00.435 HOST  process: pid=6192  curProcState=16 mRepProcState=16 setProcState=16 lastStateTime=-48s435ms  hasPendingCompaction=false isFreezeExempt=false isPendingFreeze=false isFrozen=true 
+18:17:00.461 HOST  bring app to front
+18:17:05.650 HOST  === end s2b_nophone_background_frozen
