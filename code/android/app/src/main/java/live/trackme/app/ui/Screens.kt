@@ -216,7 +216,8 @@ fun SettingsScreen(themeMode: ThemeMode, onThemeMode: (ThemeMode) -> Unit) {
 private fun ThemeChoice(themeMode: ThemeMode, onThemeMode: (ThemeMode) -> Unit) {
     val c = TmlTheme.colors
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val stackBelow = with(LocalDensity.current) { (18 * 14).sp.toDp() }
+        // 18em of the 14sp label. Scale 14sp first: Android 14+ scales large sp values non-linearly.
+        val stackBelow = with(LocalDensity.current) { 14.sp.toDp() } * 18
         if (maxWidth >= stackBelow) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 ThemeMode.entries.forEachIndexed { i, mode ->

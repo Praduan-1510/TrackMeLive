@@ -117,6 +117,7 @@ UI code reads tokens through `TmlTheme.colors` and `TmlTheme.type`. Android-only
 - Every touch target is at least 48 by 48dp. The navigation items are 80dp tall and announce as tabs, with their selected state.
 - Headings are marked for TalkBack. The fox art is decorative because the text beside it says what it is.
 - At large font sizes, onboarding text scrolls while the dots and Continue stay pinned at the bottom.
+- When System / Light / Dark no longer fit side by side, they stack into one column, as in the prototype. Checked at 200% font size, in light and dark.
 - The onboarding fox bobs 3dp. With Remove animations turned on, it stays still.
 
 ## Troubleshooting
