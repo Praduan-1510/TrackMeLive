@@ -25,6 +25,8 @@ struct AppDependencies {
     let locationAccess: any LocationAccess
     /// The share session: the callables, the listener, location in the background and the pings.
     let sharing: any SharingService
+    /// This phone's `users/{uid}/devices/{deviceId}`, so the server's alerts reach it.
+    let deviceRegistrar: DeviceRegistrar
     /// The backend's share of the app delegate: APNs and the reCAPTCHA redirect, for Firebase phone sign-in.
     let lifecycle: (any AppLifecycleHooks)?
 
@@ -46,7 +48,7 @@ struct AppDependencies {
             return AppDependencies(
                 backend: .emulator, auth: firebase.auth, profileBackend: firebase.profiles,
                 settings: settings, permissions: permissions, locationAccess: locationAccess, sharing: sharing,
-                lifecycle: firebase
+                deviceRegistrar: DeviceRegistrar(backend: firebase.pushTokens, defaults: defaults), lifecycle: firebase
             )
         }
         #endif
@@ -64,6 +66,8 @@ struct AppDependencies {
             permissions: permissions,
             locationAccess: locationAccess,
             sharing: sharing,
+            // No push token on the fakes, as on the Simulator.
+            deviceRegistrar: DeviceRegistrar(backend: FakePushTokens(), defaults: defaults),
             lifecycle: nil
         )
     }
@@ -93,6 +97,7 @@ struct AppDependencies {
             permissions: FixedPermissionsService(),
             locationAccess: FakeLocationAccess(authorization: LocationAuthorization(status: .whenInUse, hasAsked: true)),
             sharing: FixedSharingService(state: sharing),
+            deviceRegistrar: DeviceRegistrar(backend: FakePushTokens(), defaults: UserDefaults(suiteName: "tml.preview") ?? .standard),
             lifecycle: nil
         )
     }

@@ -31,6 +31,10 @@ struct MainTabView: View {
         .tint(TMLColor.lamplightText)
         // A share ending (Stop, the timer, the limit, the server) shows the ended screen on Home.
         .onChange(of: model.dependencies.sharing.state) { model.shareStateDidChange() }
+        // Push: register at launch when alerts are already allowed, and as soon as they are
+        // (the "Know when Mom opens it" step, or Settings).
+        .onChange(of: model.dependencies.permissions.notifications, initial: true) { model.notificationsDidChange() }
+        .task { await model.dependencies.permissions.refresh() }
     }
 }
 

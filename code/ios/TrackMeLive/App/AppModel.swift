@@ -1,6 +1,7 @@
 import Observation
 import SwiftUI
 import TMLCore
+import UIKit
 
 enum AppTab: Hashable {
     case home, mascot, settings
@@ -65,12 +66,18 @@ final class AppModel {
         case .launch, .onboarding, .signUp:
             mascotSetup = nil
             resetTabs()
+            // Signed out (Delete account, or the sign-in ended elsewhere): the server removes or
+            // expires this phone's device doc, so just stop keeping it current. v1 has no plain
+            // Sign out with a profile, which would call `willSignOut()` first.
+            dependencies.deviceRegistrar.stop()
         }
+        registerDevice()
     }
 
     /// Call when the profile changes (another device, or a save answering): the open screens follow.
     func profileDidChange() {
         guard let profile else { return }
+        registerDevice()
         // A model waiting for the profile to load.
         if (account.route == .chooseMascot && mascotSetup == nil) || (account.route == .main && mascotTab == nil) {
             routeDidChange()
@@ -83,6 +90,31 @@ final class AppModel {
     /// Call when the profile listener stops or starts getting through: Settings says so quietly.
     func profileUpdatesDidChange() {
         settingsTab?.profileUpdatesUnavailable = account.profiles.updatesUnavailable
+    }
+
+    /// Once signed in with a profile (every launch, and right after sign-up creates it): keep this
+    /// phone's device doc current, so alerts reach it. Repeat calls cost nothing; nothing waits on it.
+    private func registerDevice() {
+        guard profile != nil, let uid = account.user?.uid,
+              account.route == .main || account.route == .chooseMascot else { return }
+        dependencies.deviceRegistrar.profileReady(uid: uid)
+    }
+
+    /// Alerts can be shown: ask iOS for this phone's push token (FirebaseServices hands it to FCM).
+    /// At launch when they're already allowed, and as soon as they're allowed.
+    func notificationsDidChange() {
+        guard dependencies.permissions.notifications == .allowed else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// A tap on one of the server's alerts: the live screen while it's about the share that's
+    /// running, otherwise Home, as it was left.
+    func open(_ alert: PushAlert) {
+        if alert.opensLive(activeSessionId: dependencies.sharing.state.live?.sessionId) {
+            open(.live)
+        } else if account.route == .main {
+            selectedTab = .home
+        }
     }
 
     private func makeTabModels() {
