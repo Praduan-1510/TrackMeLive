@@ -17,6 +17,7 @@ import live.trackme.app.data.settings.Appearance
 import live.trackme.app.data.settings.DefaultSettingsRepository
 import live.trackme.app.data.settings.SetupStage
 import live.trackme.app.fakes.FakeLocalPreferences
+import live.trackme.app.fakes.FakeLocationPermissions
 import live.trackme.app.fakes.FakeProfileRepository
 import live.trackme.app.fakes.MainDispatcherRule
 import live.trackme.app.ui.mascot.MascotLook
@@ -101,7 +102,7 @@ class MascotAndSettingsViewModelTest {
     @Test
     fun aToggleDuringADeleteDoesNotSaveAndADoubleConfirmDeletesOnce() = runTest(main.dispatcher.scheduler) {
         val account = FakeAccount(DeleteAccountResult.Deleted).apply { hold = CompletableDeferred() }
-        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), account)
+        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), account, FakeLocationPermissions())
         backgroundScope.launch { vm.state.collect {} }
         vm.onEvent(SettingsEvent.DeleteAccountConfirmed)
         advanceUntilIdle()
@@ -120,7 +121,7 @@ class MascotAndSettingsViewModelTest {
 
     @Test
     fun settingsSaveWithTheProfileAndAppearanceStaysLocal() = runTest(main.dispatcher.scheduler) {
-        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted))
+        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted), FakeLocationPermissions())
         backgroundScope.launch { vm.state.collect {} }
         vm.onEvent(SettingsEvent.PrecisionChanged(Precision.APPROXIMATE))
         vm.onEvent(SettingsEvent.DefaultStopChanged(DefaultStop.MINUTES_15))
@@ -139,7 +140,7 @@ class MascotAndSettingsViewModelTest {
 
     @Test
     fun settingsSayWhenTheProfileCantUpdate() = runTest(main.dispatcher.scheduler) {
-        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted))
+        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted), FakeLocationPermissions())
         backgroundScope.launch { vm.state.collect {} }
         advanceUntilIdle()
         assertFalse(vm.state.value.updatesUnavailable)
@@ -153,7 +154,7 @@ class MascotAndSettingsViewModelTest {
 
     @Test
     fun aFailedSettingsSaveSaysSo() = runTest(main.dispatcher.scheduler) {
-        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted))
+        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), FakeAccount(DeleteAccountResult.Deleted), FakeLocationPermissions())
         val messages = mutableListOf<SettingsMessage>()
         backgroundScope.launch { vm.messageFlow.toList(messages) }
         profiles.failSave = ProfileFailure.Network
@@ -165,7 +166,7 @@ class MascotAndSettingsViewModelTest {
     @Test
     fun deleteAccountReportsFailures() = runTest(main.dispatcher.scheduler) {
         val account = FakeAccount(DeleteAccountResult.Network)
-        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), account)
+        val vm = SettingsViewModel(DefaultSettingsRepository(prefs, profiles), account, FakeLocationPermissions())
         val messages = mutableListOf<SettingsMessage>()
         backgroundScope.launch { vm.messageFlow.toList(messages) }
         vm.onEvent(SettingsEvent.DeleteAccountConfirmed)

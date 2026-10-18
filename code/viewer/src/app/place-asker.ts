@@ -1,6 +1,7 @@
 /**
  * Asks the PlaceLookup where the sharer is, in words, as they move: again once they've moved 25 m
- * (or their precision changed), one request at a time. A point counts as named only once a name came
+ * (or their precision changed), one request at a time, and (for a lookup that costs a request) at
+ * most one every `minGapMs` while the precision stays the same. A point counts as named only once a name came
  * back, so a failed lookup is asked again even while the sharer stands still, with capped backoff:
  * 5 s, 15 s, then every 60 s. Until a name arrives the page says where in coordinates, so it never
  * waits on a name forever.
@@ -22,11 +23,14 @@ export class PlaceAsker {
   private pending = false;
   private failures = 0;
   private retryAt = 0;
+  private askedAt = -Infinity;
+  private readonly minGapMs: number;
 
-  constructor(lookup: PlaceLookup, onPlace: (place: Place) => void, now: () => number) {
+  constructor(lookup: PlaceLookup, onPlace: (place: Place) => void, now: () => number, minGapMs = 0) {
     this.lookup = lookup;
     this.onPlace = onPlace;
     this.now = now;
+    this.minGapMs = minGapMs;
   }
 
   /** Called whenever the sharer's newest point may have changed; asks only when it should. */
@@ -34,7 +38,10 @@ export class PlaceAsker {
     if (this.pending || this.now() < this.retryAt) return;
     const n = this.named;
     if (n && n.precision === precision && distanceMeters(n.at, at) < MOVE_M) return;
+    // A change of precision is asked at once: the words must never be finer than the share.
+    if (n && n.precision === precision && this.now() - this.askedAt < this.minGapMs) return;
     this.pending = true;
+    this.askedAt = this.now();
     this.lookup.describe(at, precision).then(
       (place) => {
         this.pending = false;

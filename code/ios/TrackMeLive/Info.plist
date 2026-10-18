@@ -50,6 +50,11 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>SharePrecise</key>
+		<string>Precise location lets the person you share with see exactly where you are, for this share only.</string>
+	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Track Me Live uses your location only while you're sharing. Nobody sees it until you send your link, and it stops when you do.</string>
 	<key>NSSupportsLiveActivities</key>

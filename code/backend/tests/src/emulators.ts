@@ -1,12 +1,20 @@
 /**
  * Where the emulators are, plus small REST helpers for the Auth emulator and the
- * callable protocol. `firebase emulators:exec` sets the *_EMULATOR_HOST
- * variables; test.sh sets them too when it reuses emulators that are already
- * running. The defaults match firebase.json.
+ * callable protocol. The tests run on the test emulator set: project
+ * demo-trackmelive-test on its own ports (firebase.test.json). test.sh sets the
+ * *_EMULATOR_HOST variables and GCLOUD_PROJECT; the defaults here match
+ * firebase.test.json, so a test started by hand lands on the test set too.
  */
 
-export const PROJECT_ID = process.env.GCLOUD_PROJECT ?? process.env.PROJECT_ID ?? "demo-trackmelive";
+export const PROJECT_ID = process.env.GCLOUD_PROJECT ?? process.env.PROJECT_ID ?? "demo-trackmelive-test";
 export const REGION = "us-central1";
+
+// The tests wipe Auth and Firestore. The dev set's project (run.sh) holds the data
+// the apps, the viewer and QA are using, so never run against it, and never off a
+// demo- project, which is what keeps every SDK off real resources.
+if (PROJECT_ID === "demo-trackmelive" || !PROJECT_ID.startsWith("demo-")) {
+  throw new Error(`the backend tests refuse project "${PROJECT_ID}": run them with ./test.sh, on demo-trackmelive-test`);
+}
 
 function hostPort(envVar: string, fallback: string): { host: string; port: number } {
   const raw = process.env[envVar] ?? fallback;
@@ -14,9 +22,9 @@ function hostPort(envVar: string, fallback: string): { host: string; port: numbe
   return { host: raw.slice(0, i), port: Number(raw.slice(i + 1)) };
 }
 
-export const FIRESTORE = hostPort("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8080");
-export const AUTH = hostPort("FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9099");
-export const FUNCTIONS = hostPort("FUNCTIONS_EMULATOR_HOST", "127.0.0.1:5001");
+export const FIRESTORE = hostPort("FIRESTORE_EMULATOR_HOST", "127.0.0.1:8180");
+export const AUTH = hostPort("FIREBASE_AUTH_EMULATOR_HOST", "127.0.0.1:9199");
+export const FUNCTIONS = hostPort("FUNCTIONS_EMULATOR_HOST", "127.0.0.1:5101");
 
 // The Admin SDK in the tests finds the emulators through these. GCLOUD_PROJECT
 // is for the functions' own default app, which the lifecycle tests load.

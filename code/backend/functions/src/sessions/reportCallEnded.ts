@@ -6,6 +6,7 @@ import type { ReportCallEndedResponse } from "../shared/schema.js";
 import { dueEnd, endFields, endSession, type SessionEnd } from "./end.js";
 import { readOwnedSession, sessionRefs, type Session } from "./read.js";
 import { parseRequest, requireSessionCall } from "./request.js";
+import { runContended } from "./transactions.js";
 
 type CallEndState = Pick<Session, "status" | "call_ended_at" | "ended_at" | "end_reason">;
 
@@ -34,7 +35,7 @@ export const reportCallEnded = onCall<unknown, Promise<ReportCallEndedResponse>>
   const db = getFirestore();
   const refs = sessionRefs(db, sessionId);
 
-  const after = await db.runTransaction(async (tx): Promise<CallEndState> => {
+  const after = await runContended(db, "reportCallEnded", async (tx): Promise<CallEndState> => {
     const { session } = await readOwnedSession(tx, refs, uid);
     requireSessionCall(session.call_id, callId);
     if (session.status === "stopped") return stateOf(session);

@@ -15,6 +15,8 @@ import live.trackme.app.Names
 import live.trackme.app.di.AppContainer
 import live.trackme.app.data.profile.ProfileRepository
 import live.trackme.app.data.profile.ProfileState
+import live.trackme.app.data.sharing.ShareState
+import live.trackme.app.data.sharing.SharingRepository
 import live.trackme.app.domain.Clock
 import live.trackme.app.domain.Greeting
 import live.trackme.schema.MascotAccessory
@@ -22,7 +24,7 @@ import live.trackme.schema.MascotCatalog
 import live.trackme.schema.MascotColor
 import live.trackme.schema.MascotId
 
-/** Home before any call (prototype › viewHome): the greeting and the person's mascot. Nothing is shared yet. */
+/** Home (prototype › viewHome, not on a call): the greeting, the person's mascot, and the share, if one is live. */
 data class HomeUiState(
     val greeting: Greeting = Greeting.Morning,
     /** The person's name, or null while the profile loads (the line keeps its height meanwhile). */
@@ -32,9 +34,13 @@ data class HomeUiState(
     val mascotId: MascotId = MascotCatalog.DEFAULT_MASCOT,
     val mascotColor: MascotColor = MascotCatalog.DEFAULT_COLOR,
     val mascotAccessory: MascotAccessory? = null,
+    /** True while a share is live: the live card replaces Share live location. */
+    val live: Boolean = false,
+    /** Who the live share is for, or null without a name ("Sharing live"). */
+    val liveWith: String? = null,
 )
 
-class HomeViewModel(profiles: ProfileRepository, private val clock: Clock) : ViewModel() {
+class HomeViewModel(profiles: ProfileRepository, private val clock: Clock, sharing: SharingRepository) : ViewModel() {
 
     /** The greeting, moving on at 5:00, 12:00 and 18:00 while Home stays open. */
     private val greeting = flow {
@@ -45,9 +51,12 @@ class HomeViewModel(profiles: ProfileRepository, private val clock: Clock) : Vie
         }
     }.distinctUntilChanged()
 
-    val state: StateFlow<HomeUiState> = combine(greeting, profiles.profile) { greeting, profile ->
+    val state: StateFlow<HomeUiState> = combine(greeting, profiles.profile, sharing.state) { greeting, profile, share ->
         val p = (profile as? ProfileState.Ready)?.profile
+        val live = share as? ShareState.Live
         HomeUiState(
+            live = live != null,
+            liveWith = live?.share?.viewerName?.let(Names::tidy)?.takeIf { it.isNotEmpty() },
             greeting = greeting,
             name = p?.name?.takeIf(Names::isValid)?.trim(),
             loaded = profile !is ProfileState.Loading,
@@ -60,7 +69,7 @@ class HomeViewModel(profiles: ProfileRepository, private val clock: Clock) : Vie
     companion object {
         fun factory(container: AppContainer) = viewModelFactory {
             initializer {
-                HomeViewModel(container.profiles, container.clock)
+                HomeViewModel(container.profiles, container.clock, container.sharing)
             }
         }
     }

@@ -4,13 +4,17 @@ Firebase: Firestore, Cloud Functions, phone-number Auth, and Hosting for the vie
 
 ```
 code/backend/
-  firebase.json            emulators, functions, Firestore and Hosting config
+  firebase.json            emulators, functions, Firestore and Hosting config (the dev set)
+  firebase.test.json       the test set's config: its own ports, no UI or Hosting
   .firebaserc              default project: demo-trackmelive
   firestore.rules          deny by default; who may read and write each FSD §6 collection
   firestore.indexes.json   composite indexes for the scheduled functions, and the token-hash lookup
-  run.sh                   start the emulators
-  test.sh                  lint, build, then run every test against the emulators
-  scripts/env.sh           shared setup: JDK 21+, ports, the pinned Firebase CLI
+  run.sh                   start the dev emulators and the dev scheduler (--test: the test set)
+  test.sh                  lint, build, then run every test on the test emulators
+  scripts/env.sh           shared setup: JDK 21+, the two emulator sets and their ports, the pinned Firebase CLI
+  scripts/with-test-emulators.sh  run any command against the test set (the firebase lock, a build, the env)
+  scripts/dev-scheduler.sh run the scheduled functions against the dev set (the emulators never fire them)
+  test-logs/               the test set's CLI and emulator logs (gitignored)
   functions/               Cloud Functions (TypeScript, Node 22 runtime)
     src/index.ts           global options, exports
     src/createSession.ts   the createSession callable
@@ -20,17 +24,22 @@ code/backend/
     src/profile.ts         the saveProfile callable
     src/profileRequest.ts  saveProfile input parsing, on the shared validate()
     src/redeemLinkToken.ts the redeemLinkToken callable
+    src/viewerOrigin.ts    VIEWER_ORIGIN checks: local origins only on a demo- project
     src/deleteAccount.ts   the deleteAccount callable
     src/sessionLookup.ts   finding sessions through private/meta: by link token, and by owner
     src/requestErrors.ts   the shared validate()'s issues as invalid-argument details
     src/sessions/          the session lifecycle: ending a session (end.ts), typed reads (read.ts), request parsing,
-                           deleting what an ended session leaves (deletion.ts), and the callables stopSession,
-                           reportCallEnded, reportCallActive and discardSession
+                           deleting what an ended session leaves (deletion.ts), transactions on a session doc
+                           (transactions.ts), and the callables stopSession, reportCallEnded, reportCallActive
+                           and discardSession
     src/jobs/              the scheduled functions: stopDueSessions, callWatchdog, cleanupEndedSessions,
-                           purgeEndedSessions, and what they share (run.ts)
+                           purgeEndedSessions, sweepRetention, and what they share (run.ts)
+    src/alerts/            push alerts: the FCM message (message.ts), sending once under retries (delivery.ts),
+                           the FCM and logging senders (push.ts), and the link-opened trigger (linkOpened.ts)
     src/shared/schema.ts   copy of code/shared/schema/generated/ts/schema.ts (gitignored; made by the build)
     scripts/sync-schema.mjs  makes that copy
-    .env.demo-trackmelive  params for the demo project (VIEWER_ORIGIN)
+    scripts/dev-scheduler.mjs  the dev scheduler itself (scripts/dev-scheduler.sh starts it)
+    .env.demo-trackmelive  params for the demo project (VIEWER_ORIGIN); env.sh copies it for the test project
   tests/                   emulator tests (node:test, run as TypeScript by Node's type stripping)
     src/rules.test.ts         Firestore rules
     src/createSession.test.ts createSession over the callable protocol
@@ -42,6 +51,9 @@ code/backend/
     src/deleteAccount.test.ts deleteAccount over the callable protocol, partial runs included
     src/sessions.test.ts      the session callables over the callable protocol
     src/lifecycle.test.ts     the scheduled jobs, run through their handlers
+    src/devScheduler.test.ts  the dev scheduler as a process: its refusals, a tick, the loop, restarts
+    src/retention.test.ts     FSD §8 retention: each window at its boundary, overlapping and repeated runs
+    src/alerts.test.ts        the link-opened alert: payload, delivery with a fake FCM, the trigger end to end
     src/emulators.ts          emulator hosts, Auth REST helpers, callable helper
     src/authEmulator.ts       the Auth emulator's phone and custom-token REST calls, one step at a time
 ```
@@ -60,27 +72,34 @@ There's nothing to install by hand. Both scripts run `npm ci` in `functions/` an
 
 | Command | What it does |
 | --- | --- |
-| `./run.sh` | Builds the functions and starts Auth, Firestore, Functions and the Emulator UI. It adds Hosting when `code/viewer/dist/index.html` exists. Extra arguments go to `firebase emulators:start`, e.g. `./run.sh --import .emulator-data --export-on-exit`. Stop with Ctrl-C. |
-| `./test.sh` | Lints and builds the functions, type-checks the tests, then runs every test. It reuses the emulators if `./run.sh` is running; otherwise it starts Auth, Firestore and Functions just for the run (`emulators:exec`) and stops them afterwards. |
+| `./run.sh` | The dev set: builds the functions and starts Auth, Firestore, Functions and the Emulator UI for `demo-trackmelive`, plus the dev scheduler (below; `DEV_SCHEDULER=0` leaves it out). It adds Hosting when `code/viewer/dist/index.html` exists. Extra arguments go to `firebase emulators:start`, e.g. `./run.sh --import .emulator-data --export-on-exit`. Stop with Ctrl-C. |
+| `./run.sh --test` | The test set, long-lived: `demo-trackmelive-test` on its own ports, no UI, Hosting or scheduler. `test.sh` and `with-test-emulators.sh` reuse it while it's up, which saves the emulator start-up on every run. |
+| `./test.sh` | Lints and builds the functions, type-checks the tests, then runs every test on the test set, through `scripts/with-test-emulators.sh`. It never touches the dev set, so it runs while `./run.sh` is up, and the tests' wipes never reach the dev data. |
 | `./test.sh src/rules.test.ts` | Runs one test file (paths are relative to `tests/`). |
+| `scripts/with-test-emulators.sh <command...>` | Runs any command against the test set, for any suite that needs the emulators (the viewer's live e2e: `code/backend/scripts/with-test-emulators.sh npm --prefix code/viewer run test:e2e:live`). It takes the `firebase` lock (unless a caller such as check-all holds it; never in CI), builds the functions when `lib` is older than `src` or the shared schema, reuses a running test set or starts one with `emulators:exec`, runs the command in the caller's folder with `GCLOUD_PROJECT`, `FIRESTORE_EMULATOR_HOST`, `FIREBASE_AUTH_EMULATOR_HOST`, `FUNCTIONS_EMULATOR_HOST` and `TML_TEST_EMULATORS=1` exported, and exits with its status. The emulators accept browser requests from any origin, the viewer's dev server included. |
+| `scripts/dev-scheduler.sh [--interval <s>] [--once]` | Runs the scheduled functions against the dev set, next to a running `./run.sh` (which already starts it). See [The dev scheduler](#the-dev-scheduler). |
 | `npm --prefix functions run build:watch` | Rebuilds on save. The running Functions emulator reloads `lib/` by itself. |
 | `npm --prefix functions run lint` | ESLint (type-aware typescript-eslint) plus `tsc --noEmit`. |
 | `npm --prefix functions run sync:schema` | Refreshes `src/shared/schema.ts` from the shared schema. `build` and `lint` already run it. |
 
-The Firestore emulator reloads `firestore.rules` on save, and the rules tests load the file fresh on each run.
+The Firestore emulator reloads `firestore.rules` on save, for the dev set too, and the rules tests load the file fresh on each run. The Functions emulator reads `functions/.env.<project>` when it (re)loads `lib/`: after changing a param, rebuild (or touch `functions/lib/index.js`); no restart is needed.
 
 ## Emulator ports
 
-All emulators listen on `127.0.0.1`.
+All emulators listen on `127.0.0.1`. There are two sets, so tests never touch what the apps use (`scripts/env.sh`):
+- the **dev set** (`./run.sh`, project `demo-trackmelive`, `firebase.json`): the apps, the viewer and QA connect to it;
+- the **test set** (`./test.sh`, `./run.sh --test`, `scripts/with-test-emulators.sh`; project `demo-trackmelive-test`, `firebase.test.json`): every test run wipes its data. `tests/src/emulators.ts` refuses to run on `demo-trackmelive` or any project that isn't `demo-`.
 
-| Emulator | Port |
-| --- | --- |
-| Emulator UI | 4000 |
-| Auth | 9099 |
-| Firestore | 8080 (UI websocket 9150) |
-| Functions | 5001 (`http://127.0.0.1:5001/demo-trackmelive/us-central1/createSession`) |
-| Hosting | 5050. The default, 5000, is taken by macOS AirPlay Receiver (and 7000 too). |
-| Hub, Logging, Eventarc, Cloud Tasks | 4400, 4500, 9299, 9499 |
+| Emulator | Dev set | Test set |
+| --- | --- | --- |
+| Emulator UI | 4000 | none |
+| Auth | 9099 | 9199 |
+| Firestore | 8080 (UI websocket 9150) | 8180 (9250) |
+| Functions | 5001 (`http://127.0.0.1:5001/demo-trackmelive/us-central1/createSession`) | 5101 (`http://127.0.0.1:5101/demo-trackmelive-test/us-central1/createSession`) |
+| Hosting | 5050. The default, 5000, is taken by macOS AirPlay Receiver (and 7000 too). | none |
+| Hub, Logging, Eventarc, Cloud Tasks | 4400, 4500, 9299, 9499 | 4410, 4510, 9399, 9599 |
+
+The test set's CLI runs from `test-logs/`, where its `firebase-debug.log` and `firestore-debug.log` land, so they never overwrite the dev set's logs here. Its params file, `functions/.env.demo-trackmelive-test`, is copied from the demo one on each run and gitignored.
 
 ### Connecting the apps to the emulators
 
@@ -100,6 +119,8 @@ The demo project has no `GoogleService-Info.plist` or `google-services.json`, so
 | App verification for phone sign-in (debug builds only, never release) | `Auth.auth().settings?.isAppVerificationDisabledForTesting = true` | `Firebase.auth.firebaseAuthSettings.setAppVerificationDisabledForTesting(true)` | not used |
 
 A callable's emulator URL is `http://<host>:5001/demo-trackmelive/us-central1/<name>`.
+
+**Share links.** On the dev set, createSession's `link_url` is `http://localhost:5173/s/<token>`: `VIEWER_ORIGIN` in `functions/.env.demo-trackmelive` points at the viewer's Vite dev server (`npm --prefix code/viewer run dev`), the build of the page that talks to the emulators. Hosting on 5050 serves a production build, which never does. Only a `demo-` project may use a local or http origin: createSession refuses one on any other project (`src/viewerOrigin.ts`), and `contract.test.ts` checks every `functions/.env.<project>` file.
 
 **Plain HTTP.** Emulator traffic isn't encrypted. Android's debug build needs a `network_security_config` that allows cleartext to `10.0.2.2`. On iOS, if App Transport Security blocks it, add `NSAllowsLocalNetworking` to the debug Info.plist.
 
@@ -149,7 +170,7 @@ A callable function. The contract is `CreateSessionRequest` and `CreateSessionRe
 - **Input.** `stop_rule` (`call`, `minutes` or `limit`), `stop_minutes` (15, 30 or 60 with `minutes`, otherwise null), `call_id` (null for a manual share), `share_back_allowed` (forced to false without a call), `precision`, and an optional `viewer_name`. The name is trimmed, then held to the shared `PersonName`: 1–24 grapheme clusters (characters as people see them), at least one letter, number, symbol or emoji, and no control or text-direction characters. A blank name means none. Unknown keys are rejected, so the request can never name an owner. Errors come back as `invalid-argument` with `details.errors[]` listing each `{field, message}`.
 - **One session at a time.** If `users/{uid}.active_session_id` points at a session that is still live (active, and before its `stop_at` and `expires_at`), the call fails with `already-exists` and `details: {reason: "active_session", session_id}`. A pointer at a session that is over doesn't block. One that stopped or is gone is simply replaced. One still marked active but past `stop_at` or `expires_at` is ended on the spot, in the same transaction, as `timer` at `stop_at` or `limit` at `expires_at`, so its end isn't left to the next stop-job run. The check and the writes are one transaction, so of two simultaneous calls exactly one wins.
 - **Writes, in that transaction:**
-  - `shareSessions/{id}`: every `ShareSession` field. That's `status: "active"`, `started_at` = server now, `expires_at` = `started_at` + 1 h, `stop_rule` and `stop_minutes`, `stop_at` (now plus the minutes, capped at `expires_at`; `expires_at` for `limit`; null for `call`), `call_active` = whether there's a call, `last_ping_at` = `started_at`, `ping_interval_s` = `INITIAL_PING_INTERVAL_SECONDS` (5) until the first ping, and the `sharer` snapshot from `users/{uid}`. Every other field, `call_ended_at` and `precision_next` included, is null or false.
+  - `shareSessions/{id}`: every `ShareSession` field. That's `status: "active"`, `started_at` = server now, `expires_at` = `started_at` + 1 h, `stop_rule` and `stop_minutes`, `stop_at` (now plus the minutes, capped at `expires_at`; `expires_at` for `limit`; null for `call`), `call_active` = whether there's a call, `last_ping_at` = `started_at`, `ping_interval_s` = `INITIAL_PING_INTERVAL_SECONDS` (5) until the first ping, and the `sharer` snapshot from `users/{uid}`. Every other field, `call_ended_at`, `precision_next` and `last_fix_at` included, is null or false. The times and the 1-hour limit come only from the server: a request that names `started_at`, `expires_at` or `stop_at` is `invalid-argument` (unknown keys).
   - `shareSessions/{id}/private/meta`: `user_id` = the caller's uid, `link_token_hash` = SHA-256 (lowercase hex) of the token, `viewer_name`, and `viewer_uid` and `activity_push_token` as null.
   - `callLogs/{session id}`, for a call-triggered share: `user_id`, `session_id`, `call_id` and `call_time` = server time (each session has at most one call, so the log shares its id; x-decisions Q-CALLLOG-ID).
   - `users/{uid}`: `active_session_id` = the new session, `updated_at` = server time, and `last_viewer_name` when a name is given.
@@ -200,7 +221,8 @@ A callable for the viewer page. The contract is `RedeemLinkTokenRequest` and `Re
   - The callable SDK sends the browser's current ID token. A browser that redeems again with its own sign-in for this session (a custom token whose `sid` matches) keeps its uid and its role.
   - So a refresh never turns the viewer into a watcher, adds a sign-in record, or counts as a new open.
   - Any other caller is a new browser: signed out, anonymous, the sharer's phone sign-in, or a sign-in for another session.
-- **The custom token** carries exactly `{sid, role}`. It's minted inside the transaction, for the role that transaction decides, so a token never goes out for a role that didn't commit. The page signs in with `signInWithCustomToken`, and the Auth user is created then.
+- **The custom token** carries exactly `{sid, role}`. Both possible tokens, viewer and watcher, are signed before the transaction, in parallel, and only the one for the role the transaction commits is returned; the other never leaves the function. So a token never goes out for a role that didn't commit, and a signing failure writes nothing. The page signs in with `signInWithCustomToken`, and the Auth user is created then.
+- **Nothing slow in the transaction.** The sharer's pings update the session doc every few seconds, and a transaction that read it holds it until it commits. Signing inside it (an IAM `signBlob` round trip in production) once timed out those locks and answered `internal`. Now the transaction is Firestore reads and writes only, like every other session transaction (`sessions/transactions.ts`), and contention that outlasts the Admin SDK's retries answers `unavailable` with `details: {reason: "busy"}`, never `internal`; the page tries again. Tested with a pinger sending the real ping batch every second while six browsers open and refresh in parallel.
 - **Returns** `{custom_token, session_id, role, can_share_back}`. `can_share_back` is true for the viewer while `share_back_allowed` and `call_active` are both true. The page follows the session doc for later changes.
 - **Ended.** A session that has stopped, or passed `stop_at` or `expires_at` (even before the scheduled stop marks it), fails with `failed-precondition` and `details: {reason: "session_ended", sharer}`. Nothing is minted or written, so nothing can read pings. The page shows "This location is no longer being shared" with the sharer's name and mascot. A page that's already open keeps its sign-in and can still read the session doc for its ended state.
 - **Bad tokens.** Every token that leads to no session gets the same `not-found` ("This link doesn't work.", no details): an unknown one, a malformed one (not 22 base64url characters), or one whose session is gone.
@@ -213,8 +235,61 @@ A callable for the viewer page. The contract is `RedeemLinkTokenRequest` and `Re
   - they can never read `private/meta`, `viewerSignIns`, `users` or another session;
   - only the viewer can write `viewerPings`.
 - **Not built yet.**
-  - The view alert (FSD §4 "View notification") is Sprint 2. It will be sent when `first_viewed_at` is first set, which redeem does exactly once, on the first open.
   - App Check and per-caller rate limits (Open questions 5). The 10-browser cap above bounds what one link can cost.
+- **The view alert** goes out from the viewer's `viewerSignIns` doc; see [Alerts](#alerts).
+
+## Alerts
+
+The view alert (FSD §4 "View notification"): when the link is first opened, the sharer's phones get "Mom opened your link". It lives in `src/alerts/`. The call-ended and expiry alerts (FSD §5) aren't built yet. They will plug into the same `deliverAlert`, each with its own `AlertSpec` (kind, setting, words).
+
+- **Trigger.** `sendLinkOpenedAlert` is a Firestore trigger on the creation of `shareSessions/{id}/viewerSignIns/{uid}`, and it acts only on role `viewer`. redeemLinkToken creates exactly one such doc per session, in the transaction that sets `first_viewed_at`. So a refresh, a reopen, a watcher or a link preview never alerts. A trigger on the session doc would run on every ping.
+- **When it isn't sent:**
+  - the session is over (stopped, or past `stop_at` or `expires_at`);
+  - `first_viewed_at` is null;
+  - the session, its meta or the profile is gone;
+  - the sharer's `settings.alert_link_opened` is off;
+  - the open was more than 10 minutes ago (`LINK_OPENED_MAX_AGE_MS`), which matters for a retried trigger.
+- **Words.** The prototype's, from `openLink` in `prototype/js/app.js`:
+  - title: "Mom opened your link", from `private/meta.viewer_name`, or "They opened your link" without a name;
+  - body: "You’re live on their map until your call ends." while `call_active`, otherwise "You’re live on their map."
+- **Transport.** FCM HTTP v1 (firebase-admin messaging, `sendEach`) on both platforms. iOS goes through FCM's APNs link, which needs the APNs auth key uploaded to FCM (x-decisions Q-ALERT-PUSH).
+- **On the emulators** and any `demo-` project, the sender only logs. Each alert appears in the functions log:
+  - `alert (emulator: logged, not sent)` with its title, body, data and the token's last 6 characters;
+  - then `alert sent` with the counts, and `sender: "log"`.
+- **Once, under retries** (x-decisions Q-ALERT-ONCE). The trigger is deployed with `retry: true` and a 60 s timeout. Each alert has a function-only marker, `shareSessions/{id}/alerts/link_opened` (the shared `AlertDelivery`):
+  - a claim transaction takes a 90 s lease before sending;
+  - a duplicate delivery finds the marker `sent` or `skipped` and does nothing;
+  - a delivery that finds the lease still running throws, so it's retried later;
+  - a retry after a send that partly failed goes only to the devices not yet in `delivered`;
+  - Android's `tag` and `collapseKey` and the APNs `apns-collapse-id` are all `link_opened:{sessionId}`, so a resend after a crash replaces the notification instead of stacking a second one.
+
+  The claim and finish transactions read `users/{uid}`, and deleteAccount deletes that doc before it lists a session's subcollections, so no marker outlives the account. Otherwise the marker goes with its session (the purge, deleteAccount, discardSession).
+- **What FCM's answer means** (`failureKind`):
+  - `registration-token-not-registered` or `invalid-registration-token`: the device doc is deleted (FSD §8 "when the token stops working"). The delete has a `lastUpdateTime` precondition, so a token the app rewrote meanwhile stays;
+  - `server-unavailable`, `internal-error`, the rate limits and `unknown-error`: that device is retried;
+  - anything else (`invalid-argument`, `mismatched-credential`, `third-party-auth-error`, …) is logged as an error, and the device is kept. A bad payload or credential fails for every token, so it's never a reason to delete them all.
+- **The device-token contract** for the apps (the shared `Device`; the rules check it):
+  - **Register** once signed in and once the profile exists (the rules refuse a device before that). Set `users/{uid}/devices/{deviceId}` to exactly `{platform, push_token, live_activity_start_token, updated_at: serverTimestamp()}`:
+    - `deviceId` is a UUID made once per install and kept in app storage;
+    - `push_token` is the FCM registration token: on Android `FirebaseMessaging.getInstance().token`, on iOS `Messaging.messaging().token()` once the APNs token has been passed to Messaging;
+    - `live_activity_start_token` is always null on Android.
+  - **Refresh.** Rewrite the doc on every launch while signed in, and whenever FCM issues a new token (`onNewToken` on Android, `messaging(_:didReceiveRegistrationToken:)` on iOS). `sweepRetention` deletes devices not rewritten for 270 days.
+  - **Sign out.** Delete the doc before signing out. Registering doesn't need the notification permission; without it, the phone just doesn't show the alert.
+- **The payload** (`message.ts`):
+  - `notification {title, body}`, and `data {type: "link_opened", session_id}`;
+  - Android:
+    - `priority: high`;
+    - `channelId: "link_opened"`. The app creates this channel, named "Link opened", at default importance (it alerts);
+    - `tag` and `collapseKey` `link_opened:{sessionId}`;
+    - `ttl` = the time left in the session;
+  - APNs:
+    - `apns-push-type: alert` and `apns-priority: 10`;
+    - `apns-expiration` = the session's end;
+    - `apns-collapse-id`;
+    - `aps.sound: default`, and `aps.thread-id` = the session id.
+- **Tap.** The app opens the live screen for `data.session_id` if that's still the active share, otherwise home.
+  - Android: in the background the system shows the notification, and the launcher activity gets `type` and `session_id` as intent extras. In the foreground, `onMessageReceived` gets the message and the app shows its own heads-up notification or snackbar.
+  - iOS: the data keys are top-level keys of `userInfo`.
 
 ## deleteAccount
 
@@ -259,14 +334,18 @@ Two terms the matrix uses:
 | `users/{uid}` | owner: get (and listen) | every client write: saveProfile and the session functions write it |
 | `users/{uid}/devices/{id}` | owner: get, delete; create and update only while `users/{uid}` exists (a deleted account's still-valid token can't bring a device back), as exactly the shared `Device` with `updated_at` = server time (no Live Activity token on Android) | list, anyone else |
 | `users/{uid}/trustedContacts/{id}` | nothing (v2) | |
-| `shareSessions/{id}` | owner: get. Viewer and watcher of that session: get, live or ended (for the ended state). Owner, while live: update only `last_ping_at` (= server time), `ping_interval_s` (0 < x ≤ 60), `precision` / `precision_next`, the stop rule fields (a timer in the future and never past `expires_at`; the limit is exactly `expires_at`; "when the call ends" only on a call share whose call hasn't ended) and `share_back_requested_at` (once, = server time, during the call, after the link was opened, with share back allowed). The viewer: update only `viewer_sharing`, to true while share back is open, to false at any time | list, create, delete; `status`, `ended_at`, `end_reason`, `call_active`, `call_ended_at` and every other field; watchers' writes |
+| `shareSessions/{id}` | owner: get. Viewer and watcher of that session: get, live or ended (for the ended state). Owner, while live: update only `last_ping_at` (= server time), `last_fix_at` (a timestamp, only forward, at most 60 s ahead), `ping_interval_s` (0 < x ≤ 60), `precision` / `precision_next`, the stop rule fields (a timer is `min(now + stop_minutes, expires_at)` within 60 s, in the future, never past `expires_at`, and exactly `expires_at` when now plus the minutes would pass it; the limit is exactly `expires_at`; "when the call ends" only on a call share whose call hasn't ended) and `share_back_requested_at` (once, = server time, during the call, after the link was opened, with share back allowed). The viewer: update only `viewer_sharing`, to true while share back is open, to false at any time | list, create, delete; `status`, `ended_at`, `end_reason`, `call_active`, `call_ended_at` and every other field; watchers' writes |
 | `.../private/meta` | owner: get; while live, update only `activity_push_token` | viewer and watcher; any other doc under `private` |
-| `.../pings/{id}` | owner: read at any time; create while live, exactly `{lat, lng, recorded_at, accuracy_m}` in range, with `accuracy_m` ≥ 500 while Approximate (judged with `getAfter()`, so a batch applying `precision_next` counts). Viewer and watcher: get and list while live | update, delete; viewer reads once the session is over |
-| `.../viewerPings/{id}` | owner: read. The viewer: create while share back is open and `viewer_sharing` is true as written in the same batch, exactly a ping | watchers, the sharer writing, update, delete |
+| `.../pings/{id}` | owner: read at any time; create while live (judged as the batch leaves the session), in one batch with the check-in (`last_ping_at` = server time) and `last_fix_at` = its `recorded_at` (x-decisions Q-PING-WRITE): exactly `{lat, lng, recorded_at, accuracy_m}`, `lat` −90…90, `lng` −180…180, `0 ≤ accuracy_m ≤ 100 000` (≥ 500 while Approximate, so a batch applying `precision_next` counts), `recorded_at` at most 60 s ahead of the server, at least 2 s after the session's `last_fix_at` (the first: at most 5 min before `started_at`), and an id of 1–64 `[A-Za-z0-9_-]`. Viewer and watcher: get and list while live | update, delete; viewer reads once the session is over; a ping alone, out of order, or under 2 s after the last |
+| `.../viewerPings/{id}` | owner: read. The viewer: create while share back is open and `viewer_sharing` is true as written in the same batch, exactly a ping with the same field and id bounds (no spacing yet) | watchers, the sharer writing, update, delete |
 | `.../viewerSignIns/{uid}`, `callLogs/{id}` | nothing: function-only | |
 | `mascots/{id}` | anyone, signed in or not: get and list | writes (seeded from the shared catalog) |
 
 The rules can't check the 500 m rounding of `lat` and `lng`; that stays on the phone.
+
+**Pings: order and rate** (x-decisions Q-PING-WRITE, constants in the shared schema). Each ping's `recorded_at` comes at least `MIN_PING_SPACING_SECONDS` (2) after the last, and at most `PING_CLOCK_SKEW_SECONDS` (60) ahead of the server. So pings arrive in order, a client can't write faster than one per 2 s beyond a 60 s burst (at most about 1 800 in a session's hour), and an offline backlog, which keeps its spacing, still lands. The FSD §7 cadence is 3–60 s. A retried batch that already landed is refused (its `recorded_at` isn't ahead of `last_fix_at` any more); the apps count that refusal as written when `last_fix_at` ≥ its `recorded_at`. The ping id is checked through `request.resource.id`: on a REST create that leaves the id to the server, the emulator can't evaluate the path's `{pingId}`.
+
+**Reading an ended session** (x-decisions Q-READ-ENDED). From the earlier of `stop_at` and `expires_at`, every reader treats the session as ended, even while `status` still says `active`: `end_reason` `limit` when that time is `expires_at`, otherwise `timer`, and `ended_at` that time, which is what the stop job writes. At that moment the rules refuse the viewer's ping reads (a live listener gets permission-denied) and every sharer write, and redeemLinkToken answers `session_ended`. The viewer keeps reading the session doc (status, end, sharer) and never a location.
 
 `rules.test.ts` has an allow test and a deny test for every path. Each kind of caller is covered: signed out, the sharer, another sharer, an anonymous sign-in with the sharer's uid, the viewer, a watcher, a viewer page of another session, a page posing as the viewer, and viewer claims on a non-custom sign-in. It also tests sessions that are stopped, past `expires_at` or past `stop_at`. Its seed docs are checked against the shared schema. Backend A's `redeemLinkToken.test.ts` repeats the viewer checks with real minted tokens.
 
@@ -283,16 +362,51 @@ Every path that ends a session goes through `sessions/end.ts`, which does three 
 | `reportCallActive {session_id, call_id}` | After a signal gap, while the same call is connected: `call_active` true again and a check-in. Never once `call_ended_at` is set. Idempotent. | `session_ended`, `no_call`, `call_mismatch`, `call_ended` |
 | `discardSession {session_id}` | The share sheet closed without a choice: deletes the session, meta, pings and the call log, and clears the pointer. If the final delete fails, what's left is an ended session the jobs remove. | `link_opened` |
 
-**Scheduled functions.** Each one is idempotent, pages through its query 100 docs at a time with a cursor, and runs one transaction per session, so one failure doesn't stop the rest; a run with failures throws, and the next run retries. Each uses Cloud Scheduler's `scheduleTime` as its clock. The Functions emulator doesn't run them (there's no Pub/Sub emulator), so `lifecycle.test.ts` calls each handler directly with `.run({scheduleTime})`.
+**Scheduled functions.** Each one is idempotent, pages through its query 100 docs at a time with a cursor, and runs one transaction per session, so one failure doesn't stop the rest; a run with failures throws, and the next run retries. Each uses Cloud Scheduler's `scheduleTime` as its clock. The Functions emulator doesn't run them (there's no Pub/Sub emulator), so `lifecycle.test.ts` calls each handler directly with `.run({scheduleTime})`, and on the dev set the dev scheduler runs them.
 
 | Function | Schedule | What it does |
 | --- | --- | --- |
 | `stopDueSessions` | every minute | Ends active sessions past `expires_at` (`limit`) or `stop_at` (`timer`), at that time. |
 | `callWatchdog` | every 2 minutes | `last_ping_at` over 2 minutes old: `call_active` and `viewer_sharing` false. A call-rule session 10 minutes after that (12 minutes without a check-in): ends as `call`. |
-| `cleanupEndedSessions` | every 15 minutes | 24 h after the end: deletes the viewer and watcher Auth users recorded in `viewerSignIns` (deleteUsers, 1000 a call, a second apart), then `pings`, `viewerPings` and `viewerSignIns`, and sets the session's `cleaned_at`. Each run takes stopped sessions with `cleaned_at` null and `ended_at` at least 24 h ago, so a session ended late, with `ended_at` set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK). |
+| `cleanupEndedSessions` | every 15 minutes | 24 h after the end: deletes the viewer and watcher Auth users recorded in `viewerSignIns` (deleteUsers, 1000 a call, a second apart), then `pings`, `viewerPings` and `viewerSignIns`, and sets the session's `cleaned_at`. Each run takes stopped sessions with `cleaned_at` null and `ended_at` at least 24 h ago, so a session ended late, with `ended_at` set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK). It also clears `private/meta.activity_push_token`. |
 | `purgeEndedSessions` | every hour | 30 days after the end: deletes the session with everything under it, and `callLogs/{id}`, plus any viewer Auth user still left. |
+| `sweepRetention` | every 24 hours | The retention backstop; see [Retention](#retention). |
 
 The queries use the composite indexes in `firestore.indexes.json`: `(status, expires_at)`, `(status, stop_at)`, `(status, call_active, last_ping_at)`, `(status, stop_rule, last_ping_at)`, `(status, cleaned_at, ended_at)` and `(status, ended_at)`.
+
+### The dev scheduler
+
+`scripts/dev-scheduler.sh` (`functions/scripts/dev-scheduler.mjs`) runs the scheduled functions against the dev set, so dev sessions end at their timer and at the 1-hour limit, as they will in production. `./run.sh` starts it with the dev emulators and stops it with them; to add it to a dev set that's already up, run `code/backend/scripts/dev-scheduler.sh`.
+
+- It runs the compiled handlers from `functions/lib`, as `lifecycle.test.ts` does, with `scheduleTime` = now: `stopDueSessions` every tick (`--interval`, default 5 s, or `DEV_SCHEDULER_INTERVAL_S`), `callWatchdog` every 2 minutes, `cleanupEndedSessions` every 15, `purgeEndedSessions` every hour and `sweepRetention` every 24 hours, all of them on the first tick. `--once` runs one tick.
+- It prints one line per change, such as `12:04:05 session <id> ended (end_reason: limit, the 1-hour limit)`; the jobs' info tallies are left out, their warnings and errors shortened.
+- When `functions/lib/index.js` is rebuilt, it exits with status 75 once the build has settled, and the launcher starts it again on the new code. If lib doesn't load (a broken build), it waits for the next build.
+- It refuses to start off the emulators: the project must be a `demo-` one, and `FIRESTORE_EMULATOR_HOST` and `FIREBASE_AUTH_EMULATOR_HOST` must be set. It refuses the test project too, whose tests run the handlers themselves; `--allow-test-project` is only for its own test.
+- If Firestore stops answering, it says so once and carries on when it's back.
+
+## Retention
+
+FSD §8 Retention, rule by rule, and what enforces it. Audited in Sprint 2; `tests/src/retention.test.ts` tests each window exactly at its boundary and a millisecond short of it.
+
+| FSD rule | Enforced by | Window |
+| --- | --- | --- |
+| Pings and viewer pings: deleted 24 h after the session ends | `cleanupEndedSessions`, through the session doc. `sweepRetention` deletes any left under a session doc that's gone | `ended_at` ≤ run − 24 h. Left behind: `recorded_at` ≤ run − 25 h |
+| Viewer sign-ins (one Auth user per browser): deleted with the session's cleanup | The same two jobs. The Auth user goes before its `viewerSignIns` doc, the only record of its uid | As above. Left behind: `created_at` ≤ run − 25 h |
+| Session metadata: kept 30 days, then purged | `purgeEndedSessions`: the session doc, `private/meta`, `alerts`, and everything else under it | `ended_at` ≤ run − 30 d |
+| Call logs: kept 30 days | `purgeEndedSessions` deletes `callLogs/{id}` with its session. `sweepRetention` deletes one whose session is gone | Left behind: `call_time` ≤ run − 30 d − 1 h |
+| Device push tokens: deleted at sign-out or when they stop working | The app deletes its doc at sign-out. An alert deletes a token FCM rejects. `sweepRetention` deletes devices not rewritten for 270 days, after which FCM treats a token as expired | `updated_at` ≤ run − 270 d |
+| The session's Live Activity token (not in the FSD's list; it stops working when the session ends) | `cleanupEndedSessions` sets `private/meta.activity_push_token` to null | At the 24 h cleanup |
+| Deleting the account overrides all of the above | `deleteAccount` | At once |
+
+- **sweepRetention** runs every 24 hours, as the backstop. The cleanup and the purge find their work through session docs. This job finds what a deletion that stopped part way can leave, such as discardSession's last step or a deleteAccount run that wasn't repeated.
+  - Its 25 h and 30 d + 1 h windows are the retention plus the 1-hour session limit, so nothing that's still within retention is old enough to match.
+  - It still reads each parent session. It keeps data whose session is live or ended more recently, because a phone whose clock is behind writes old `recorded_at` values.
+  - Its collection-group queries use the field overrides in `firestore.indexes.json`: `pings.recorded_at`, `viewerPings.recorded_at`, `viewerSignIns.created_at` and `devices.updated_at`. Each override keeps the collection-scope indexes.
+  - Each of its four sweeps runs even if another fails, and the run then throws.
+- **Overlap.** Every job is safe to run twice, or at the same time as another.
+  - A write whose doc another job or the app already deleted or changed is skipped, not counted as a failure (`unlessGoneOrChanged` in `jobs/run.ts`). Examples: the cleanup marking a session the purge just deleted, or the sweep deleting a stale device the app just rewrote.
+  - Deletes go through one BulkWriter per run, which batches and paces them under Firestore's limits, and pages are 100 docs.
+- **Not location data, so kept until the 30-day purge:** the session doc (`last_ping_at` is a time, not a place), `private/meta`, and the alert marker.
 
 ## When the real project exists
 

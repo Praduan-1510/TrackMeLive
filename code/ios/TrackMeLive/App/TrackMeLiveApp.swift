@@ -27,6 +27,7 @@ struct TrackMeLiveApp: App {
                 }
                 .onAppear {
                     OpenShareIntent.onRoute = { [model] route in model.open(route) }
+                    appDelegate.model = model
                 }
         }
     }

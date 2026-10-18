@@ -13,12 +13,16 @@
 #   repo       secrets scan, unicode scan (invisible and bidi characters), generated files,
 #              style (.editorconfig), shell lint, workflow lint
 #   shared     shared check (tokens and schema are current)
-#   viewer     lint, typecheck, unit tests, build, e2e (each when package.json has the script)
+#   viewer     lint, typecheck, unit tests, build, e2e (each when package.json has the script); live e2e
+#              (real sessions on the backend's test emulators; SKIP without JDK 21)
 #   backend    lint, typecheck, test.sh (rules and functions tests on the Firebase emulators)
 #   ios        typecheck, Firebase typecheck, core tests (Command Line Tools); Xcode build and
 #              simulator tests;
 #              locally all on a private snapshot (code/qa/ios-snapshot.sh), as the iOS agents edit
 #   android    lint, unit tests, assembleDebug; instrumented tests on a running emulator
+#   qa         the QA harness (code/qa: routes, fake sharer, sharing e2e): routes current, typecheck,
+#              unit tests; the Gate G2 sharing e2e (Chrome follows a fake sharer) on the Firebase
+#              test emulators; the Android share scenario only with TML_ANDROID_E2E=1, never in CI
 #   prototype  the click-through prototype's browser suite, when something it loads changed
 #              (prototype/, design-system tokens and assets, brand/logo, mascots/model), or when
 #              named with --only prototype
@@ -42,7 +46,7 @@ CODE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_DIR="$(cd "${CODE_DIR}/.." && pwd -P)"
 QA_DIR="${CODE_DIR}/qa"
 LOCK="${CODE_DIR}/scripts/with-lock.sh"
-CODEBASES="repo shared viewer backend ios android prototype"
+CODEBASES="repo shared viewer backend ios android qa prototype"
 IN_CI=0
 [[ "${GITHUB_ACTIONS:-}" == true ]] && IN_CI=1
 
@@ -260,6 +264,31 @@ step_viewer_e2e() {
   (( fast )) && skip "--fast"
   viewer_script e2e test:e2e e2e
 }
+# A JDK 21 or newer, found the way code/backend/scripts/env.sh finds one (the emulators need it).
+jdk21() {
+  local home="${EMULATOR_JAVA_HOME:-}" java major
+  if [[ -z "${home}" && -x /usr/libexec/java_home ]]; then home="$(/usr/libexec/java_home -v 21+ 2>/dev/null || true)"; fi
+  [[ -z "${home}" ]] && home="${JAVA_HOME:-}"
+  java="${home:+${home}/bin/java}"
+  [[ -n "${java}" && -x "${java}" ]] || java="$(command -v java || true)"
+  [[ -n "${java}" ]] || return 1
+  major="$("${java}" -version 2>&1 | sed -nE '1s/.*version "([0-9]+).*/\1/p')"
+  [[ -n "${major}" && "${major}" -ge 21 ]]
+}
+# Real sessions on the backend's test emulator set, through its wrapper (which reuses this gate's
+# firebase lock). Each test makes its own sharer and session there.
+step_viewer_live_e2e() {
+  (( fast )) && skip "--fast (the live e2e needs the Firebase emulators)"
+  [[ -f "${VIEWER}/package.json" ]] || skip "no code/viewer/package.json"
+  has_script "${VIEWER}" test:e2e:live || skip "code/viewer/package.json has no test:e2e:live script"
+  local wrapper="${CODE_DIR}/backend/scripts/with-test-emulators.sh"
+  [[ -x "${wrapper}" ]] || skip "no code/backend/scripts/with-test-emulators.sh"
+  jdk21 || skip "JDK 21 not found (the Firebase emulators need it; see code/backend/README.md)"
+  # No disk floor here: it writes only a temporary build and screenshots (a few MB).
+  node_deps "${VIEWER}"
+  echo "==> with-test-emulators.sh npm run test:e2e:live"
+  locked firebase "${wrapper}" npm --prefix "${VIEWER}" run --silent test:e2e:live
+}
 
 # ---------------------------------------------------------------------------------------------
 # Steps: backend
@@ -407,7 +436,59 @@ step_android_device() {
   [[ -n "${serial}" ]] || skip "no emulator online (code/android/run.sh boots Pixel_9)"
   echo "==> on ${serial}"
   export ANDROID_SERIAL="${serial}"
-  GRADLE_LOCKS="emulator,gradle" run_gradle connectedDebugAndroidTest
+  # Leave the app installed afterwards: the emulator is the one people watch, and the sharing e2e
+  # (qa android e2e) starts from the installed app. AGP uninstalls it after the run by default.
+  GRADLE_LOCKS="emulator,gradle" run_gradle connectedDebugAndroidTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
+}
+
+# ---------------------------------------------------------------------------------------------
+# Steps: qa (code/qa: simulated routes, the fake sharer, the Gate G2 sharing e2e)
+# ---------------------------------------------------------------------------------------------
+QA_SHARER="${QA_DIR}/fake-sharer"
+QA_E2E="${QA_DIR}/e2e-sharing"
+step_qa_typecheck() {
+  [[ -f "${QA_SHARER}/package.json" && -f "${QA_E2E}/package.json" ]] || skip "no code/qa/fake-sharer or code/qa/e2e-sharing"
+  node_deps "${QA_SHARER}"
+  node_deps "${QA_E2E}"
+  echo "==> the route files are what build-routes.ts makes"
+  node "${QA_DIR}/routes/build-routes.ts" --check
+  echo "==> tsc: routes and fake sharer"
+  npm --prefix "${QA_SHARER}" run --silent typecheck
+  echo "==> tsc: sharing e2e"
+  npm --prefix "${QA_E2E}" run --silent typecheck
+}
+step_qa_unit() {
+  [[ -f "${QA_SHARER}/package.json" ]] || skip "no code/qa/fake-sharer"
+  node_deps "${QA_SHARER}"
+  npm --prefix "${QA_SHARER}" run --silent test
+}
+# The Gate G2 browser scenarios and the ping-rule checks, on the test emulator set (its own project
+# and ports, wiped per run), with the page served by their own Vite server. Never the dev set.
+step_qa_e2e() {
+  (( fast )) && skip "--fast (starts the Firebase test emulators and Chrome)"
+  [[ -f "${QA_E2E}/package.json" ]] || skip "no code/qa/e2e-sharing"
+  [[ -x "${BACKEND}/scripts/with-test-emulators.sh" ]] || skip "no code/backend/scripts/with-test-emulators.sh"
+  [[ -d "/Applications/Google Chrome.app" ]] || command -v google-chrome > /dev/null || skip "needs Google Chrome"
+  require_disk
+  node_deps "${QA_SHARER}"
+  node_deps "${QA_E2E}"
+  node_deps "${VIEWER}"
+  locked firebase "${BACKEND}/scripts/with-test-emulators.sh" npm --prefix "${QA_E2E}" run --silent test
+}
+# Drives the app on the emulator (it clears the app's data) against the dev emulator set, so it runs
+# only when asked for. It holds the emulator lock for the whole scenario (about 2 minutes), so nothing
+# else can install or drive the emulator between its steps; TML_EMULATOR_LOCK_HELD tells its own adb
+# calls not to take the lock again.
+step_qa_android() {
+  (( fast )) && skip "--fast (needs the Android emulator)"
+  (( IN_CI )) && skip "needs the Android emulator; local only"
+  [[ "${TML_ANDROID_E2E:-0}" == 1 ]] || skip "set TML_ANDROID_E2E=1 to run it (it clears the app's data, so it needs the emulator to itself)"
+  [[ -f "${QA_E2E}/package.json" ]] || skip "no code/qa/e2e-sharing"
+  node_deps "${QA_SHARER}"
+  node_deps "${QA_E2E}"
+  node_deps "${VIEWER}"
+  locked emulator env TML_EMULATOR_LOCK_HELD=1 npm --prefix "${QA_E2E}" run --silent test:android:held
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -494,6 +575,7 @@ STEPS=(
   "viewer|viewer unit tests|step_viewer_unit"
   "viewer|viewer build|step_viewer_build"
   "viewer|viewer e2e|step_viewer_e2e"
+  "viewer|viewer live e2e|step_viewer_live_e2e"
   "backend|backend lint|step_backend_lint"
   "backend|backend typecheck|step_backend_typecheck"
   "backend|backend test|step_backend_test"
@@ -506,6 +588,10 @@ STEPS=(
   "android|android unit tests|step_android_unit"
   "android|android assemble|step_android_assemble"
   "android|android device tests|step_android_device"
+  "qa|qa typecheck|step_qa_typecheck"
+  "qa|qa unit tests|step_qa_unit"
+  "qa|qa sharing e2e|step_qa_e2e"
+  "qa|qa android e2e|step_qa_android"
   "prototype|prototype suite|step_prototype"
 )
 

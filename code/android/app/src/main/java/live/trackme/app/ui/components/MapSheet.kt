@@ -50,7 +50,8 @@ object MapSheetDefaults {
 /**
  * The sheet over the map on Android (prototype `.a-bsheet`): an opaque `surface` sheet with 28dp top
  * corners and a hairline edge, holding the session's title (with an optional badge), one line under
- * it, the content (stat tiles, person rows) and up to two actions. The content scrolls when it
+ * it (and [headExtra], such as the 1-hour warning), the content (stat tiles, person rows) and up to
+ * two actions. The content scrolls when it
  * outgrows the sheet; the actions stay pinned at its bottom, above the navigation bar, so Stop
  * sharing is always reachable. Callers cap its height (about half the screen at rest).
  */
@@ -61,6 +62,7 @@ fun MapSheet(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     badge: (@Composable () -> Unit)? = null,
+    headExtra: (@Composable () -> Unit)? = null,
     actions: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -101,6 +103,7 @@ fun MapSheet(
                         badge?.invoke()
                     }
                     if (subtitle != null) Text(subtitle, style = TmlTheme.type.callout, color = c.inkSecondary)
+                    headExtra?.invoke()
                 }
                 content()
                 if (actions == null) Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))

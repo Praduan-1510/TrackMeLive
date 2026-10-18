@@ -15,14 +15,12 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
@@ -38,11 +36,19 @@ class FirebaseAuthRepository(
     private val currentActivity: () -> Activity?,
 ) : AuthRepository {
 
-    override val userId: StateFlow<String?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { trySend(it.currentUser?.uid) }
-        auth.addAuthStateListener(listener)
-        awaitClose { auth.removeAuthStateListener(listener) }
-    }.stateIn(scope, SharingStarted.Eagerly, auth.currentUser?.uid)
+    // Settled at each transition, not only when Firebase's listener gets round to it: signIn and signOut
+    // set it as soon as FirebaseAuth.currentUser has changed (synchronously, once signInWithCredential
+    // completes), so nothing that runs right after them sees the old value. The listener (posted to the
+    // main thread, so it can trail) covers changes made elsewhere, such as a revoked sign-in, and always
+    // reads currentUser itself, so a late event never brings back a stale value.
+    private val user = MutableStateFlow(auth.currentUser?.uid)
+    override val userId: StateFlow<String?> = user.asStateFlow()
+
+    init {
+        auth.addAuthStateListener { user.value = it.currentUser?.uid }
+    }
+
+    override fun currentUserId(): String? = auth.currentUser?.uid
 
     private val retrieved = MutableSharedFlow<String>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val retrievedCodes: Flow<String> = retrieved.asSharedFlow()
@@ -103,11 +109,12 @@ class FirebaseAuthRepository(
     }
 
     private suspend fun signIn(credential: PhoneAuthCredential): VerifyCodeResult = try {
-        val user = auth.signInWithCredential(credential).await().user
-        if (user != null) {
+        val signedIn = auth.signInWithCredential(credential).await().user
+        if (signedIn != null) {
             verificationId = null
             resendToken = null
-            VerifyCodeResult.SignedIn(user.uid)
+            user.value = signedIn.uid
+            VerifyCodeResult.SignedIn(signedIn.uid)
         } else {
             VerifyCodeResult.Failed(VerifyFailure.Other)
         }
@@ -122,6 +129,7 @@ class FirebaseAuthRepository(
         verificationId = null
         resendToken = null
         auth.signOut()
+        user.value = null
     }
 
     internal companion object {

@@ -28,8 +28,8 @@ import {
 } from "./emulators.ts";
 
 const HOUR_MS = 3_600_000;
-// functions/.env.demo-trackmelive
-const VIEWER_ORIGIN = "http://127.0.0.1:5050";
+// functions/.env.demo-trackmelive, which scripts/env.sh copies for the test project
+const VIEWER_ORIGIN = "http://localhost:5173";
 
 let app: App;
 let db: Firestore;
@@ -136,6 +136,17 @@ describe("createSession: input validation", () => {
     ["a viewer name with a text-direction override", { ...manualShare, viewer_name: "Mom\u202E" }],
     ["a viewer name of only zero-width characters", { ...manualShare, viewer_name: "\u200B\u200D" }],
     ["a missing call_id", { stop_rule: "limit", stop_minutes: null, share_back_allowed: false, precision: "precise" }],
+    ["minutes with the limit rule", { ...manualShare, stop_rule: "limit", stop_minutes: 60 }],
+    ["minutes as a string", { ...manualShare, stop_minutes: "30" }],
+    ["an empty call_id", { ...manualShare, call_id: "" }],
+    ["a blank call_id", { ...manualShare, call_id: "   " }],
+    ["a call_id over 128 characters", { ...manualShare, call_id: "c".repeat(129) }],
+    ["share back as a string", { ...manualShare, share_back_allowed: "true" }],
+    // The server sets the times and the 1-hour limit; a client can't send its own.
+    ["its own expires_at", { ...manualShare, expires_at: Date.now() + 2 * HOUR_MS }],
+    ["its own started_at", { ...manualShare, started_at: Date.now() - HOUR_MS }],
+    ["its own stop_at", { ...manualShare, stop_at: Date.now() + 2 * HOUR_MS }],
+    ["an array", [manualShare]],
   ];
   for (const [label, data] of bad) {
     it(`rejects ${label}`, async () => {
@@ -148,6 +159,14 @@ describe("createSession: input validation", () => {
     const r = await create({ stop_rule: "call", stop_minutes: null, call_id: null, share_back_allowed: "yes", precision: "?" });
     const fields = !r.ok ? (r.details as { errors: { field: string }[] }).errors.map((e) => e.field) : [];
     assert.deepEqual(fields.sort(), ["precision", "share_back_allowed", "stop_rule"]);
+  });
+
+  it("takes a call_id of exactly 128 characters, and a blank viewer name as none", async () => {
+    const res = ok(await create({ ...manualShare, call_id: "c".repeat(128), stop_rule: "call", stop_minutes: null, viewer_name: "   " }));
+    const s = await sessionOf(res.session_id);
+    assert.equal(s.call_id, "c".repeat(128));
+    const meta = await db.doc(`shareSessions/${res.session_id}/private/meta`).get();
+    assert.equal(meta.get("viewer_name"), null);
   });
 
   it("accepts a 24-character name, counting an emoji as one character", async () => {
@@ -195,6 +214,7 @@ describe("createSession: what it writes", () => {
     assert.equal(s.call_ended_at, null);
     assert.equal(s.share_back_allowed, false);
     assert.equal(s.last_ping_at.toMillis(), res.started_at);
+    assert.equal(s.last_fix_at, null);
     assert.equal(s.ping_interval_s, INITIAL_PING_INTERVAL_SECONDS);
     assert.equal(s.precision, "precise");
     assert.equal(s.precision_next, null);

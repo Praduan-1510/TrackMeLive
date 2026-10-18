@@ -56,6 +56,8 @@ fun TmlTextField(
     helper: String? = null,
     error: String? = null,
     leading: (@Composable () -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    placeholder: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
@@ -94,6 +96,8 @@ fun TmlTextField(
                     isError = isError,
                     label = { Text(label) },
                     leadingIcon = leading,
+                    trailingIcon = trailing,
+                    placeholder = placeholder?.let { { Text(it) } },
                     supportingText = when {
                         error != null -> { { FieldMessage(error, isError = true) } }
                         helper != null -> { { FieldMessage(helper, isError = false) } }
@@ -165,6 +169,11 @@ private fun tmlTextFieldColors(): TextFieldColors {
         focusedLeadingIconColor = c.ink,
         unfocusedLeadingIconColor = c.ink,
         errorLeadingIconColor = c.ink,
+        focusedTrailingIconColor = c.inkSecondary,
+        unfocusedTrailingIconColor = c.inkSecondary,
+        errorTrailingIconColor = c.inkSecondary,
+        focusedPlaceholderColor = c.inkSecondary,
+        unfocusedPlaceholderColor = c.inkSecondary,
         focusedSupportingTextColor = c.inkSecondary,
         unfocusedSupportingTextColor = c.inkSecondary,
         errorSupportingTextColor = c.ink,

@@ -4,6 +4,16 @@
     <!-- Firebase: Auth, Firestore and Functions. Firebase's own manifests add ACCESS_NETWORK_STATE. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Sharing (FSD §8): location While using the app, asked on the first share. Never
+         ACCESS_BACKGROUND_LOCATION: the location foreground service, started in the app, keeps the
+         share going in the background. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- The ongoing notification and the alerts (Android 13+), asked after the first link is sent. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".TrackMeLiveApplication"
         android:allowBackup="false"
@@ -21,6 +31,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Runs only while a share is live, and keeps going when the app is swiped away. -->
+        <service
+            android:name=".service.LocationSharingService"
+            android:exported="false"
+            android:foregroundServiceType="location"
+            android:stopWithTask="false" />
+        <!-- FCM: a new push token, and the link-opened alert while the app is open. -->
+        <service
+            android:name=".service.TmlMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- Google Maps (the live map). The key comes from local.properties (MAPS_API_KEY) and is never
+             committed; when it's empty the app draws its keyless map instead. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
     </application>
 
 </manifest>

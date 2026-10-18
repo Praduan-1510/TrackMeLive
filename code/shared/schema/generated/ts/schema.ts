@@ -87,6 +87,12 @@ export const MASCOT_ACCESSORY_VALUES = ["headphones", "glasses", "headlamp"] as 
 export type MascotAccessory = (typeof MASCOT_ACCESSORY_VALUES)[number];
 export const isMascotAccessory = (value: unknown): value is MascotAccessory => (MASCOT_ACCESSORY_VALUES as readonly unknown[]).includes(value);
 
+/** shareSessions/{sessionId}/alerts doc ids: which alert (FSD §4 View notification). link_opened only in v1; call_ended and expiry come later. */
+export const ALERT_KIND_VALUES = ["link_opened"] as const;
+/** shareSessions/{sessionId}/alerts doc ids: which alert (FSD §4 View notification). link_opened only in v1; call_ended and expiry come later. */
+export type AlertKind = (typeof ALERT_KIND_VALUES)[number];
+export const isAlertKind = (value: unknown): value is AlertKind => (ALERT_KIND_VALUES as readonly unknown[]).includes(value);
+
 // ---------- Documents and payloads ----------
 
 /** users.settings: the app settings (FSD §4 Settings), restored when signing in on a new phone. New accounts start with the defaults below, as in the prototype (x-decisions Q-SETTINGS). */
@@ -153,7 +159,7 @@ export interface User<TTime = FirestoreTimestamp> {
 export interface Device<TTime = FirestoreTimestamp> {
   /** ios or android. */
   platform: DevicePlatform;
-  /** The APNs (iOS) or FCM (Android) token for alerts (FSD §5). */
+  /** The FCM registration token, on both platforms (on iOS, FCM delivers through APNs; FSD §5; x-decisions Q-ALERT-PUSH). */
   push_token: string;
   /** iOS only: the Live Activity push-to-start token. Null on Android or until iOS issues one. */
   live_activity_start_token: string | null;
@@ -197,6 +203,8 @@ export interface ShareSession<TTime = FirestoreTimestamp> {
   share_back_allowed: boolean;
   /** The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING). */
   last_ping_at: TTime;
+  /** recorded_at of the newest ping; null until the first one. The sharer's app writes it in the same batch as each ping, with the check-in, and firestore.rules hold every ping to it: recorded_at at least MIN_PING_SPACING_SECONDS (2) after it, which keeps pings in order and bounds how fast they're written (x-decisions Q-PING-WRITE). createSession writes null. Optional only so sessions started before it existed still read; treat a missing field as null. Not for display: Last seen uses the newest ping's recorded_at. */
+  last_fix_at?: TTime | null;
   /** The ping interval in use, in seconds (e.g. 3.5). createSession writes 5; the sharer's app overwrites it with the interval actually in use and whenever it changes with the battery steps: 3–5 above 20%, 15 from 20% to 10%, 60 under 10% (x-decisions Q-PING-INTERVAL-INIT). */
   ping_interval_s: number;
   /** The precision of the pings being written now. */
@@ -229,7 +237,7 @@ export interface SessionPrivateMeta {
   activity_push_token: string | null;
 }
 
-/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at. Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
+/** One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, 0 ≤ accuracy_m ≤ MAX_ACCURACY_METERS, recorded_at no later than server time + PING_CLOCK_SKEW_SECONDS, a doc id of 1 to PING_ID_MAX_LENGTH characters [A-Za-z0-9_-], on a session that is active and before both stop_at and expires_at. The sharer's pings also go in one batch with the session's check-in and last_fix_at, in order and at least 2 s apart (x-decisions Q-PING-WRITE). Firestore: shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}. TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
 export interface Ping<TTime = FirestoreTimestamp> {
   /** Latitude, WGS 84 degrees. */
   lat: number;
@@ -259,6 +267,24 @@ export interface ViewerSignIn<TTime = FirestoreTimestamp> {
   role: ViewerRole;
   /** Server timestamp of the first redeem by this uid. */
   created_at: TTime;
+}
+
+/** Function-only: makes each alert fire once per session, however often its trigger runs (x-decisions Q-ALERT-ONCE). Deleted with the session (30-day purge, deleteAccount, discardSession). Firestore: shareSessions/{sessionId}/alerts/{kind}. TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
+export interface AlertDelivery<TTime = FirestoreTimestamp> {
+  /** Which alert; also the doc id. */
+  kind: AlertKind;
+  /** sending while an attempt holds lease_until or a retry is due; sent once every device was tried; skipped when the user's alert setting was off. */
+  state: string;
+  /** users/{userId}/devices ids FCM accepted the alert for, so a retry never sends to them twice. */
+  delivered: string[];
+  /** Attempts that claimed the alert. */
+  attempts: number;
+  /** Until then an attempt is in flight and no other may send. */
+  lease_until: TTime;
+  /** When the first attempt claimed it. */
+  created_at: TTime;
+  /** Server timestamp of the last change. */
+  updated_at: TTime;
 }
 
 /** Links a call to the session it started with; kept 30 days like session metadata (FSD §6, §8). createSession writes it for a call-triggered share, in the same transaction, with callLogId = the session id (each session has at most one call), and the 30-day purge deletes it with the session. Clients can't read or write it (x-decisions Q-CALLLOG-ID). Firestore: callLogs/{callLogId}. TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
@@ -474,6 +500,7 @@ export const COLLECTION_TEMPLATES = {
   ping: "shareSessions/{sessionId}/pings/{pingId}",
   viewerPing: "shareSessions/{sessionId}/viewerPings/{pingId}",
   viewerSignIn: "shareSessions/{sessionId}/viewerSignIns/{viewerUid}",
+  alertDelivery: "shareSessions/{sessionId}/alerts/{kind}",
   mascot: "mascots/{mascotId}",
   callLog: "callLogs/{callLogId}",
 } as const;
@@ -488,6 +515,7 @@ export const docPaths = {
   ping: (sessionId: string, pingId: string): string => `shareSessions/${sessionId}/pings/${pingId}`,
   viewerPing: (sessionId: string, pingId: string): string => `shareSessions/${sessionId}/viewerPings/${pingId}`,
   viewerSignIn: (sessionId: string, viewerUid: string): string => `shareSessions/${sessionId}/viewerSignIns/${viewerUid}`,
+  alertDelivery: (sessionId: string, kind: string): string => `shareSessions/${sessionId}/alerts/${kind}`,
   mascot: (mascotId: string): string => `mascots/${mascotId}`,
   callLog: (callLogId: string): string => `callLogs/${callLogId}`,
 } as const;
@@ -502,6 +530,7 @@ export const collectionPaths = {
   ping: (sessionId: string): string => `shareSessions/${sessionId}/pings`,
   viewerPing: (sessionId: string): string => `shareSessions/${sessionId}/viewerPings`,
   viewerSignIn: (sessionId: string): string => `shareSessions/${sessionId}/viewerSignIns`,
+  alertDelivery: (sessionId: string): string => `shareSessions/${sessionId}/alerts`,
   mascot: (): string => `mascots`,
   callLog: (): string => `callLogs`,
 } as const;
@@ -528,6 +557,16 @@ export const WATCHDOG_TIMEOUT_SECONDS = 120;
 export const CALL_STOP_GRACE_MINUTES = 10;
 /** Never fewer than 1 ping per 60 s while active. (FSD §4 Battery-aware pings, §7) */
 export const MAX_PING_INTERVAL_SECONDS = 60;
+/** firestore.rules: each ping's recorded_at is at least 2 s after the previous one's (shareSessions.last_fix_at). The fastest cadence is a ping every 3 s, so 1 s of jitter is allowed. (FSD §4 Battery-aware pings, §7; x-decisions Q-PING-WRITE) */
+export const MIN_PING_SPACING_SECONDS = 2;
+/** firestore.rules: a ping's recorded_at may be at most 60 s ahead of the server's time (pings and viewerPings). (FSD §7; x-decisions Q-PING-WRITE) */
+export const PING_CLOCK_SKEW_SECONDS = 60;
+/** firestore.rules: a session's first ping may be recorded at most 5 minutes before started_at (a fix taken just before Share, or a phone clock a little behind). (FSD §7; x-decisions Q-PING-WRITE) */
+export const FIRST_PING_BEFORE_START_MINUTES = 5;
+/** firestore.rules: accuracy_m is at most 100 km (pings and viewerPings); anything coarser isn't a location. (FSD §6; x-decisions Q-PING-WRITE) */
+export const MAX_ACCURACY_METERS = 100000;
+/** firestore.rules: ping and viewer ping doc ids are 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids (20 characters) fit. (FSD §6; x-decisions Q-PING-WRITE) */
+export const PING_ID_MAX_LENGTH = 64;
 /** From 20% to 10% battery. (FSD §4 Battery-aware pings) */
 export const PING_INTERVAL_LOW_BATTERY_SECONDS = 15;
 /** Under 10% battery. (FSD §4 Battery-aware pings) */
@@ -1012,6 +1051,16 @@ export const SCHEMA_DEFS = {
       "last_ping_at": {
         "$ref": "#/$defs/Timestamp"
       },
+      "last_fix_at": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Timestamp"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
       "ping_interval_s": {
         "type": "number",
         "exclusiveMinimum": 0,
@@ -1149,7 +1198,8 @@ export const SCHEMA_DEFS = {
       },
       "accuracy_m": {
         "type": "number",
-        "minimum": 0
+        "minimum": 0,
+        "maximum": 100000
       },
       "recorded_at": {
         "$ref": "#/$defs/Timestamp"
@@ -1204,6 +1254,57 @@ export const SCHEMA_DEFS = {
     "required": [
       "role",
       "created_at"
+    ],
+    "additionalProperties": false
+  },
+  "AlertKind": {
+    "type": "string",
+    "enum": [
+      "link_opened"
+    ]
+  },
+  "AlertDelivery": {
+    "type": "object",
+    "properties": {
+      "kind": {
+        "$ref": "#/$defs/AlertKind"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "sending",
+          "sent",
+          "skipped"
+        ]
+      },
+      "delivered": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "attempts": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "lease_until": {
+        "$ref": "#/$defs/Timestamp"
+      },
+      "created_at": {
+        "$ref": "#/$defs/Timestamp"
+      },
+      "updated_at": {
+        "$ref": "#/$defs/Timestamp"
+      }
+    },
+    "required": [
+      "kind",
+      "state",
+      "delivered",
+      "attempts",
+      "lease_until",
+      "created_at",
+      "updated_at"
     ],
     "additionalProperties": false
   },

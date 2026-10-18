@@ -18,3 +18,5 @@ export { stopDueSessions } from "./jobs/stopDueSessions.js";
 export { callWatchdog } from "./jobs/callWatchdog.js";
 export { cleanupEndedSessions } from "./jobs/cleanupEndedSessions.js";
 export { purgeEndedSessions } from "./jobs/purgeEndedSessions.js";
+export { sweepRetention } from "./jobs/sweepRetention.js";
+export { sendLinkOpenedAlert } from "./alerts/linkOpened.js";

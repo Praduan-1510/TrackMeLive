@@ -6,6 +6,7 @@ import type { StopSessionResponse } from "../shared/schema.js";
 import { endSession, recordedEnd, sharerStop, type SessionEnd } from "./end.js";
 import { readOwnedSession, sessionRefs } from "./read.js";
 import { parseRequest } from "./request.js";
+import { runContended } from "./transactions.js";
 
 /**
  * The sharer taps Stop (FSD §4 "Stop sharing"; shared StopSessionRequest).
@@ -21,7 +22,7 @@ export const stopSession = onCall<unknown, Promise<StopSessionResponse>>(async (
   const db = getFirestore();
   const refs = sessionRefs(db, sessionId);
 
-  const end = await db.runTransaction(async (tx): Promise<SessionEnd> => {
+  const end = await runContended(db, "stopSession", async (tx): Promise<SessionEnd> => {
     const { session } = await readOwnedSession(tx, refs, uid);
     if (session.status === "stopped") {
       const ended = recordedEnd(session);

@@ -20,12 +20,14 @@ import {
 } from "./contracts.js";
 import { dueEnd, endFields, forcedEnd, type SessionEnd } from "./sessions/end.js";
 import { sessionDocFrom } from "./sessions/read.js";
+import { runContended } from "./sessions/transactions.js";
+import { checkedViewerOrigin } from "./viewerOrigin.js";
 import { docPaths, type CallLog } from "./shared/schema.js";
 
 /**
  * Where the viewer page is served, e.g. https://trackmelive.web.app. Set per
- * project in functions/.env.<projectId>; the demo project points at the Hosting
- * emulator.
+ * project in functions/.env.<projectId>; the demo project points at the
+ * viewer's Vite dev server (checkedViewerOrigin keeps that off real projects).
  */
 const VIEWER_ORIGIN = defineString("VIEWER_ORIGIN", {
   description: "Origin of the viewer page; share links are <origin>/s/<token>.",
@@ -57,9 +59,9 @@ export function stopAtFor(req: Pick<CreateSessionRequest, "stop_rule" | "stop_mi
 
 function viewerOrigin(): string {
   try {
-    return new URL(VIEWER_ORIGIN.value()).origin;
-  } catch {
-    logger.error("VIEWER_ORIGIN is not a valid URL origin", { value: VIEWER_ORIGIN.value() });
+    return checkedViewerOrigin(VIEWER_ORIGIN.value(), process.env.GCLOUD_PROJECT ?? "");
+  } catch (error) {
+    logger.error("VIEWER_ORIGIN can't be used", { value: VIEWER_ORIGIN.value(), error: String(error) });
     throw new HttpsError("internal", "Sharing isn't available right now.");
   }
 }
@@ -102,7 +104,7 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
   const metaRef = sessionRef.collection("private").doc("meta");
   const linkToken = newLinkToken();
 
-  const times = await db.runTransaction(async (tx) => {
+  const times = await runContended(db, "createSession", async (tx) => {
     const userSnap = await tx.get(userRef);
     const profile = userSnap.data();
     const sharer = isRecord(profile) ? sharerSnapshotFrom(profile) : null;
@@ -149,6 +151,8 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
       // The check-in clock starts now, so the watchdog doesn't clear call_active
       // before the app's first ping.
       last_ping_at: startedAt,
+      // No ping yet; each ping's batch sets it (x-decisions Q-PING-WRITE).
+      last_fix_at: null,
       ping_interval_s: INITIAL_PING_INTERVAL_SECONDS,
       precision: input.precision,
       precision_next: null,

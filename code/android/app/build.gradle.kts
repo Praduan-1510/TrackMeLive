@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,6 +9,15 @@ plugins {
 // Android emulator. For a physical phone, pass the Mac's LAN address: -Ptml.emulatorHost=192.168.1.20
 // (and bind the emulators to 0.0.0.0 in code/backend/firebase.json).
 val emulatorHost: String = providers.gradleProperty("tml.emulatorHost").getOrElse("10.0.2.2")
+
+/** A value from local.properties (git-ignored), or "" when the file or the key is missing. */
+fun localProperty(key: String): String {
+    val file = rootProject.file("local.properties")
+    if (!file.isFile) return ""
+    val props = Properties()
+    file.inputStream().use(props::load)
+    return props.getProperty(key, "").trim()
+}
 
 android {
     namespace = "live.trackme.app"
@@ -20,6 +31,9 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The Maps SDK key, from local.properties (MAPS_API_KEY=...), never committed. Without one the live
+        // screen draws the keyless street map (ui/map/CityMap.kt) instead of Google Maps.
+        manifestPlaceholders["mapsApiKey"] = localProperty("MAPS_API_KEY")
     }
 
     buildTypes {
@@ -87,9 +101,12 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.functions)
+    implementation(libs.firebase.messaging)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.libphonenumber)
+    implementation(libs.play.services.location)
+    implementation(libs.maps.compose)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

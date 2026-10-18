@@ -63,6 +63,8 @@ export interface OpenOptions {
   readonly permissions?: readonly string[];
   readonly geolocation?: { readonly latitude: number; readonly longitude: number };
   readonly initScript?: string;
+  /** Runs on the new context before the page opens (routes, for instance). */
+  readonly prepare?: (context: BrowserContext) => Promise<void>;
 }
 
 export interface Opened {
@@ -86,6 +88,7 @@ export async function open(browser: Browser, o: OpenOptions = {}): Promise<Opene
     permissions: [...(o.permissions ?? [])],
     ...(o.geolocation ? { geolocation: { ...o.geolocation } } : {}),
   });
+  if (o.prepare) await o.prepare(context);
   const page = await context.newPage();
   const problems: string[] = [];
   page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -148,8 +151,12 @@ export async function waitForStatus(page: Page, want: string, region = '#status'
   await until(async () => plain(await page.locator(region).textContent()), (t) => t.includes(want), `${region} to say "${want}"`);
 }
 
-/** Holds every animation at its end while axe looks, so it judges the settled page, not a frame mid-fade. */
-const SETTLED = '*, *::before, *::after { animation: none !important; transition: none !important; }';
+/**
+ * Holds every animation at its end while axe looks, so it judges the settled page, not a frame
+ * mid-fade. The Reduce Motion cross-fade (src/styles/prefs.css) is named too: its own !important
+ * rule is more specific than the universal one, and a ping can start it while axe runs.
+ */
+const SETTLED = '*, *::before, *::after, .mk.xfade { animation: none !important; transition: none !important; }';
 
 /** Runs axe-core on the page (every rule but the experimental ones) and returns its violations. */
 export async function axe(page: Page): Promise<Result[]> {

@@ -5,7 +5,7 @@
  * No emulator needed.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   NAME_MAX_CHARS,
@@ -15,6 +15,7 @@ import {
   parseCreateSessionRequest,
 } from "../../functions/lib/contracts.js";
 import { NAME_MAX_LENGTH, SCHEMA_DEFS, SESSION_LIMIT_MINUTES, validate } from "../../../shared/schema/generated/ts/schema.ts";
+import { checkedViewerOrigin } from "../../functions/lib/viewerOrigin.js";
 
 const SHARED_TS = new URL("../../../shared/schema/generated/ts/schema.ts", import.meta.url);
 const FUNCTIONS_COPY = new URL("../../functions/src/shared/schema.ts", import.meta.url);
@@ -111,5 +112,55 @@ describe("parseCreateSessionRequest", () => {
     assert.equal(charCount("\u{1F469}\u{1F3FD}\u200D\u{1F9B1}"), 1); // one emoji, four code points
     assert.equal(charCount("é"), 1); // e + combining acute
     assert.equal(charCount("Mom"), 3);
+  });
+});
+
+describe("VIEWER_ORIGIN: a local origin only ever on a demo- project", () => {
+  it("a demo project may use the viewer's dev server, http or https", () => {
+    assert.equal(checkedViewerOrigin("http://localhost:5173", "demo-trackmelive"), "http://localhost:5173");
+    assert.equal(checkedViewerOrigin("http://127.0.0.1:5050/", "demo-trackmelive-test"), "http://127.0.0.1:5050");
+    assert.equal(checkedViewerOrigin("https://trackme.live/s/", "demo-x"), "https://trackme.live");
+  });
+
+  it("any other project must be https, and never a local host", () => {
+    assert.equal(checkedViewerOrigin("https://trackme.live", "trackmelive-prod"), "https://trackme.live");
+    assert.equal(checkedViewerOrigin("https://trackmelive.web.app/", "trackmelive-prod"), "https://trackmelive.web.app");
+    for (const local of [
+      "http://localhost:5173", "https://localhost:5173", "https://127.0.0.1", "https://[::1]:443", "https://0.0.0.0",
+      "https://viewer.localhost", "http://trackme.live",
+    ]) {
+      assert.throws(() => checkedViewerOrigin(local, "trackmelive-prod"), /must be an https origin that isn't local/, local);
+    }
+    // No project id at all is treated as a real project.
+    assert.throws(() => checkedViewerOrigin("http://localhost:5173", ""));
+  });
+
+  it("refuses what isn't an http(s) URL, on any project", () => {
+    for (const bad of ["", "localhost:5173", "ftp://trackme.live", "javascript:alert(1)"]) {
+      assert.throws(() => checkedViewerOrigin(bad, "demo-trackmelive"), Error, bad);
+    }
+  });
+
+  it("every functions/.env.<project> file passes, so a real project's file can't hold a local origin", () => {
+    const dir = new URL("../../functions/", import.meta.url);
+    const files = readdirSync(dir).filter((f) => /^\.env\.[a-z0-9-]+$/.test(f) && f !== ".env.local");
+    assert.ok(files.includes(".env.demo-trackmelive"));
+    for (const file of files) {
+      const project = file.slice(".env.".length);
+      const origin = /^VIEWER_ORIGIN=(.*)$/m.exec(readFileSync(new URL(file, dir), "utf8"))?.[1]?.trim();
+      assert.ok(origin, `${file} sets VIEWER_ORIGIN`);
+      assert.doesNotThrow(() => checkedViewerOrigin(origin, project), file);
+    }
+  });
+});
+
+describe("tests/package.json: every test file is in a scoped script too", () => {
+  it("test:contract, test:rules, test:functions and test:auth together list every src/*.test.ts", () => {
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { scripts: Record<string, string> };
+    const listed = new Set(
+      ["test:contract", "test:rules", "test:functions", "test:auth"].flatMap((k) => (pkg.scripts[k] ?? "").split(/\s+/).filter((w) => w.endsWith(".test.ts"))),
+    );
+    const files = readdirSync(new URL(".", import.meta.url)).filter((f) => f.endsWith(".test.ts")).map((f) => `src/${f}`);
+    assert.deepEqual(files.filter((f) => !listed.has(f)), [], "add these to a script in tests/package.json");
   });
 });

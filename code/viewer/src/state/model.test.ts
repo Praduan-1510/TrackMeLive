@@ -39,6 +39,45 @@ describe('the link', () => {
   });
 });
 
+describe('the end, on the page’s own clock', () => {
+  const MIN = 60_000;
+  const timer = { stop_rule: 'minutes' as const, stop_minutes: 15 as const, stop_at: new Date(T0 + MIN) };
+
+  it('ends at the 1-hour limit even while the session still says active', () => {
+    const limit = live({}, { expires_at: new Date(T0 + 5000) });
+    expect(run(limit, { type: 'tick', now: T0 + 4999 }).session?.status).toBe('active');
+    const over = run(limit, { type: 'tick', now: T0 + 5000 });
+    expect(over.session).toMatchObject({ status: 'stopped', ended_at: new Date(T0 + 5000), end_reason: 'limit', viewer_sharing: false });
+    expect(over.pings).toHaveLength(3);
+  });
+
+  it('ends at the timer as timer, and at a limit chosen as the stop time as limit', () => {
+    expect(run(live({}, timer), { type: 'tick', now: T0 + MIN }).session).toMatchObject({ ended_at: new Date(T0 + MIN), end_reason: 'timer' });
+    const atLimit = live({}, { stop_rule: 'limit', stop_at: new Date(T0 + MIN), expires_at: new Date(T0 + MIN) });
+    expect(run(atLimit, { type: 'tick', now: T0 + MIN }).session).toMatchObject({ end_reason: 'limit' });
+  });
+
+  it('ends a session that arrives already past its end, and keeps the server’s own end', () => {
+    const late = run(live(), { type: 'session', session: session({ expires_at: new Date(T0 - 1000) }) });
+    expect(late.session).toMatchObject({ status: 'stopped', ended_at: new Date(T0 - 1000), end_reason: 'limit' });
+    const stopped = session({ status: 'stopped', ended_at: new Date(T0 - 9000), end_reason: 'stopped', expires_at: new Date(T0 - 1000) });
+    expect(run(live(), { type: 'session', session: stopped }).session).toEqual(stopped);
+  });
+
+  it('never moves the marker again once it ended, even for a snapshot that still says active', () => {
+    const over = run(live({}, { expires_at: new Date(T0 + 1000) }), { type: 'tick', now: T0 + 1000 });
+    expect(run(over, { type: 'pings', pings: [ping(-500, MOM)] }).pings).toEqual(over.pings);
+    const replay = run(over, { type: 'session', session: session({ expires_at: new Date(T0 + 1000) }) });
+    expect(replay.session?.status).toBe('stopped');
+    expect(run(replay, { type: 'pings', pings: [ping(-500, MOM)] }).pings).toEqual(over.pings);
+  });
+
+  it('stops share back at the end', () => {
+    const on = sharing({}, { expires_at: new Date(T0 + 1000) });
+    expect(run(on, { type: 'tick', now: T0 + 1000 })).toMatchObject({ shareBack: 'idle', viewerFix: null });
+  });
+});
+
 describe('shareBackOpen', () => {
   it('is open for the first browser during the session’s own call', () => {
     expect(shareBackOpen(live())).toBe(true);

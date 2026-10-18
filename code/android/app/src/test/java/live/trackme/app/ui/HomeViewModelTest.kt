@@ -11,6 +11,13 @@ import live.trackme.app.data.profile.ProfileState
 import live.trackme.app.domain.Greeting
 import live.trackme.app.fakes.FakeClock
 import live.trackme.app.fakes.FakeProfileRepository
+import live.trackme.app.fakes.FakeSharingRepository
+import live.trackme.app.data.sharing.ShareRequest
+import live.trackme.app.data.sharing.ShareState
+import live.trackme.app.data.sharing.StopChoice
+import live.trackme.app.data.sharing.UploadStatus
+import live.trackme.schema.EndReason
+import live.trackme.schema.Precision
 import live.trackme.app.fakes.MainDispatcherRule
 import live.trackme.app.ui.home.HomeViewModel
 import live.trackme.schema.MascotColor
@@ -33,7 +40,7 @@ class HomeViewModelTest {
     @Test
     fun greetsByNameWithTheirMascot() = runTest(main.dispatcher.scheduler) {
         val profiles = FakeProfileRepository(ProfileState.Loading)
-        val vm = HomeViewModel(profiles, FakeClock(testScheduler, LocalTime.of(9, 0)))
+        val vm = HomeViewModel(profiles, FakeClock(testScheduler, LocalTime.of(9, 0)), FakeSharingRepository())
         backgroundScope.launch { vm.state.collect {} }
         runCurrent()
         assertFalse(vm.state.value.loaded)
@@ -51,7 +58,7 @@ class HomeViewModelTest {
 
     @Test
     fun theGreetingMovesOnWhileHomeIsOpen() = runTest(main.dispatcher.scheduler) {
-        val vm = HomeViewModel(FakeProfileRepository(), FakeClock(testScheduler, LocalTime.of(11, 59)))
+        val vm = HomeViewModel(FakeProfileRepository(), FakeClock(testScheduler, LocalTime.of(11, 59)), FakeSharingRepository())
         backgroundScope.launch { vm.state.collect {} }
         runCurrent()
         assertEquals(Greeting.Morning, vm.state.value.greeting)
@@ -62,11 +69,35 @@ class HomeViewModelTest {
 
     @Test
     fun noProfileStillGreets() = runTest(main.dispatcher.scheduler) {
-        val vm = HomeViewModel(FakeProfileRepository(ProfileState.Missing), FakeClock(testScheduler))
+        val vm = HomeViewModel(FakeProfileRepository(ProfileState.Missing), FakeClock(testScheduler), FakeSharingRepository())
         backgroundScope.launch { vm.state.collect {} }
         runCurrent()
         assertTrue(vm.state.value.loaded)
         assertNull(vm.state.value.name)
         assertEquals(MascotId.FOX, vm.state.value.mascotId)
+    }
+
+    @Test
+    fun aLiveShareShowsOnHome() = runTest(main.dispatcher.scheduler) {
+        val sharing = FakeSharingRepository()
+        val vm = HomeViewModel(FakeProfileRepository(), FakeClock(testScheduler), sharing)
+        backgroundScope.launch { vm.state.collect {} }
+        runCurrent()
+        assertFalse(vm.state.value.live)
+
+        val request = ShareRequest(StopChoice.AtLimit, Precision.PRECISE, false, viewerName = "  Mom  ")
+        val share = FakeSharingRepository.shareFor(request)
+        sharing.emit(ShareState.Live(share, null, UploadStatus.Initial))
+        runCurrent()
+        assertTrue(vm.state.value.live)
+        assertEquals("Mom", vm.state.value.liveWith)
+
+        sharing.emit(ShareState.Live(share.copy(viewerName = null), null, UploadStatus.Initial))
+        runCurrent()
+        assertNull(vm.state.value.liveWith)
+
+        sharing.endWith(EndReason.STOPPED)
+        runCurrent()
+        assertFalse("ended is not live", vm.state.value.live)
     }
 }

@@ -15,3 +15,18 @@ sealed interface RootScreen {
     /** Home, Mascot and Settings behind the navigation bar. */
     data object Main : RootScreen
 }
+
+/**
+ * The sharing screens, one at a time over [RootScreen.Main] (FSD §11: Share screen, Live map, Sharing
+ * ended). Back from each returns to Home; the share keeps going in the background.
+ */
+sealed interface SharingScreen {
+    /** Share where you are. [autoShare]: Share again at the 1-hour limit shares at once. */
+    data class Share(val autoShare: Boolean = false) : SharingScreen
+
+    /** The live map, while sharing. */
+    data object Live : SharingScreen
+
+    /** Sharing ended, until Done or Share again. */
+    data object Ended : SharingScreen
+}

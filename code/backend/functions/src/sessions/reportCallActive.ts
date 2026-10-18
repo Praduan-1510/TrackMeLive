@@ -6,6 +6,7 @@ import type { ReportCallActiveResponse } from "../shared/schema.js";
 import { dueEnd } from "./end.js";
 import { readOwnedSession, sessionRefs } from "./read.js";
 import { parseRequest, refuse, requireSessionCall } from "./request.js";
+import { runContended } from "./transactions.js";
 
 /**
  * Pings resumed and the platform still reports the session's call connected,
@@ -24,7 +25,7 @@ export const reportCallActive = onCall<unknown, Promise<ReportCallActiveResponse
   const db = getFirestore();
   const refs = sessionRefs(db, sessionId);
 
-  const checkedInAt = await db.runTransaction(async (tx): Promise<Timestamp> => {
+  const checkedInAt = await runContended(db, "reportCallActive", async (tx): Promise<Timestamp> => {
     const { session } = await readOwnedSession(tx, refs, uid);
     requireSessionCall(session.call_id, callId);
     const now = Timestamp.now();

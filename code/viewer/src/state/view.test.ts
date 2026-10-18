@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ENV, live, ping, plain, session, sharing, T0 } from '../test-fixtures';
-import { initialModel, type Model } from './model';
-import { endsAt, inLimitWarning, isStale, toView, type PageView, type View } from './view';
+import { endsAt, initialModel, reduce, type Model } from './model';
+import { inLimitWarning, isStale, toView, type PageView, type View } from './view';
 
 const MIN = 60_000;
 
@@ -176,6 +176,13 @@ describe('ended', () => {
       expect(words(page(live({}, { ...ended, end_reason: reason })))).toEqual({ title: 'Sharing ended · Track Me Live', heading: 'Sharing ended at 9:52 pm' });
     }
   });
+  it('says Sharing ended at the 1-hour limit as soon as it passes, before the stop job marks it', () => {
+    const atLimit = reduce(live({}, { expires_at: new Date(T0 + 11 * MIN) }), { type: 'tick', now: T0 + 11 * MIN });
+    const v = page(atLimit);
+    expect(words(v)).toEqual({ title: 'Sharing ended · Track Me Live', heading: 'Sharing ended at 9:52 pm' });
+    expect(v.actions).toBeNull();
+    expect(v.scene.sharer).toMatchObject({ seen: true, label: 'Last seen 9:52 pm' });
+  });
 });
 
 describe('the map didn’t load', () => {
@@ -195,6 +202,13 @@ describe('approximate', () => {
     expect(v.scene.trail).toEqual([]);
     expect(v.scene.sharer?.approximate).toBe(true);
     expect(v.scene.label).toBe('Street map of the Market area');
+  });
+  it('never shows a street or park found before the share turned approximate', () => {
+    for (const place of [{ kind: 'street', name: 'Harbor Way' }, { kind: 'park', name: 'Alder Park' }] as const) {
+      const v = page(live({ place }, { precision: 'approximate' }));
+      expect(v.where.text).toBe('Approximate location');
+      expect(v.scene.label).toBe('Street map');
+    }
   });
 });
 

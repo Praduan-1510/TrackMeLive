@@ -8,6 +8,7 @@ import { sessionsOwnedBy } from "./sessionLookup.js";
 import { authDeleter, deleteViewerUsers } from "./sessions/deletion.js";
 import { endSession, sharerStop } from "./sessions/end.js";
 import { readSession, sessionRefs } from "./sessions/read.js";
+import { runContended } from "./sessions/transactions.js";
 import { collectionPaths, docPaths, validate, type DeleteAccountResponse } from "./shared/schema.js";
 
 /**
@@ -18,7 +19,7 @@ import { collectionPaths, docPaths, validate, type DeleteAccountResponse } from 
 async function stopLiveSessions(db: Firestore, uid: string, sessions: readonly DocumentReference[]): Promise<void> {
   if (sessions.length === 0) return;
   const live = (await db.getAll(...sessions)).filter((snap) => snap.get("status") === "active");
-  await Promise.all(live.map(({ ref }) => db.runTransaction(async (tx) => {
+  await Promise.all(live.map(({ ref }) => runContended(db, "deleteAccount", async (tx) => {
     const read = await readSession(tx, sessionRefs(db, ref.id));
     if (read?.session.status !== "active") return;
     await endSession(tx, ref, uid, sharerStop(read.session, Timestamp.now()));

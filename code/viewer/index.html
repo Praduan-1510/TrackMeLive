@@ -3,9 +3,10 @@
   Track Me Live web viewer: the page a viewer opens from a share link, in any browser, with no
   install. The map behind everything, a glass bar and a glass sheet over it. The loading skeleton
   below paints before any script runs (src/ui/templates.ts loadingMain draws the same); src/main.ts
-  then takes over. No network requests beyond this origin.
+  then takes over. The sample and review links make no requests beyond this origin; a share link
+  (/s/{token}) talks to Firebase (src/session/), and with a Maps key, to the Maps API for street names.
 
-  npm run dev (http://localhost:5173) · npm test · npm run test:e2e · npm run lint · npm run build
+  npm run dev (http://localhost:5173) · npm test · npm run test:e2e · npm run test:e2e:live · npm run lint · npm run build
   Review: ?state=<scenario> (src/sample/scenarios.ts), ?theme=light|dark
 -->
 <html lang="en">
@@ -15,9 +16,10 @@
     <title>Loading · Track Me Live</title>
     <meta name="description" content="A live location, shared with you by link. Opens in your browser.">
     <!-- Share links are private: keep them out of search results, and keep the link out of the
-         Referer header when someone opens Maps from the page. -->
+         Referer header. strict-origin sends only the origin (never the /s/<token> path), and
+         nothing from https to http, so Maps keys can still be restricted by website (code/OPEN-DECISIONS.md). -->
     <meta name="robots" content="noindex, nofollow">
-    <meta name="referrer" content="no-referrer">
+    <meta name="referrer" content="strict-origin">
     <meta name="color-scheme" content="light dark">
     <meta name="theme-color" content="">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">

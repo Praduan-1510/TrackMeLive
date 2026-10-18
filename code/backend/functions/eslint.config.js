@@ -20,6 +20,11 @@ export default tseslint.config(
     // Plain Node scripts: no type information, Node globals.
     files: ["eslint.config.js", "scripts/**/*.mjs"],
     extends: [tseslint.configs.disableTypeChecked],
-    languageOptions: { globals: { process: "readonly", console: "readonly" } },
+    languageOptions: {
+      globals: {
+        process: "readonly", console: "readonly", fetch: "readonly", AbortSignal: "readonly", setTimeout: "readonly",
+        setInterval: "readonly", URL: "readonly",
+      },
+    },
   },
 );

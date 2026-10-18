@@ -107,6 +107,7 @@ Every dependency is pinned to an exact version published before Oct 4, 2026. The
 | Firebase BOM | 34.19.0 (Auth 24.2.0, Firestore 26.6.0, Functions 22.1.1) | Sep 9 2026 | Phone sign-in, `users/{uid}` and the callables. |
 | kotlinx-coroutines (`android`, `play-services`, `test`) | 1.11.0 | May 7 2026 | `await()` on Firebase tasks; test dispatchers. |
 | libphonenumber | 9.0.40 | Sep 23 2026 | Google's phone metadata: validity per country, E.164, as-you-type formatting, example numbers. |
+| maps-compose | 8.3.0 (play-services-maps 20.0.0, maps-ktx 6.0.1) | Apr 10 2026 | Google Maps for the live map (architecture doc: the Maps API). 8.3.1 and later need compileSdk 37. |
 | JUnit / Robolectric / androidx.test core, runner / ext-junit | 4.13.2 / 4.17 / 1.7.0 / 1.3.0 | / Sep 10 2026 / Jul 30 2025 / Jul 30 2025 | Tests only. Compose `ui-test-junit4`, `ui-test-manifest` and `ui-tooling(-preview)` come from the Compose BOM. |
 
 Every artifact's date is its POM's publish date on Google Maven or Maven Central. `app/lint.xml` silences lint's "newer version available" checks, because staying behind is deliberate here.
@@ -164,7 +165,45 @@ code/android/
   - once the profile listener has stopped, deletes Firestore's on-device cache (terminate, `clearPersistence`, then a fresh instance).
 
   A deleted account starts again at onboarding. An ended sign-in goes to sign-up, which says "Your sign-in has ended. Sign in again." once.
+- **Sharing screens** (Sprint 2, `ui/share`, `ui/live`, `ui/ended`, `ui/permission`). Home's Share live location goes through the location gate (`LocationGateViewModel`): our explainer the first time, then the system dialog (fine and coarse together; never background), straight to the system dialog after one refusal, and "Location is off for Track Me Live" with Open settings after a refusal or when it's denied for good (the phone's Location switch gets the same, for location settings). Settings › Permissions shows each permission as the system reports it and opens its system page. The share screen (`ShareViewModel`) creates the session, then opens the system share sheet (ACTION_SEND through the chooser) with "I'm sharing my live location with you." and the link. The chooser reports the chosen app to the app; its Copy button doesn't, so a clip put on the clipboard while the sheet was open counts as sent (only the clip's timestamp is read). A sheet closed without a choice takes the session back. The live map (`LiveViewModel`) ticks on the server's clock; Stop always asks first, the notification's Stop sharing opens the same question (`MainActivity` hands its intents to `service/SharingIntents`), and a share that ends by Stop, its timer or the 1-hour limit moves on to the ended screen by itself, wherever the person is. The sharing screens sit over Home in the Navigation 3 back stack (`AppViewModel`, `SharingScreen`); Back from each is Home, and Back on the ended screen is Done. Every Sprint 2 share is manual: the call stop rule, share back and Phone permission arrive with call sharing.
+- **The map.** The live map is Google Maps (maps-compose) when the build has a key: put `MAPS_API_KEY=...` in `code/android/local.properties` (git-ignored) and rebuild; it reaches the manifest through a placeholder and is never committed. Without a key, and in every test, the live screen draws the prototype's street map (`ui/map/CityMap.kt`) with the person's marker in the middle of the open band, so the screen works the same either way.
 - **Firebase.** It's initialized from code (`FirebaseEnvironment`); there's no `google-services.json`. Debug builds call `useEmulator` and disable app verification for the Auth emulator only. Release builds stop with a clear error until the real project is added in `FirebaseEnvironment`, the one place that changes.
+
+## Sharing (Sprint 2)
+
+The layer under the sharing screens:
+
+- `data/location/`: `LocationUpdates` (the fused location provider) and `LocationPermissions` (fine and coarse, precise or approximate, the Location switch and notifications on Android 13+; a refusal the system won't ask about again reads as `DeniedForever`). It never asks for background location.
+- `data/sharing/`: `SharingRepository` (createSession, the session doc live, Stop, discard, the timer and precision changes, the link), `PingUploader`, the Firestore and callable data source, the kept share (`ShareStore`), and the device doc for alerts (`DevicePush.kt`).
+- `domain/`: `ServerClock`, `PingCadence` and `ApproximateLocation`.
+- `service/`: `LocationSharingService` (a foreground service of type location) with its ongoing notification, `SharingIntents` (taps on the notification and the alerts) and `TmlMessagingService` (FCM).
+
+How a share runs:
+
+1. `createSession` calls the callable, starts the location service (only while the app is in front) and starts the pings. The share is kept on the phone, so it picks up again after the process is killed.
+2. The service runs only while the share is live, and keeps going when the app is swiped away. Its notification reads "Sharing your location with Mom" and "Until 10:08 pm", with Open and Stop sharing; Stop sharing opens the app to confirm.
+3. Pings and the session's check-in go in one batch: `last_ping_at` is the server's time, and `last_fix_at` is the ping's `recorded_at`. Pings are at least 2 s apart, and only one write is in flight at a time, so offline the newest fix replaces a waiting one. Approximate snaps each point to a fixed grid of about 500 m.
+4. The share ends with Stop (at once, before the server answers), its timer or the 1-hour limit (on time, even offline), or the server's own end, which always wins. Nothing is written after the end.
+
+Every time is the server's. `ServerClock` learns the offset from createSession's `started_at` and the monotonic clock, keeps it for the boot, and leans late, so the phone stops a moment early rather than late. After a reboot, the first write is a check-in to learn it again; until then only the session doc can end a share.
+
+| Battery | Ping every |
+| --- | --- |
+| Above 20% | 3 s moving, 5 s still, with a poor fix or Approximate |
+| 20% to 10% | 15 s |
+| Under 10% | 60 s |
+
+A check-in goes out every 30 s even without a fix.
+
+The on-device check feeds a short walk to the emulator's GPS (`adb emu geo fix`, once a second) while `SharingRouteTest` shares from the real app. It checks that the pings reach the dev Firestore, at least 2 s apart, that a timer change is accepted, and that nothing is written after Stop:
+
+```sh
+code/scripts/with-lock.sh emulator code/android/scripts/route-check.sh   # needs the Firebase emulators
+```
+
+It installs without uninstalling anything, and it signs in a fresh test account and deletes it at the end, so the app is left at onboarding. From `connectedDebugAndroidTest` the test is skipped.
+
+On the emulators' demo project FCM can't issue a push token, so FirebaseMessaging logs errors. The app treats that as "no token yet": it writes nothing, tries again on the next launch, and never blocks sharing.
 
 ## Design tokens
 
@@ -195,5 +234,6 @@ UI code reads tokens through `TmlTheme.colors` and `TmlTheme.type`. Android-only
 ## Troubleshooting
 
 - **`SSLHandshakeException: Remote host terminated the handshake`** from Gradle or `sdkmanager`: in some sandboxed shells, Java's dual-stack sockets fail TLS. `gradle.properties` and `run.sh` already pass `-Djava.net.preferIPv4Stack=true`. For `sdkmanager`, `export JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true`.
+- **`Broken pipe` from Gradle while downloading a new dependency**: the shared Gradle daemon was started without the IPv4 setting. Fetch the dependency once with a fresh JVM, under the gradle lock: `JAVA_TOOL_OPTIONS=-Djava.net.preferIPv4Stack=true code/scripts/with-lock.sh gradle ./gradlew --no-daemon <task>`. After that, the usual `--offline` builds find it in the cache.
 - **The emulator quits with "detected a hanging thread 'QEMU2 main loop'"**: the Mac ran out of memory. Close something and run `run.sh` again. Don't use the console's `gsm accept` to answer an incoming call. Use `adb shell input keyevent KEYCODE_CALL`.
 - **Disk**: the JDK, SDK, AVD and Gradle cache come to about 7 GB. Snapshots are off to save about 2 GB more.

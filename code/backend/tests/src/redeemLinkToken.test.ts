@@ -15,6 +15,8 @@ import { deleteApp, initializeApp, type App } from "firebase-admin/app";
 import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import {
   MAX_VIEWER_SIGN_INS,
+  MIN_PING_SPACING_SECONDS,
+  PING_ID_MAX_LENGTH,
   validate,
   type CreateSessionRequest,
   type CreateSessionResponse,
@@ -198,6 +200,114 @@ describe("redeemLinkToken: two browsers at once", () => {
   });
 });
 
+/**
+ * The sharer's pings update the session doc every few seconds (last_ping_at,
+ * last_fix_at), and redeem's transaction reads that doc. Signing a token inside
+ * the transaction once held its lock long enough to time out (INTERNAL).
+ */
+describe("redeemLinkToken: while the sharer pings", () => {
+  const base = `http://${FIRESTORE.host}:${FIRESTORE.port}/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+  /** The real ping batch, over REST with the sharer's ID token, through the rules (x-decisions Q-PING-WRITE). */
+  async function commitPing(share: Share, recordedAt: Date): Promise<number> {
+    const name = (path: string) => `projects/${PROJECT_ID}/databases/(default)/documents/${path}`;
+    const res = await fetch(`${base}:commit`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${share.sharer.idToken}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        writes: [
+          {
+            update: {
+              name: name(`shareSessions/${share.sessionId}/pings/p${recordedAt.getTime()}`),
+              fields: {
+                lat: { doubleValue: 51.5 }, lng: { doubleValue: -0.12 }, accuracy_m: { doubleValue: 8 },
+                recorded_at: { timestampValue: recordedAt.toISOString() },
+              },
+            },
+            currentDocument: { exists: false },
+          },
+          {
+            update: { name: name(`shareSessions/${share.sessionId}`), fields: { last_fix_at: { timestampValue: recordedAt.toISOString() } } },
+            updateMask: { fieldPaths: ["last_fix_at"] },
+            updateTransforms: [{ fieldPath: "last_ping_at", setToServerValue: "REQUEST_TIME" }],
+          },
+        ],
+      }),
+    });
+    await res.arrayBuffer();
+    return res.status;
+  }
+
+  /**
+   * A ping batch as the SDKs send it: a write that loses to a transaction on the
+   * session doc comes back ABORTED (409 over REST), and the SDKs' write stream
+   * sends it again. Returns the final status and how many tries it took.
+   */
+  async function sendPing(share: Share, recordedAt: Date): Promise<{ status: number; tries: number }> {
+    for (let tries = 1; ; tries++) {
+      const status = await commitPing(share, recordedAt);
+      if (status !== 409 || tries === 5) return { status, tries };
+      await new Promise((r) => setTimeout(r, 100 * tries));
+    }
+  }
+
+  it("never fails as internal, keeps one viewer, and every token it returns names the role it recorded", async () => {
+    const share = await newShare();
+    const t0 = Date.now() - 30_000;
+    let pinging = true;
+    const pingResults: { status: number; tries: number }[] = [];
+    // About one ping a second, recorded 2 s apart, so it's in order whether or not step B is on.
+    const pinger = (async () => {
+      for (let i = 0; pinging; i++) {
+        pingResults.push(await sendPing(share, new Date(t0 + i * MIN_PING_SPACING_SECONDS * 1000)));
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    })();
+
+    const failures: string[] = [];
+    const browsers: { browser: SignedIn; role: string }[] = [];
+    const tryOpen = async (browser?: SignedIn) => {
+      const r = await redeem(share.token, browser);
+      if (!r.ok) {
+        // Contention past the retries may answer unavailable; nothing else may fail.
+        if (r.code !== "UNAVAILABLE") failures.push(`${r.code}: ${r.message}`);
+        return null;
+      }
+      const signedIn = await signInWithCustomToken(r.data.custom_token);
+      const claims = claimsOf(signedIn.idToken);
+      assert.equal(claims.sid, share.sessionId);
+      assert.equal(claims.role, r.data.role, "the token names the role redeem returned");
+      if (browser) {
+        assert.equal(signedIn.uid, browser.uid, "a refresh keeps its uid");
+      }
+      return { browser: signedIn, role: r.data.role };
+    };
+
+    try {
+      await new Promise((r) => setTimeout(r, 1500));
+      // Six browsers open at once, then each refreshes four times, all in parallel.
+      for (const opened of await Promise.all(Array.from({ length: 6 }, () => tryOpen()))) if (opened) browsers.push(opened);
+      for (let round = 0; round < 4; round++) {
+        const again = await Promise.all(browsers.map((b) => tryOpen(b.browser)));
+        again.forEach((r, i) => r && assert.equal(r.role, browsers[i]!.role, "a refresh keeps its role"));
+      }
+    } finally {
+      pinging = false;
+      await pinger;
+    }
+
+    assert.deepEqual(failures, []);
+    // Every ping lands, the way the apps' SDKs land them.
+    assert.ok(pingResults.length >= 3 && pingResults.every((p) => p.status === 200), `pings: ${JSON.stringify(pingResults)}`);
+    const docs = await signIns(share.sessionId);
+    assert.equal(docs.filter((d) => d.get("role") === "viewer").length, 1, "exactly one viewer sign-in");
+    assert.equal(browsers.filter((b) => b.role === "viewer").length, 1);
+    assert.equal(docs.length, browsers.length, "one sign-in doc per browser that got a token");
+    const viewerUid = browsers.find((b) => b.role === "viewer")!.browser.uid;
+    assert.equal((await metaDoc(share.sessionId).get()).get("viewer_uid"), viewerUid);
+  });
+});
+
 describe("redeemLinkToken: at most MAX_VIEWER_SIGN_INS browsers per session", () => {
   function assertFull(r: CallableResult<RedeemLinkTokenResponse>) {
     assert.equal(!r.ok && r.code, "RESOURCE_EXHAUSTED", JSON.stringify(r));
@@ -286,6 +396,15 @@ describe("redeemLinkToken: a session that has ended", () => {
     const share = await newShare(manualShare);
     await sessionDoc(share.sessionId).update({ stop_at: Timestamp.fromMillis(Date.now() - 1000) });
     await assertEnded(share);
+  });
+
+  it("still opens a session with seconds left before its limit or its timer", async () => {
+    const limited = await newShare();
+    await sessionDoc(limited.sessionId).update({ expires_at: Timestamp.fromMillis(Date.now() + 5000) });
+    assert.equal((await open(limited.token)).res.role, "viewer");
+    const timed = await newShare(manualShare);
+    await sessionDoc(timed.sessionId).update({ stop_at: Timestamp.fromMillis(Date.now() + 5000) });
+    assert.equal((await open(timed.token)).res.role, "viewer");
   });
 
   it("answers the viewer's own refresh after the end the same way", async () => {
@@ -428,6 +547,31 @@ describe("redeemLinkToken: the minted sign-in under the Firestore rules", () => 
     assert.equal(await shareBackSwitch(viewer), 200);
     assert.equal(await status("POST", `shareSessions/${share.sessionId}/viewerPings`, viewer.idToken, viewerPing()), 200);
     assert.equal(await status("POST", `shareSessions/${share.sessionId}/viewerPings`, watcher.idToken, viewerPing()), 403);
+  });
+
+  it("takes a viewer ping created over REST with the id left to the server, and still bounds an id it's given", async () => {
+    // The rules check the id through request.resource.id; on such a create the
+    // emulator can't evaluate the path's {pingId}, which once refused every one.
+    const pings = `shareSessions/${share.sessionId}/viewerPings`;
+    assert.equal(await shareBackSwitch(viewer), 200);
+    assert.equal(await status("POST", pings, viewer.idToken, viewerPing()), 200);
+    assert.equal(await status("POST", `${pings}?documentId=${"x".repeat(PING_ID_MAX_LENGTH)}`, viewer.idToken, viewerPing()), 200);
+    assert.equal(await status("POST", `${pings}?documentId=${"x".repeat(PING_ID_MAX_LENGTH + 1)}`, viewer.idToken, viewerPing()), 403);
+  });
+
+  it("past expires_at, before the stop job marks it: the session doc still reads, for the ended state, and the pings don't", async () => {
+    const ref = sessionDoc(share.sessionId);
+    const { expires_at: expiresAt } = (await ref.get()).data()!;
+    await ref.update({ expires_at: Timestamp.fromMillis(Date.now() - 1000) });
+    try {
+      for (const who of [viewer, watcher]) {
+        // Still status active: the page reads it as ended from expires_at (x-decisions Q-READ-ENDED).
+        assert.equal(await get(`shareSessions/${share.sessionId}`, who), 200);
+        assert.equal(await get(`shareSessions/${share.sessionId}/pings`, who), 403);
+      }
+    } finally {
+      await ref.update({ expires_at: expiresAt });
+    }
   });
 
   it("after the end, keeps the session doc readable for the ended state and closes the pings", async () => {

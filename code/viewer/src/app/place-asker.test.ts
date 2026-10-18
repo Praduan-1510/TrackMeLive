@@ -83,6 +83,24 @@ describe('PlaceAsker', () => {
     expect(lookup.calls).toBe(calls);
   });
 
+  it('asks at most once per gap as the sharer moves, but at once when the precision changes', async () => {
+    const lookup = scripted(STREET);
+    const a = new PlaceAsker(lookup, (p) => places.push(p), () => Date.now(), 10_000);
+    a.update(HERE, 'precise');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(9000);
+    a.update(unproject([10, 0]), 'precise');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lookup.calls).toBe(1);
+    a.update(unproject([10, 0]), 'approximate');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lookup.calls).toBe(2);
+    await vi.advanceTimersByTimeAsync(10_000);
+    a.update(unproject([20, 0]), 'approximate');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lookup.calls).toBe(3);
+  });
+
   it('keeps the last name, not coordinates, when a later lookup fails', async () => {
     const lookup = scripted(STREET, 'fail');
     const a = asker(lookup);

@@ -1,6 +1,11 @@
 /**
- * Sprint 1's map: the stylized sample city in SVG, with the people over it. A stand-in for the Google
- * Maps JS map, behind the same MapView interface.
+ * The SVG map, a stand-in for the Google Maps JS map behind the same MapView interface, with the
+ * people over one of two backdrops:
+ *   'sample-city'  the stylized sample city, for the sample and review links;
+ *   'plain'        a real session's map until the Maps API draws one: the land with a faint 300 m
+ *                  grid, so movement reads, and no streets at all, so it never shows streets that
+ *                  aren't there. It's drawn around the session's first position, and hidden from
+ *                  screen readers (the where line says where; each marker reads as one phrase).
  *
  * Layers, bottom to top: the city (one <svg role="img">, only its inner group moves), an overlay SVG
  * for the trail and the connector line, and an HTML layer for the markers and the distance chip.
@@ -17,7 +22,7 @@ import type { Band, FrameOptions, MapScene, MapView } from '../map-view';
 import { SharerMarker, ViewerMarker } from '../markers';
 import { trailDots, type TrailDot } from '../trail';
 import { citySvg } from './city';
-import { METERS_PER_PX, project } from './projection';
+import { METERS_PER_PX, projectionAt, SAMPLE_PROJECTION, type Projection } from './projection';
 
 const PAN_MS = 600;
 const GLIDE_MS = 600;
@@ -65,9 +70,18 @@ class Mover {
   }
 }
 
+export type MapBackdrop = 'sample-city' | 'plain';
+
+/** The plain backdrop's grid: a line every 50 world px (300 m), over a square far larger than an hour of travel. */
+const GRID = 50;
+const GRID_REACH = 60_000;
+
 export class SvgMapView implements MapView {
   private readonly host: HTMLElement;
   private readonly reduceMotion: MediaQueryList;
+  private readonly backdrop: MapBackdrop;
+  /** The plain map's projection is set by the first position it draws. */
+  private proj: Projection | null;
   private readonly sharer = new SharerMarker();
   private readonly viewer = new ViewerMarker();
   private readonly sharerAt = new Mover();
@@ -85,9 +99,11 @@ export class SvgMapView implements MapView {
   private dots: TrailDot[] = [];
   private raf = 0;
 
-  constructor(host: HTMLElement, reduceMotion: MediaQueryList) {
+  constructor(host: HTMLElement, reduceMotion: MediaQueryList, backdrop: MapBackdrop = 'sample-city') {
     this.host = host;
     this.reduceMotion = reduceMotion;
+    this.backdrop = backdrop;
+    this.proj = backdrop === 'sample-city' ? SAMPLE_PROJECTION : null;
     this.chip.className = 'chip';
     this.chip.setAttribute('aria-hidden', 'true');
     this.chip.hidden = true;
@@ -98,8 +114,18 @@ export class SvgMapView implements MapView {
     return Promise.resolve();
   }
 
+  private project(p: LatLng): Pt {
+    this.proj ??= projectionAt(p);
+    return this.proj.project(p);
+  }
+
   private draw(): void {
-    this.host.innerHTML = `<svg class="mapsvg" xmlns="${SVG_NS}" role="img" aria-label="Street map"><g class="world">${citySvg()}</g></svg>
+    const r = String(GRID_REACH);
+    const base =
+      this.backdrop === 'sample-city'
+        ? `<svg class="mapsvg" xmlns="${SVG_NS}" role="img" aria-label="Street map"><g class="world">${citySvg()}</g></svg>`
+        : `<svg class="mapsvg plain" xmlns="${SVG_NS}" aria-hidden="true" focusable="false"><defs><pattern id="m-grid" width="${String(GRID)}" height="${String(GRID)}" patternUnits="userSpaceOnUse"><path class="m-grid" d="M${String(GRID)} 0H0V${String(GRID)}"></path></pattern></defs><g class="world"><rect fill="url(#m-grid)" x="-${r}" y="-${r}" width="${String(2 * GRID_REACH)}" height="${String(2 * GRID_REACH)}"></rect></g></svg>`;
+    this.host.innerHTML = `${base}
       <svg class="overlay" xmlns="${SVG_NS}" aria-hidden="true" focusable="false"><line class="m-line" hidden></line><g class="m-trail"></g></svg>
       <div class="marks"></div>`;
     this.base = this.host.querySelector('svg.mapsvg');
@@ -122,24 +148,24 @@ export class SvgMapView implements MapView {
   render(scene: MapScene): void {
     this.scene = scene;
     if (!this.base) return;
-    if (this.base.getAttribute('aria-label') !== scene.label) this.base.setAttribute('aria-label', scene.label);
+    if (this.backdrop === 'sample-city' && this.base.getAttribute('aria-label') !== scene.label) this.base.setAttribute('aria-label', scene.label);
     this.host.classList.toggle('dim', scene.dimmed);
     const now = performance.now();
 
     this.sharer.update(scene.sharer);
     if (scene.sharer) {
-      const moved = this.sharerAt.goTo(project(scene.sharer.at), !this.still, now);
+      const moved = this.sharerAt.goTo(this.project(scene.sharer.at), !this.still, now);
       if (moved) this.arrived(this.sharer.root, !scene.sharer.seen);
     } else this.sharerAt.clear();
 
     this.viewer.update(scene.viewer);
     if (scene.viewer) {
-      if (this.viewerAt.goTo(project(scene.viewer.at), !this.still, now)) this.arrived(this.viewer.root, false);
+      if (this.viewerAt.goTo(this.project(scene.viewer.at), !this.still, now)) this.arrived(this.viewer.root, false);
     } else this.viewerAt.clear();
 
     this.chip.textContent = scene.distance ?? '';
     this.chip.hidden = scene.distance === null || !scene.viewer;
-    this.trail = scene.trail.map(project);
+    this.trail = scene.trail.map((p) => this.project(p));
     this.layDots();
     this.schedule();
   }
@@ -152,7 +178,7 @@ export class SvgMapView implements MapView {
 
   frame(people: readonly LatLng[], band: Band, options: FrameOptions): void {
     if (people.length === 0) return;
-    const pts = people.map(project);
+    const pts = people.map((p) => this.project(p));
     const pad = this.scene?.sharer?.approximate ? Math.max(PAD, AREA_D / 2 + 8) : PAD;
     const current = this.camAnim?.to ?? this.cam;
     if (options.mode === 'contain' && keepsInBand(current, pts, band, Math.max(24, pad - 16))) return;

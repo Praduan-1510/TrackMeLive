@@ -3,7 +3,7 @@
  * transaction per document without one failure stopping the rest. Every job is
  * idempotent, so a failed run is simply done again by the next one.
  */
-import { Timestamp, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { Timestamp, type BulkWriter, type DocumentReference, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import type { ScheduledEvent } from "firebase-functions/scheduler";
 
@@ -35,6 +35,28 @@ export async function forEachPage(query: Query, handle: (docs: QueryDocumentSnap
   }
 }
 
+/** gRPC NOT_FOUND and FAILED_PRECONDITION, as Firestore errors carry them in `code`. */
+const NOT_FOUND = 5;
+const FAILED_PRECONDITION = 9;
+const codeOf = (error: unknown): unknown => (typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined);
+
+/**
+ * For a write whose doc may be gone or changed by a job running at the same
+ * time (the purge deleting a session the cleanup is marking, or an app
+ * rewriting a device the sweep is deleting): that write simply has nothing
+ * left to do. Resolves false then; any other error is passed on.
+ */
+export function unlessGoneOrChanged(write: Promise<unknown>): Promise<boolean> {
+  return write.then(
+    () => true,
+    (error: unknown) => {
+      const code = codeOf(error);
+      if (code === NOT_FOUND || code === FAILED_PRECONDITION) return false;
+      throw error;
+    },
+  );
+}
+
 /** How many docs a job changed, and how many failed. */
 export class Tally {
   changed = 0;
@@ -45,13 +67,27 @@ export class Tally {
    * doc; a task that throws is logged and counted, and the others carry on.
    */
   async settle(docs: readonly QueryDocumentSnapshot[], what: string, task: (doc: QueryDocumentSnapshot) => Promise<boolean>): Promise<void> {
-    const results = await Promise.allSettled(docs.map(task));
+    this.record(docs.map((doc) => doc.ref), what, await Promise.allSettled(docs.map(task)));
+  }
+
+  /**
+   * Queues write for each doc on the BulkWriter, flushes it, and counts the
+   * outcomes as settle does. BulkWriter sends a part-filled batch only when
+   * flushed, so the flush comes before waiting on the writes.
+   */
+  async bulk(writer: BulkWriter, refs: readonly DocumentReference[], what: string, write: (ref: DocumentReference) => Promise<boolean>): Promise<void> {
+    const writes = refs.map(write);
+    await writer.flush();
+    this.record(refs, what, await Promise.allSettled(writes));
+  }
+
+  private record(refs: readonly DocumentReference[], what: string, results: PromiseSettledResult<boolean>[]): void {
     results.forEach((result, i) => {
       if (result.status === "fulfilled") {
         if (result.value) this.changed++;
       } else {
         this.failed++;
-        logger.error(`${what} failed`, { doc: docs[i]?.ref.path, error: String(result.reason) });
+        logger.error(`${what} failed`, { doc: refs[i]?.path, error: String(result.reason) });
       }
     });
   }

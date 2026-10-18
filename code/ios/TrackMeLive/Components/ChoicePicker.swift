@@ -55,16 +55,38 @@ struct ChoicePicker<Value: Hashable & Identifiable>: View {
 /// The in-app explainer before a system permission prompt (prototype `ask`): a picture, what the
 /// permission is for, the prominent action and Not now. Shown as a sheet sized to its content.
 struct PermissionExplainer: View {
-    let prompt: PermissionPrompt
+    let systemImage: String
+    let title: String
+    let message: String
+    let confirmTitle: String
+    let cancelTitle: String
     let onContinue: () -> Void
     let onNotNow: () -> Void
 
     @ScaledMetric(relativeTo: .title) private var artSize: CGFloat = 72
 
+    init(systemImage: String, title: String, message: String, confirmTitle: String, cancelTitle: String,
+         onContinue: @escaping () -> Void, onNotNow: @escaping () -> Void) {
+        self.systemImage = systemImage
+        self.title = title
+        self.message = message
+        self.confirmTitle = confirmTitle
+        self.cancelTitle = cancelTitle
+        self.onContinue = onContinue
+        self.onNotNow = onNotNow
+    }
+
+    /// Settings' explainers.
+    init(prompt: PermissionPrompt, onContinue: @escaping () -> Void, onNotNow: @escaping () -> Void) {
+        self.init(systemImage: prompt.systemImage, title: prompt.title, message: prompt.message,
+                  confirmTitle: prompt.confirmTitle, cancelTitle: prompt.cancelTitle,
+                  onContinue: onContinue, onNotNow: onNotNow)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: TMLSpacing.space4) {
-                Image(systemName: prompt.systemImage)
+                Image(systemName: systemImage)
                     .font(.title.weight(.semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(TMLColor.lamplightText)
@@ -72,19 +94,19 @@ struct PermissionExplainer: View {
                     .background(TMLColor.lamplightWash, in: .circle)
                     .accessibilityHidden(true)
                 VStack(spacing: TMLSpacing.space2) {
-                    Text(prompt.title)
+                    Text(verbatim: title)
                         .displayFont(.title2)
                         .foregroundStyle(TMLColor.ink)
                         .accessibilityAddTraits(.isHeader)
-                    Text(prompt.message)
+                    Text(verbatim: message)
                         .font(.callout)
                         .foregroundStyle(TMLColor.inkSecondary)
                 }
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 VStack(spacing: TMLSpacing.space1) {
-                    PrimaryButton(LocalizedStringKey(prompt.confirmTitle), action: onContinue)
-                    PlainInkButton(LocalizedStringKey(prompt.cancelTitle), action: onNotNow)
+                    PrimaryButton(LocalizedStringKey(confirmTitle), action: onContinue)
+                    PlainInkButton(LocalizedStringKey(cancelTitle), action: onNotNow)
                 }
             }
             .padding(TMLSpacing.space5)

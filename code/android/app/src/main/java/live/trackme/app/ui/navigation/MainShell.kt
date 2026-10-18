@@ -68,7 +68,7 @@ enum class Tab(@StringRes val label: Int, @DrawableRes val outlined: Int, @Drawa
  * the app. Save confirmations and errors show in the snackbar, above the navigation bar.
  */
 @Composable
-fun MainShell() {
+fun MainShell(onShare: () -> Unit = {}, onOpenLive: () -> Unit = {}) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
     val snackbar = remember { SnackbarHostState() }
     BackHandler(enabled = tab != Tab.Home) { tab = Tab.Home }
@@ -82,7 +82,7 @@ fun MainShell() {
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             Crossfade(targetState = tab, animationSpec = tween(200), label = "tab") { t ->
                 when (t) {
-                    Tab.Home -> HomeRoute()
+                    Tab.Home -> HomeRoute(onShare = onShare, onOpenLive = onOpenLive)
                     Tab.Mascot -> MascotTabRoute()
                     Tab.Settings -> SettingsRoute(snackbar)
                 }

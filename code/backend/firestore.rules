@@ -129,9 +129,10 @@ service cloud.firestore {
     function isSharerSessionUpdate(sessionId) {
       return ownsSession(sessionId)
         && isLive(resource.data)
-        && onlyChanges(['last_ping_at', 'ping_interval_s', 'precision', 'precision_next',
+        && onlyChanges(['last_ping_at', 'last_fix_at', 'ping_interval_s', 'precision', 'precision_next',
                         'stop_rule', 'stop_minutes', 'stop_at', 'share_back_requested_at'])
         && validCheckIn(request.resource.data)
+        && validLastFix(resource.data, request.resource.data)
         && validPingInterval(request.resource.data)
         && validPrecision(request.resource.data)
         && validStopRule(resource.data, request.resource.data)
@@ -141,6 +142,16 @@ service cloud.firestore {
     // A check-in carries the server's time, never the phone's.
     function validCheckIn(after) {
       return !changes('last_ping_at') || after.last_ping_at == request.time;
+    }
+
+    // The newest ping's recorded_at (x-decisions Q-PING-WRITE). It only moves
+    // forward, and never past the clock-skew bound a ping is held to. Sessions
+    // started before the field existed don't have it: read as null.
+    function validLastFix(before, after) {
+      return !changes('last_fix_at')
+        || (after.last_fix_at is timestamp
+            && after.last_fix_at <= request.time + duration.value(60, 's')
+            && (before.get('last_fix_at', null) == null || after.last_fix_at > before.last_fix_at));
     }
 
     // MAX_PING_INTERVAL_SECONDS: never fewer than 1 ping per 60 s.
@@ -156,8 +167,8 @@ service cloud.firestore {
         && (after.precision_next == null || after.precision_next in ['precise', 'approximate']);
     }
 
-    // The timer sheet (FSD §4 Stop rule): a timer ends in the future and never
-    // after the 1-hour limit; "At the 1-hour limit" is the limit itself; "When the
+    // The timer sheet (FSD §4 Stop rule): a timer is now plus its minutes, capped
+    // at the 1-hour limit; "At the 1-hour limit" is the limit itself; "When the
     // call ends" only on a call share whose call hasn't ended.
     function validStopRule(before, after) {
       return !changedKeys().hasAny(['stop_rule', 'stop_minutes', 'stop_at'])
@@ -165,7 +176,7 @@ service cloud.firestore {
             && after.stop_minutes in [15, 30, 60]
             && after.stop_at is timestamp
             && after.stop_at > request.time
-            && after.stop_at <= before.expires_at)
+            && isTimerEnd(after.stop_at, after.stop_minutes, before.expires_at))
         || (after.stop_rule == 'limit'
             && after.stop_minutes == null
             && after.stop_at == before.expires_at)
@@ -174,6 +185,16 @@ service cloud.firestore {
             && after.stop_at == null
             && before.call_id != null
             && before.call_ended_at == null);
+    }
+
+    // stop_at = min(now + minutes, expires_at), as the apps compute it on the
+    // server's clock, give or take PING_CLOCK_SKEW_SECONDS (60) for their clock
+    // estimate and the write's trip. Past the limit, only the limit itself.
+    function isTimerEnd(stopAt, minutes, expiresAt) {
+      let target = request.time + duration.value(minutes, 'm');
+      return stopAt <= expiresAt
+        && stopAt <= target + duration.value(60, 's')
+        && (stopAt >= target - duration.value(60, 's') || stopAt == expiresAt);
     }
 
     // Ask to share (FSD §4): once per call, during the call, with share back
@@ -203,16 +224,48 @@ service cloud.firestore {
       return precision == 'approximate' ? 500 : 0;
     }
 
-    // A ping: exactly lat, lng, recorded_at, accuracy_m (shared Ping).
+    // A ping: exactly lat, lng, recorded_at, accuracy_m (shared Ping). The range
+    // checks also turn away NaN and the infinities. recorded_at may run at most
+    // PING_CLOCK_SKEW_SECONDS (60) ahead of the server; accuracy_m is at most
+    // MAX_ACCURACY_METERS (100 km).
     function validPing(d, precision) {
       return d.keys().hasOnly(['lat', 'lng', 'recorded_at', 'accuracy_m'])
         && d.keys().hasAll(['lat', 'lng', 'recorded_at', 'accuracy_m'])
         && d.lat is number && d.lat >= -90 && d.lat <= 90
         && d.lng is number && d.lng >= -180 && d.lng <= 180
         && d.recorded_at is timestamp
-        && d.recorded_at <= request.time + duration.value(1, 'm')
+        && d.recorded_at <= request.time + duration.value(60, 's')
         && d.accuracy_m is number
-        && d.accuracy_m >= minAccuracyFor(precision);
+        && d.accuracy_m >= minAccuracyFor(precision)
+        && d.accuracy_m <= 100000;
+    }
+
+    // PING_ID_MAX_LENGTH: 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids fit.
+    // It reads the id from request.resource, not the path: on a REST create that
+    // leaves the id to the server, the emulator can't evaluate the path's {pingId}.
+    function validPingId() {
+      return request.resource.id.matches('^[A-Za-z0-9_-]{1,64}$');
+    }
+
+    // The sharer's ping goes in one batch with the session's check-in
+    // (last_ping_at = server time, as the batch leaves the session).
+    function checksIn(sessionId) {
+      return sessionAfter(sessionId).last_ping_at == request.time;
+    }
+
+    // x-decisions Q-PING-WRITE: every ping also sets the session's last_fix_at
+    // to its recorded_at, which must come MIN_PING_SPACING_SECONDS (2) after the
+    // previous ping's, or, for the first, at most FIRST_PING_BEFORE_START_MINUTES
+    // (5) before started_at. That keeps pings in order and caps the rate at one
+    // per 2 s beyond a 60 s burst (the clock-skew bound), while an offline
+    // backlog, which keeps its spacing, still lands. Sessions started before
+    // last_fix_at existed read it as null.
+    function advancesLastFix(sessionId, recordedAt) {
+      let before = session(sessionId);
+      let last = before.get('last_fix_at', null);
+      return sessionAfter(sessionId).get('last_fix_at', null) == recordedAt
+        && ((last == null && recordedAt >= before.started_at - duration.value(5, 'm'))
+            || (last != null && recordedAt >= last + duration.value(2, 's')));
     }
 
     // An APNs, FCM or Live Activity token.
@@ -273,8 +326,11 @@ service cloud.firestore {
         allow read: if ownsSession(sessionId)
           || (isViewerOf(sessionId) && isLive(session(sessionId)));
         allow create: if ownsSession(sessionId)
+          && validPingId()
           && isLive(sessionAfter(sessionId))
-          && validPing(request.resource.data, sessionAfter(sessionId).precision);
+          && checksIn(sessionId)
+          && validPing(request.resource.data, sessionAfter(sessionId).precision)
+          && advancesLastFix(sessionId, request.resource.data.recorded_at);
       }
 
       // The viewer's shared-back locations: only the viewer writes them, while
@@ -283,6 +339,7 @@ service cloud.firestore {
       match /viewerPings/{pingId} {
         allow read: if ownsSession(sessionId);
         allow create: if isShareBackViewer(sessionId)
+          && validPingId()
           && shareBackOpen(sessionAfter(sessionId))
           && sessionAfter(sessionId).viewer_sharing == true
           && validPing(request.resource.data, 'precise');

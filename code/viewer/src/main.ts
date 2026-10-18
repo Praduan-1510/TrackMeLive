@@ -3,15 +3,22 @@
  * no install. The sharer's mascot on a live map, where they are in words, and, during the call,
  * sharing back (FSD §4, §7, §9). Screen reference: prototype/ (the Mom page).
  *
- * The page is a state machine (src/state/) driven by four interfaces, so Sprint 2 swaps sources
- * without touching the UI:
- *   SessionSource   the session and its pings      SampleSessionSource now; Firestore in Sprint 2
- *   LocationProvider the viewer's own location     the browser's API, or a scripted sample
- *   PlaceLookup     where someone is, in words     the sample city now; the Maps API in Sprint 2
- *   MapView         the map behind the page        the SVG sample city now; Google Maps in Sprint 2
+ * The page is a state machine (src/state/) driven by four interfaces; the source behind each is
+ * picked here, so the UI never knows which it has:
+ *                    a share link /s/{token}                  the sample and review links
+ *   SessionSource    LiveSessionSource (redeemLinkToken,       SampleSessionSource
+ *                    then Firestore, live)
+ *   LocationProvider the browser's API                        a scripted answer, or the browser's
+ *   PlaceLookup      the Maps API's Geocoder with a Maps key,  the sample city's own names
+ *                    else coordinates
+ *   MapView          the SVG map on a plain backdrop, until    the SVG sample city
+ *                    the Maps API draws one
+ *
+ * Which Firebase a share link talks to: src/session/firebase/config.ts (the emulators in any mode but
+ * production). The Firebase SDK loads only on a share link.
  *
  * Review: ?state=<scenario> (src/sample/scenarios.ts), ?theme=light|dark, ?geo=… (src/sample/harness.ts).
- *   npm run dev · npm test · npm run test:e2e · npm run lint · npm run build
+ *   npm run dev · npm test · npm run test:e2e · npm run test:e2e:live · npm run lint · npm run build
  */
 
 import '@tml/shared/tokens/generated/css/tokens.css';
@@ -29,10 +36,17 @@ import { unitsFor } from './format/distance';
 import { clockStyleFor } from './format/time';
 import { BrowserLocationProvider } from './location/provider';
 import { SvgMapView } from './map/svg/svg-map-view';
+import { cachedPlaces } from './places/cache';
+import { coordinatesOnly } from './places/coordinates';
+import { googlePlaces, mapsGeocoder } from './places/google';
 import { sampleSetup, tapThrough } from './sample/harness';
 import { samplePlaces } from './sample/sample-places';
+import { browserConnectivity } from './session/backend';
 import { answerOnly, chooseSource } from './session/choose-source';
+import { firebaseTarget, type FirebaseTarget } from './session/firebase/config';
 import { parseShareLink } from './session/link';
+import { LiveSessionSource } from './session/live-source';
+import type { SessionSource } from './session/source';
 import { browserFamily } from './ui/help-dialog';
 
 const url = new URL(window.location.href);
@@ -45,21 +59,48 @@ function byId(id: string): HTMLElement {
   return el;
 }
 
+/** The build's backend, or null (no project configured, or a value that can't be right: said in the console). */
+function backendTarget(): FirebaseTarget | null {
+  try {
+    return firebaseTarget(import.meta.env.MODE, import.meta.env);
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
 const mapHost = byId('map');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const locale = navigator.language;
+const link = parseShareLink(url.pathname);
+const target = link.kind === 'token' ? backendTarget() : null;
 // Sample data only in a development build or on a review link (?state=); never on a real share link.
-const choice = chooseSource(parseShareLink(url.pathname), url.searchParams.has('state'), import.meta.env.DEV);
+const choice = chooseSource(link, url.searchParams.has('state'), import.meta.env.DEV, target !== null);
 const sample = choice === 'sample' ? sampleSetup(url.searchParams, navigator, window.isSecureContext) : null;
-const source = sample ? sample.source : answerOnly({ type: choice === 'unavailable' ? 'unavailable' : 'invalid' });
+
+function liveSource(): SessionSource {
+  if (choice !== 'live' || link.kind !== 'token' || !target) return answerOnly({ type: choice === 'unavailable' ? 'unavailable' : 'invalid' });
+  const t = target;
+  return new LiveSessionSource({
+    token: link.token,
+    // The SDK's own chunk, fetched only now.
+    backend: () => import('./session/firebase/backend').then((m) => m.connect(t)),
+    connectivity: browserConnectivity(window),
+  });
+}
+
+const mapsKey = import.meta.env.VITE_MAPS_API_KEY;
+const source = sample ? sample.source : liveSource();
 const location = sample ? sample.location : new BrowserLocationProvider(navigator, window.isSecureContext);
-const map = new SvgMapView(mapHost, reduceMotion);
+const map = new SvgMapView(mapHost, reduceMotion, sample ? 'sample-city' : 'plain');
+const places = sample
+  ? samplePlaces
+  : cachedPlaces(typeof mapsKey === 'string' && mapsKey !== '' ? googlePlaces(mapsGeocoder(mapsKey, window)) : coordinatesOnly);
 
 const controller = new ViewerController({
   source,
   location,
-  // TODO(sprint-2): the Maps API names places for real sessions; only the sample source has pings now.
-  places: samplePlaces,
+  places,
   map: sample ? sample.wrapMap(map) : map,
   mapHost,
   env: {

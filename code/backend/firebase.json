@@ -17,7 +17,8 @@
         "eslint.config.js",
         "firebase-debug.log",
         "firebase-debug.*.log",
-        "*.local"
+        "*.local",
+        "scripts"
       ],
       "predeploy": [
         "npm --prefix \"$RESOURCE_DIR\" run lint",
@@ -36,7 +37,7 @@
         "source": "/s/**",
         "headers": [
           { "key": "Cache-Control", "value": "no-store" },
-          { "key": "Referrer-Policy", "value": "no-referrer" },
+          { "key": "Referrer-Policy", "value": "strict-origin" },
           { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
         ]
       }

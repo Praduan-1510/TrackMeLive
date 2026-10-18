@@ -1,0 +1,6 @@
+{
+  "name": "@tml/qa-routes",
+  "private": true,
+  "description": "Track Me Live QA: simulated routes (tml-route/1 JSON), GPX for the iOS Simulator, and a player for the Android emulator and the iOS Simulator. No dependencies.",
+  "type": "module"
+}

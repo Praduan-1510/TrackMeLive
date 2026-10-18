@@ -80,6 +80,12 @@ targets:
         NSLocationWhenInUseUsageDescription: >-
           Track Me Live uses your location only while you're sharing. Nobody sees it until you send
           your link, and it stops when you do.
+        # The share screen's one-time precise request while Precise Location is off for the app
+        # (FSD §8; LiveLocationAccess.precisePurposeKey). It lasts for that share only.
+        NSLocationTemporaryUsageDescriptionDictionary:
+          SharePrecise: >-
+            Precise location lets the person you share with see exactly where you are, for this
+            share only.
         # The share session's Live Activity (Lock Screen and Dynamic Island), updated often by push.
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
@@ -117,10 +123,18 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
 
   # The Firebase-backed services (phone sign-in, the profile listener, the saveProfile and
-  # deleteAccount callables), in their own static library so nothing in the app depends on the SDK
-  # until it builds. The Command Line Tools can't resolve or build the SDK, so this target is
-  # outside scripts/typecheck.sh and the TrackMeLive scheme; build it with the TrackMeLiveFirebase
-  # scheme once Xcode is installed (README, "Xcode day").
+  # deleteAccount callables, the share session's callables, listener and ping writes), in their own
+  # static library so nothing in the app depends on the SDK until it builds. The Command Line Tools
+  # can't resolve or build the SDK, so this target is outside scripts/typecheck.sh and the
+  # TrackMeLive scheme; build it with the TrackMeLiveFirebase scheme (README, "Xcode day").
+  #
+  # Every module the sources import is listed (FirebaseCore too), each with `link: true`. XcodeGen
+  # links a static library's dependencies only into executables by default, which leaves this
+  # target without a Link Binary With Libraries phase; Xcode's explicit-module dependency scan then
+  # has no module maps for the products' Objective-C modules (FirebaseCore, FirebaseAuthInternal,
+  # GTMSessionFetcherCore, the *Interop modules…) and fails with "Unable to resolve module
+  # dependency" (CI run 39145630903). A static library's link phase doesn't copy the products
+  # into the .a: the app still links them when it links this target (README, Xcode day step 3).
   TrackMeLiveFirebase:
     type: library.static
     platform: iOS
@@ -130,12 +144,23 @@ targets:
           - "**/*.md"
     dependencies:
       - package: TMLCore
+        link: true
+      - package: Firebase
+        product: FirebaseCore
+        link: true
       - package: Firebase
         product: FirebaseAuth
+        link: true
       - package: Firebase
         product: FirebaseFirestore
+        link: true
       - package: Firebase
         product: FirebaseFunctions
+        link: true
+      # The FCM registration token for alerts (FirebasePushTokens).
+      - package: Firebase
+        product: FirebaseMessaging
+        link: true
     settings:
       base:
         PRODUCT_NAME: TrackMeLiveFirebase

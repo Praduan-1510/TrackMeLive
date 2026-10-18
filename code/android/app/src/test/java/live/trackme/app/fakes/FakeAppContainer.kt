@@ -21,8 +21,10 @@ class FakeAppContainer(
     override val auth: FakeAuthRepository = FakeAuthRepository(),
     val profileSource: FakeProfileDataSource = FakeProfileDataSource(),
     override val preferences: FakeLocalPreferences = FakeLocalPreferences(SetupStage.Onboarding),
+    override val sharing: FakeSharingRepository = FakeSharingRepository(),
+    override val locationPermissions: FakeLocationPermissions = FakeLocationPermissions(),
 ) : AppContainer {
-    override val profiles: ProfileRepository = DefaultProfileRepository(auth.userId, profileSource, scope)
+    override val profiles: ProfileRepository = DefaultProfileRepository(auth.userId, auth::currentUserId, profileSource, scope)
     override val settings: SettingsRepository = DefaultSettingsRepository(preferences, profiles)
     override val phoneNumbers = PhoneNumbers()
     override val clock: Clock = object : Clock {

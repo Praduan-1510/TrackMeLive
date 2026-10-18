@@ -1,0 +1,22 @@
+{
+  "name": "@tml/qa-e2e-sharing",
+  "private": true,
+  "description": "Track Me Live QA: Gate G2 end-to-end scenarios. The viewer follows a fake sharer in Chrome; the Android app shares from the emulator.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test:viewer": "node --test --test-timeout=240000 --disable-warning=ExperimentalWarning src/viewer-follow.e2e.ts",
+    "test:rules": "node --test --test-timeout=120000 --disable-warning=ExperimentalWarning src/ping-rules.e2e.ts",
+    "test:android": "node src/emulator-free.ts && ../../scripts/with-lock.sh emulator env TML_EMULATOR_LOCK_HELD=1 npm run --silent test:android:held",
+    "test:android:held": "node --test --test-timeout=900000 --disable-warning=ExperimentalWarning src/android-share.e2e.ts",
+    "test": "node --test --test-timeout=240000 --disable-warning=ExperimentalWarning src/ping-rules.e2e.ts src/viewer-follow.e2e.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "playwright-core": "1.47.2",
+    "typescript": "6.0.3"
+  }
+}

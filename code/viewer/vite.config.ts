@@ -6,14 +6,20 @@ import { defineConfig } from 'vite';
 // code/ (the repo's code folder) and code/shared (tokens and the schema types).
 const codeDir = fileURLToPath(new URL('..', import.meta.url));
 const sharedDir = fileURLToPath(new URL('../shared', import.meta.url));
+// Firestore imports re2js only for client-side Pipelines regexes, which the page never runs.
+const re2jsStub = fileURLToPath(new URL('src/session/firebase/re2js-stub.ts', import.meta.url));
 
 export default defineConfig({
   resolve: {
     alias: {
       // import '@tml/shared/tokens/generated/css/tokens.css' → code/shared/tokens/generated/css/tokens.css
       '@tml/shared': sharedDir,
+      re2js: re2jsStub,
     },
   },
+  // The Firebase SDK is imported only on a share link; bundle it when the dev server starts, so the
+  // first share link opened doesn't make the server re-optimize and reload the page mid-session.
+  optimizeDeps: { include: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'] },
   server: {
     port: 5173,
     strictPort: true,

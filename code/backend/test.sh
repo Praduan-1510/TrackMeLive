@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Lints and builds the functions, type-checks the tests, then runs the rules and
-# function tests against the emulators. If ./run.sh already has the emulators up,
-# the tests use them; otherwise `firebase emulators:exec` starts Auth, Firestore
-# and Functions just for this run and stops them afterwards.
+# function tests against the test emulator set through scripts/with-test-emulators.sh:
+# project demo-trackmelive-test on its own ports (firebase.test.json, scripts/env.sh).
+# It never uses the dev set that ./run.sh serves to the apps, so it can run while
+# that one is up, and the tests' wipes never reach the dev data. If ./run.sh --test
+# has the test set up, the tests use it; otherwise `firebase emulators:exec` starts
+# Auth, Firestore and Functions just for this run and stops them afterwards.
 # Pass a test file to run only that one: ./test.sh src/rules.test.ts
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/scripts/env.sh"
@@ -21,25 +24,7 @@ else
   test_cmd=(npm run --silent test)
 fi
 
-emulators_running() {
-  local list
-  list="$(curl -fsS "http://127.0.0.1:${HUB_PORT}/emulators" 2>/dev/null)" || return 1
-  [[ "${list}" == *'"auth"'* && "${list}" == *'"firestore"'* && "${list}" == *'"functions"'* ]]
-}
-
-if emulators_running; then
-  echo "==> using the emulators already running (hub on ${HUB_PORT})"
-  export GCLOUD_PROJECT="${PROJECT_ID}"
-  export FIRESTORE_EMULATOR_HOST="127.0.0.1:${FIRESTORE_PORT}"
-  export FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:${AUTH_PORT}"
-  export FUNCTIONS_EMULATOR_HOST="127.0.0.1:${FUNCTIONS_PORT}"
-  # The Functions emulator reloads lib/ on its own; give it a moment after the build.
-  sleep 2
-  cd tests && exec "${test_cmd[@]}"
-fi
-
-echo "==> starting Auth, Firestore and Functions emulators for this run"
-# emulators:exec runs the command through a shell, so quote each word.
-printf -v cmd '%q ' "${test_cmd[@]}"
-exec "${FIREBASE[@]}" emulators:exec --project "${PROJECT_ID}" --only auth,firestore,functions \
-  "cd $(printf '%q' "${BACKEND_DIR}/tests") && ${cmd}"
+# scripts/with-test-emulators.sh takes the firebase lock (unless check-all holds it),
+# reuses or starts the test set, and exports its hosts and project to the tests.
+cd tests
+exec "${BACKEND_DIR}/scripts/with-test-emulators.sh" "${test_cmd[@]}"

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Home while sharing, and its Share button (prototype › viewHome, Android). -->
+    <string name="home_share">Share live location</string>
+    <string name="home_share_fine">You’ll choose who gets the link.</string>
+    <string name="home_live_with">Sharing with %1$s</string>
+    <string name="home_live">Sharing live</string>
+    <string name="home_live_open">Tap to open the map.</string>
+    <string name="status_sharing_live">Sharing live</string>
+
+    <!-- The share screen (prototype › viewShare, Android). -->
+    <string name="share_back">Home</string>
+    <string name="share_title">Share where you are</string>
+    <string name="share_lede">Whoever gets the link follows you live in their browser. No app needed.</string>
+    <string name="share_preview_you">You</string>
+    <string name="share_preview_caption">They see you move as you go</string>
+    <string name="share_viewer_label">Who it’s for (optional)</string>
+    <string name="share_viewer_placeholder">Name</string>
+    <string name="share_viewer_clear">Clear the name</string>
+    <string name="share_viewer_help">Only you see the name. They see your name and mascot.</string>
+    <string name="share_viewer_error">Use at least one letter or number, or leave the name empty.</string>
+    <string name="share_stops">Stops</string>
+    <string name="share_location">Location</string>
+    <string name="share_button">Share live location</string>
+    <string name="share_fine">Next, choose who gets the link.</string>
+    <string name="share_error_network">We couldn’t start sharing. Check your connection, then try again.</string>
+    <string name="share_error_already">You’re already sharing from another phone. Stop that share first, then try again.</string>
+    <string name="share_error_location">Track Me Live can’t use your location yet. Allow it, then try again.</string>
+    <string name="share_error_other">Sharing didn’t start. Try again.</string>
+
+    <!-- Stop choices: the Stops row and the timer sheet (prototype › stopLabel, topAlex timer). -->
+    <string name="stop_call">When the call ends</string>
+    <string name="stop_15">In 15 min</string>
+    <string name="stop_30">In 30 min</string>
+    <string name="stop_60">In 1 hour</string>
+    <string name="stop_limit">At the 1-hour limit · %1$s</string>
+    <string name="stop_limit_plain">At the 1-hour limit</string>
+    <string name="stop_sheet_title">When sharing stops</string>
+    <string name="stop_sheet_note">Sharing never runs longer than 1 hour.</string>
+
+    <!-- The system share sheet: what the person sends (prototype › sharesheet, Mom's message). -->
+    <string name="share_sheet_title">%1$s · Live location</string>
+    <string name="share_sheet_message">I’m sharing my live location with you. %1$s</string>
+
+    <!-- Times and durations, as every surface writes them. -->
+    <string name="time_am">%1$s am</string>
+    <string name="time_pm">%1$s pm</string>
+    <string name="duration_under_minute">&lt; 1 min</string>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_under_minute_spoken">less than a minute</string>
+    <plurals name="duration_minutes_spoken">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+</resources>

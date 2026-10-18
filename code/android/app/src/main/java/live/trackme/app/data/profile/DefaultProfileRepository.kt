@@ -30,7 +30,13 @@ import kotlinx.coroutines.sync.withLock
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultProfileRepository(
+    /** Who is signed in, observed over time: drives the users/{uid} listener. */
     private val userId: StateFlow<String?>,
+    /**
+     * Who is signed in right now, settled (AuthRepository.currentUserId). fetch, create and update read
+     * this: they run right after a sign-in, when [userId] may not have caught up yet.
+     */
+    private val currentUserId: () -> String?,
     private val source: ProfileDataSource,
     private val scope: CoroutineScope,
     /** Called when saveProfile says the sign-in has ended, to treat it as signed out (AccountSession). */
@@ -121,7 +127,7 @@ class DefaultProfileRepository(
     }
 
     override suspend fun fetch(): FetchProfileResult {
-        val uid = userId.value ?: return FetchProfileResult.Failed(ProfileFailure.NotSignedIn)
+        val uid = currentUserId() ?: return FetchProfileResult.Failed(ProfileFailure.NotSignedIn)
         return try {
             source.fetch(uid)?.let { FetchProfileResult.Found(it) } ?: FetchProfileResult.NotFound
         } catch (e: ProfileDataException) {
@@ -145,7 +151,7 @@ class DefaultProfileRepository(
 
     private suspend fun createLocked(name: String): SaveProfileResult {
         if (savesBlocked.value) return SaveProfileResult.Failed(ProfileFailure.AccountDeleting)
-        val uid = userId.value ?: return SaveProfileResult.Failed(ProfileFailure.NotSignedIn)
+        val uid = currentUserId() ?: return SaveProfileResult.Failed(ProfileFailure.NotSignedIn)
         return save(uid, before = overlay.value, next = Profile(name = name.trim()), includeSettings = false)
     }
 
@@ -157,7 +163,7 @@ class DefaultProfileRepository(
     private suspend fun updateLocked(change: (Profile) -> Profile): SaveProfileResult {
         // Asked for before the delete began, but its turn came after: refused all the same.
         if (savesBlocked.value) return SaveProfileResult.Failed(ProfileFailure.AccountDeleting)
-        val uid = userId.value ?: return SaveProfileResult.Failed(ProfileFailure.NotSignedIn)
+        val uid = currentUserId() ?: return SaveProfileResult.Failed(ProfileFailure.NotSignedIn)
         val current = (profile.value as? ProfileState.Ready)?.profile
             ?: return SaveProfileResult.Failed(ProfileFailure.NoProfile)
         val next = change(current)

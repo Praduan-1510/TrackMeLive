@@ -62,7 +62,10 @@ class SettingsScreenTest {
                     is SettingsEvent.AlertCallEndedChanged -> state.copy(alertCallEnded = event.on)
                     is SettingsEvent.AlertExpiryChanged -> state.copy(alertExpiry = event.on)
                     is SettingsEvent.AppearanceChanged -> state.copy(appearance = event.appearance)
-                    SettingsEvent.DeleteAccountConfirmed -> state
+                    SettingsEvent.DeleteAccountConfirmed,
+                    SettingsEvent.LocationPermissionTapped,
+                    SettingsEvent.NotificationsPermissionTapped,
+                    -> state
                 }
             })
         }
@@ -139,9 +142,13 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun permissionRowsAreDisplayOnlyForNow() {
-        show()
-        rule.onNode(hasClickAction() and hasText("Location")).assertDoesNotExist()
+    fun locationAndNotificationRowsOpenTheirPermissions() {
+        show(SettingsUiState(permissions = PermissionsUiState(location = PermissionStatus.Denied, notifications = PermissionStatus.Allowed)))
+        rule.onNode(hasClickAction() and hasText("Location")).performScrollTo().assertIsDisplayed().performClick()
+        rule.onNode(hasClickAction() and hasText("Notifications")).performScrollTo().performClick()
+        assertEquals(listOf(SettingsEvent.LocationPermissionTapped, SettingsEvent.NotificationsPermissionTapped), events)
+        // Phone arrives with call sharing: still display only.
+        rule.onNode(hasClickAction() and hasText("Phone")).assertDoesNotExist()
     }
 
     @Test

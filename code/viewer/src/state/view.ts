@@ -22,7 +22,7 @@ import type { MapScene } from '../map/map-view';
 import { mascotImage, type MascotImage } from '../mascot';
 import type { Place } from '../places/lookup';
 import type { Session, SessionPing } from '../session/source';
-import { sessionLive, shareBackOpen, type Model, type ShareBack } from './model';
+import { endsAt, sessionLive, shareBackOpen, type Model, type ShareBack } from './model';
 
 export interface ViewEnv {
   readonly units: Units;
@@ -128,9 +128,6 @@ export function isStale(session: Session, newest: SessionPing, now: number): boo
   return now - newest.recorded_at.getTime() > limitS * 1000;
 }
 
-/** The session ends at the earlier of its timer and the 1-hour limit. */
-export const endsAt = (s: Session): Date => (s.stop_at !== null && s.stop_at < s.expires_at ? s.stop_at : s.expires_at);
-
 /** The 1-hour warning: the last 5 minutes of a session that runs to its limit (FSD §4). */
 export function inLimitWarning(s: Session, now: number): boolean {
   const limit = s.expires_at.getTime();
@@ -220,9 +217,12 @@ interface Basis {
 }
 
 function page(m: Model, env: ViewEnv, b: Basis): PageView {
-  const { s, newest, place, name } = b;
+  const { s, newest, name } = b;
   const time = (d: Date): string => formatTime(d, env.clock);
   const approximate = s.precision === 'approximate';
+  // While approximate only an area is ever named: a street or park found before the change waits
+  // for the area to come back, and meanwhile the page says only that the location is approximate.
+  const place: Place = approximate && (b.place.kind === 'street' || b.place.kind === 'park') ? { kind: 'coordinates', lat: newest.lat, lng: newest.lng } : b.place;
   const ended = s.status === 'stopped';
   const lost = !ended && isStale(s, newest, m.now);
   const sharing = !ended && m.shareBack === 'sharing' && m.viewerFix !== null;

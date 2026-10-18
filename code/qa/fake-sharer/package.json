@@ -1,0 +1,21 @@
+{
+  "name": "@tml/qa-fake-sharer",
+  "private": true,
+  "description": "Track Me Live QA: a fake sharer that shares a simulated route through the real createSession callable and the real Firestore client path, against the dev emulators.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "start": "node src/cli.ts",
+    "test": "node --test --disable-warning=ExperimentalWarning \"src/**/*.test.ts\" \"../routes/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "firebase": "12.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "6.0.3"
+  }
+}

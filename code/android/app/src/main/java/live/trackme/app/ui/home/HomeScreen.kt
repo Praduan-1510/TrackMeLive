@@ -1,6 +1,16 @@
 package live.trackme.app.ui.home
 
 import android.text.BidiFormatter
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
+import live.trackme.app.ui.components.BadgeKind
+import live.trackme.app.ui.components.PillKind
+import live.trackme.app.ui.components.PrimaryButton
+import live.trackme.app.ui.components.StatusBadge
+import live.trackme.app.ui.permission.rememberLocationGate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -50,20 +60,26 @@ import live.trackme.design.TmlTheme
 import live.trackme.schema.MascotColor
 import live.trackme.schema.MascotId
 
+/**
+ * Home's route. Share live location goes through the location gate (the explainer and the system
+ * dialog the first time), then [onShare] opens the share screen.
+ */
 @Composable
-fun HomeRoute() {
+fun HomeRoute(onShare: () -> Unit = {}, onOpenLive: () -> Unit = {}) {
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(LocalContext.current.appContainer))
     val state by vm.state.collectAsStateWithLifecycle()
-    HomeScreen(state)
+    val gate = rememberLocationGate(onGranted = onShare)
+    HomeScreen(state, onShare = gate::start, onOpenLive = onOpenLive)
 }
 
 /**
- * Home before any call (prototype › viewHome): the greeting with the person's name, the "Not on a
- * call" card and their mascot. Sharing arrives in a later sprint, so nothing here pretends to be
- * tappable yet.
+ * Home, not on a call (prototype › viewHome): the greeting with the person's name, the "Not on a call"
+ * card, their mascot, and Share live location with "You'll choose who gets the link." While sharing,
+ * the live card ("Sharing with Mom · Tap to open the map.") takes the call card's place, the mascot's
+ * pill says Sharing live, and the Share button goes.
  */
 @Composable
-fun HomeScreen(state: HomeUiState, modifier: Modifier = Modifier) {
+fun HomeScreen(state: HomeUiState, modifier: Modifier = Modifier, onShare: () -> Unit = {}, onOpenLive: () -> Unit = {}) {
     val c = TmlTheme.colors
     Column(
         modifier
@@ -94,8 +110,65 @@ fun HomeScreen(state: HomeUiState, modifier: Modifier = Modifier) {
                 .then(if (state.loaded) Modifier.semantics { heading() } else Modifier.alpha(0f).clearAndSetSemantics { }),
         )
 
-        NotOnCallCard(Modifier.padding(top = TmlSpacing.Space4))
+        if (state.live) {
+            LiveCard(state.liveWith, onOpenLive, Modifier.padding(top = TmlSpacing.Space4))
+        } else {
+            NotOnCallCard(Modifier.padding(top = TmlSpacing.Space4))
+        }
         MascotCard(state, Modifier.padding(top = TmlSpacing.Space4))
+        if (!state.live) {
+            PrimaryButton(
+                text = stringResource(R.string.home_share),
+                onClick = onShare,
+                icon = R.drawable.ic_near_me_filled,
+                modifier = Modifier.padding(top = TmlSpacing.Space6),
+            )
+            Text(
+                text = stringResource(R.string.home_share_fine),
+                style = AppType.fine,
+                color = c.inkSecondary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = TmlSpacing.Space2),
+            )
+        }
+    }
+}
+
+/**
+ * While sharing (prototype `.a-card.live`): one button on lamplight wash, "LIVE · Sharing with Mom" over
+ * "Tap to open the map.", with a chevron. It opens the live map.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LiveCard(with: String?, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+    val c = TmlTheme.colors
+    val title = if (with != null) {
+        stringResource(R.string.home_live_with, BidiFormatter.getInstance().unicodeWrap(with))
+    } else {
+        stringResource(R.string.home_live)
+    }
+    Row(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(TmlAndroidRadius.Card))
+            .background(c.lamplightWash)
+            .clickable(role = Role.Button, onClick = onOpen)
+            .padding(TmlSpacing.Space4),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(TmlSpacing.Space3),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(TmlSpacing.Space3)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(TmlSpacing.Space1),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
+                StatusBadge(stringResource(R.string.badge_live), kind = BadgeKind.Live, spoken = stringResource(R.string.badge_live_spoken))
+                Text(title, style = AppType.cardRow, color = c.lamplightText)
+            }
+            Text(stringResource(R.string.home_live_open), style = AppType.card, color = c.ink)
+        }
+        Icon(painterResource(R.drawable.ic_chevron_right), contentDescription = null, tint = c.lamplightText, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -141,7 +214,11 @@ private fun MascotCard(state: HomeUiState, modifier: Modifier = Modifier) {
                 color = c.inkSecondary,
                 modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
             )
-            StatusPill(stringResource(R.string.status_not_sharing))
+            if (state.live) {
+                StatusPill(stringResource(R.string.status_sharing_live), kind = PillKind.Sharer)
+            } else {
+                StatusPill(stringResource(R.string.status_not_sharing))
+            }
         }
     }
 }
@@ -157,6 +234,7 @@ private class HomeStates : PreviewParameterProvider<HomeUiState> {
     override val values = sequenceOf(
         HomeUiState(greeting = Greeting.Evening, name = "Alex", loaded = true),
         HomeUiState(greeting = Greeting.Morning, name = "Alexandria Montgomery-W", loaded = true, mascotId = MascotId.NEKO, mascotColor = MascotColor.LAGOON),
+        HomeUiState(greeting = Greeting.Evening, name = "Alex", loaded = true, live = true, liveWith = "Mom"),
     )
 }
 

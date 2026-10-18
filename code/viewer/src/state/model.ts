@@ -7,6 +7,7 @@
  *   link     pending ─opened─▶ open        pending ─invalid─▶ invalid     pending ─expired─▶ expired
  *            pending ─unavailable─▶ unavailable
  *   session  ─gone─▶ stopped now (the sharer deleted their account; the page keeps what it has)
+ *            active ─(its timer or the 1-hour limit passes)─▶ stopped then, on the page's own clock
  *   share back (only while open for it: see shareBackOpen)
  *            idle ─dismiss─▶ dismissed
  *            idle | dismissed | stopped | denied | unavailable ─request─▶ requesting
@@ -84,6 +85,28 @@ export function sessionLive(s: Session, now: number): boolean {
   return s.status === 'active' && now < s.expires_at.getTime() && (s.stop_at === null || now < s.stop_at.getTime());
 }
 
+/** The session ends at the earlier of its timer and the 1-hour limit. */
+export const endsAt = (s: Session): Date => (s.stop_at !== null && s.stop_at < s.expires_at ? s.stop_at : s.expires_at);
+
+/** The session as the stop job records it once it's due: stopped at its timer (`timer`) or its limit (`limit`). */
+export function endedWhenDue(s: Session): Session {
+  const end = endsAt(s);
+  return { ...s, status: 'stopped', ended_at: end, end_reason: end === s.stop_at ? 'timer' : 'limit', viewer_sharing: false };
+}
+
+/**
+ * A session past its timer or its 1-hour limit is over from that moment, before the scheduled stop
+ * marks it: the rules refuse its pings from then on, and the stop job records `ended_at` as the time
+ * it was due, `timer` or `limit` (FSD §4 Auto-expiry; x-decisions Q-READ-ENDED). The page ends it the
+ * same way, on its own clock, so it never shows a live marker past the end, even when the stop job
+ * runs late.
+ */
+function endIfDue(m: Model): Model {
+  const s = m.session;
+  if (!s || s.status !== 'active' || m.now < endsAt(s).getTime()) return m;
+  return { ...m, session: endedWhenDue(s) };
+}
+
 /**
  * Whether this page may share back right now: the first browser (role viewer) only, during the
  * session's own call, when the sharer allows it, and while the sharer's app is checking in. The same
@@ -128,7 +151,8 @@ function step(m: Model, e: ViewerEvent): Model {
       // Deleted while live: it ended now. (Already stopped: it keeps its own end and reason.)
       return m.session.status === 'stopped' ? m : { ...m, session: { ...m.session, status: 'stopped', ended_at: new Date(m.now), end_reason: null } };
     case 'pings':
-      // Once the session ends its pings can't be read; the page keeps showing the last ones.
+      // Once the session ends its pings can't be read; the page keeps showing the last ones, and a
+      // ping that reaches it later never moves the marker.
       return m.session?.status === 'stopped' ? m : { ...m, pings: e.pings };
     case 'connection':
       return { ...m, online: e.online };
@@ -165,7 +189,7 @@ function step(m: Model, e: ViewerEvent): Model {
 }
 
 export function reduce(m: Model, e: ViewerEvent): Model {
-  const next = step(m, e);
+  const next = endIfDue(step(m, e));
   // Share back never outlives what allows it: the call, the session, the sharer's check-ins.
   return shareBackActive(next.shareBack) && !shareBackOpen(next) ? stopSharing(next, 'idle') : next;
 }

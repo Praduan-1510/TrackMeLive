@@ -23,6 +23,9 @@
 .m-pond { fill: var(--map-water); }
 .m-pier { fill: var(--map-land); stroke: var(--map-land); stroke-width: 3; stroke-linejoin: round; }
 
+/* A real session's map until the Maps API draws one: the land and a faint 300 m grid, no streets. */
+.m-grid { fill: none; stroke: var(--map-road); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
 .m-label {
   fill: var(--map-label); font: 600 calc(.6875rem * var(--k, 1)) var(--font-text); letter-spacing: .06px;
   dominant-baseline: central;

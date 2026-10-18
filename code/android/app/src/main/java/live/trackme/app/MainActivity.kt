@@ -1,5 +1,6 @@
 package live.trackme.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.view.ViewTreeObserver
@@ -8,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import live.trackme.app.di.appContainer
+import live.trackme.app.service.SharingIntents
 import live.trackme.app.ui.navigation.AppViewModel
 import live.trackme.app.ui.navigation.TrackMeLiveApp
 
@@ -20,6 +22,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent { TrackMeLiveApp(app) }
         holdFirstFrameUntilReady()
+        // A cold start from the ongoing notification; a recreated activity has handled its intent already.
+        if (savedInstanceState == null) handleSharingIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSharingIntent(intent)
+    }
+
+    /**
+     * The ongoing notification's taps (service/SharingIntents): Open shows the live map; Stop sharing shows
+     * it with the Stop dialog asking first (the app's view model follows stopConfirmationRequested).
+     */
+    private fun handleSharingIntent(intent: Intent?) {
+        when (SharingIntents.handle(intent, appContainer.sharing)) {
+            SharingIntents.Request.OpenShare, SharingIntents.Request.ConfirmStop -> app.openLive()
+            null -> Unit
+        }
     }
 
     /**

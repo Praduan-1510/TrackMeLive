@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The ongoing notification's small icon: the brand mark (brand/logo/mark-mono-white.svg) in one color.
+     The SVG cuts the ring and the dot out with a mask; here the even-odd fill rule does it: the callout,
+     then the ring's outer edge (out), its inner edge (back in) and the dot (out). The outline stroke
+     matches the SVG's 3-unit round-joined stroke. Centered in a square viewport, as status icons are. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="102.5"
+    android:viewportHeight="102.5">
+    <group
+        android:translateX="-14.5"
+        android:translateY="-10.5">
+        <path
+            android:pathData="M52.32,91.59 A40,40 0 1,0 29.75,70.9 Q32.39,88.89 29.1,104 Q29,109 33.01,106.01 Q41.61,97.24 52.32,91.59 Z"
+            android:strokeWidth="3"
+            android:strokeColor="@android:color/white"
+            android:strokeLineJoin="round" />
+        <path
+            android:fillColor="@android:color/white"
+            android:fillType="evenOdd"
+            android:pathData="M52.32,91.59 A40,40 0 1,0 29.75,70.9 Q32.39,88.89 29.1,104 Q29,109 33.01,106.01 Q41.61,97.24 52.32,91.59 Z M41.75,54 a24.25,24.25 0 1,0 48.5,0 a24.25,24.25 0 1,0 -48.5,0 Z M48.25,54 a17.75,17.75 0 1,0 35.5,0 a17.75,17.75 0 1,0 -35.5,0 Z M55.5,54 a10.5,10.5 0 1,0 21,0 a10.5,10.5 0 1,0 -21,0 Z" />
+    </group>
+</vector>

@@ -44,7 +44,7 @@ class AccountSession(
 
     /** The server said the sign-in has ended: forget the account here and send the person to sign-up. */
     suspend fun signInEnded() {
-        if (auth.userId.value == null) return
+        if (auth.currentUserId() == null) return
         forget(then = SetupStage.SignUp)
         signInEnded.value = true
     }

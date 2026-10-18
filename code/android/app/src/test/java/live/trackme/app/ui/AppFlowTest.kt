@@ -51,7 +51,7 @@ class AppFlowTest {
     fun tearDown() = scope.cancel()
 
     private fun show() {
-        val app = AppViewModel(container.preferences, container.auth)
+        val app = AppViewModel(container.preferences, container.auth, container.sharing)
         rule.setContent { TrackMeLiveApp(app) }
     }
 

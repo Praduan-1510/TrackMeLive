@@ -97,7 +97,7 @@ class SignUpViewModel(
         // Signed in already: a sign-up that was interrupted after the number was confirmed (the app was
         // closed before the profile was saved). Restore the profile if it made it to the server;
         // otherwise only the name is left to ask for, with no new text.
-        if (auth.userId.value != null) {
+        if (auth.currentUserId() != null) {
             _state.update { it.copy(numberConfirmed = true) }
             work = viewModelScope.launch {
                 if (profiles.fetch() is FetchProfileResult.Found) preferences.setSetupStage(SetupStage.Done)
@@ -360,7 +360,7 @@ class SignUpViewModel(
     private suspend fun startOverSignedOut(failure: ProfileFailure) {
         countdown?.cancel()
         code = ""
-        if (auth.userId.value != null) auth.signOut()
+        if (auth.currentUserId() != null) auth.signOut()
         _state.update {
             it.copy(
                 step = SignUpStep.Details,
@@ -391,7 +391,7 @@ class SignUpViewModel(
         work?.cancel()
         countdown?.cancel()
         code = ""
-        if (auth.userId.value != null) viewModelScope.launch { auth.signOut() }
+        if (auth.currentUserId() != null) viewModelScope.launch { auth.signOut() }
         _state.update { it.copy(step = SignUpStep.Details, codeStatus = CodeStatus.Idle, finishFailed = false, codeExpired = false) }
         return true
     }

@@ -23,14 +23,17 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import live.trackme.app.ui.Figtree
 import live.trackme.app.ui.Gabarito
+import live.trackme.app.ui.ended.EndedRoute
+import live.trackme.app.ui.live.LiveRoute
 import live.trackme.app.ui.onboarding.OnboardingScreen
 import live.trackme.app.ui.routes.MascotSetupRoute
+import live.trackme.app.ui.share.ShareRoute
 import live.trackme.app.ui.signup.SignUpRoute
 import live.trackme.design.TmlTheme
 
 /**
  * The app: onboarding, sign-up and a new account's first mascot pick, then Home, Mascot and Settings
- * behind the navigation bar. [AppViewModel] picks the root screen from the stored setup stage and the
+ * behind the navigation bar, with the sharing screens (share, live map, ended) over them. [AppViewModel] picks the root screen from the stored setup stage and the
  * sign-in, so each launch resumes where the person left off. Light and dark follow the system unless
  * Settings › Appearance picks one.
  */
@@ -43,9 +46,10 @@ fun TrackMeLiveApp(app: AppViewModel) {
     TmlTheme(darkTheme = dark, display = Gabarito, text = Figtree) {
         // One root at a time: replacing it clears the old screen's view models and saved state.
         NavDisplay(
-            backStack = listOf(state.root),
+            backStack = state.backStack,
             modifier = Modifier.fillMaxSize().background(TmlTheme.colors.ground),
-            onBack = {},
+            // Back over a sharing screen returns to Home; at a root, the screens handle it themselves.
+            onBack = app::back,
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),
@@ -64,7 +68,16 @@ fun TrackMeLiveApp(app: AppViewModel) {
                     MascotSetupRoute()
                 }
                 entry<RootScreen.Main> {
-                    MainShell()
+                    MainShell(onShare = app::openShare, onOpenLive = app::openLive)
+                }
+                entry<SharingScreen.Share> { key ->
+                    ShareRoute(autoShare = key.autoShare, onBack = app::back, onShared = app::shared)
+                }
+                entry<SharingScreen.Live> {
+                    LiveRoute(askAlerts = state.askAlerts, onBack = app::back)
+                }
+                entry<SharingScreen.Ended> {
+                    EndedRoute(onDone = app::done, onShareAgain = app::shareAgain)
                 }
             },
         )

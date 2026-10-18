@@ -12,14 +12,32 @@ import live.trackme.app.data.auth.VerifyCodeResult
 /**
  * Phone sign-in that accepts [validCode] for whichever number was sent last. Each result can be
  * overridden for one call, and [sendGate] can hold a send open to observe the in-flight state.
+ *
+ * [currentUserId] changes the moment a sign-in or sign-out completes, as FirebaseAuth.currentUser does.
+ * With [userIdTrails], [userId] doesn't follow until [settle], like a listener that hasn't been called
+ * yet, so tests can prove nothing reads it right after a transition.
  */
 class FakeAuthRepository(
     signedInAs: String? = null,
     var validCode: String = "123456",
     private val uid: String = "user-1",
+    var userIdTrails: Boolean = false,
 ) : AuthRepository {
     private val user = MutableStateFlow(signedInAs)
     override val userId: StateFlow<String?> = user
+    private var current: String? = signedInAs
+
+    override fun currentUserId(): String? = current
+
+    /** The trailing [userId] catches up with who is signed in now. */
+    fun settle() {
+        user.value = current
+    }
+
+    private fun signedIn(id: String?) {
+        current = id
+        if (!userIdTrails) user.value = id
+    }
 
     val retrieved = MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val retrievedCodes: Flow<String> = retrieved
@@ -42,7 +60,7 @@ class FakeAuthRepository(
         sendGate?.await()
         val result = nextSend ?: SendCodeResult.CodeSent
         nextSend = null
-        if (result is SendCodeResult.SignedIn) user.value = result.userId
+        if (result is SendCodeResult.SignedIn) signedIn(result.userId)
         return result
     }
 
@@ -50,12 +68,12 @@ class FakeAuthRepository(
         verified += code
         val result = nextVerify ?: if (code == validCode) VerifyCodeResult.SignedIn(uid) else VerifyCodeResult.Wrong
         nextVerify = null
-        if (result is VerifyCodeResult.SignedIn) user.value = result.userId
+        if (result is VerifyCodeResult.SignedIn) signedIn(result.userId)
         return result
     }
 
     override suspend fun signOut() {
         signOuts++
-        user.value = null
+        signedIn(null)
     }
 }

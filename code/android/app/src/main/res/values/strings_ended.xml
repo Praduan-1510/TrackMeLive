@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- After a share ends, for each end reason (prototype › viewEnded, endedWhy, deletedBy). -->
+    <string name="ended_title">Sharing ended</string>
+    <string name="ended_title_limit">Sharing stopped after 1 hour</string>
+    <string name="ended_why_stopped">You stopped sharing at %1$s.</string>
+    <string name="ended_why_timer">Your timer ran out, so sharing stopped.</string>
+    <string name="ended_why_call">Your call ended, so sharing stopped.</string>
+    <string name="ended_why_limit">That’s the longest a link can run. Share again to send a new link.</string>
+    <string name="ended_shared_with">Shared with</string>
+    <string name="ended_shared_for">Shared for</string>
+    <string name="ended_opened_named">%1$s opened it</string>
+    <string name="ended_opened">Link opened</string>
+    <string name="ended_not_opened">Not opened</string>
+    <string name="ended_shared_back_named">%1$s shared back</string>
+    <string name="ended_shared_back">Shared back</string>
+    <string name="ended_yes">Yes</string>
+    <string name="ended_no">No</string>
+    <string name="ended_deleted">Location points from this session are deleted by %1$s tomorrow.</string>
+    <string name="ended_share_again">Share again</string>
+    <string name="ended_done">Done</string>
+</resources>

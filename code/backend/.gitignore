@@ -6,5 +6,10 @@ functions/.env.local
 # Emulator exports from ./run.sh --export-on-exit
 .emulator-data/
 
+# The test emulator set's logs, and its params file, which scripts/env.sh copies
+# from the demo one on each run (test.sh, run.sh --test)
+test-logs/
+functions/.env.demo-trackmelive-test
+
 # Copy of code/shared/schema/generated/ts/schema.ts, made by the functions build
 functions/src/shared/

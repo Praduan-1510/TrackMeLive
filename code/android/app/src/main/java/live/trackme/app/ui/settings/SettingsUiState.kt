@@ -40,8 +40,8 @@ enum class PermissionStatus {
 }
 
 /**
- * The Permissions rows. They only show state for now; the rows that open the system pages come with
- * the permission flows.
+ * The Permissions rows: where each stands, read from the system. Location and Notifications ask the
+ * first time and otherwise open their system Settings page; Phone arrives with call sharing.
  */
 @Immutable
 data class PermissionsUiState(
@@ -72,4 +72,10 @@ sealed interface SettingsEvent {
 
     /** Sent only after the person confirmed in the Delete your account? dialog. */
     data object DeleteAccountConfirmed : SettingsEvent
+
+    /** Permissions › Location: ask the first time, otherwise the app's page in system Settings. */
+    data object LocationPermissionTapped : SettingsEvent
+
+    /** Permissions › Notifications: ask the first time, otherwise the app's notification settings. */
+    data object NotificationsPermissionTapped : SettingsEvent
 }

@@ -33,7 +33,7 @@ class DefaultProfileRepositoryTest {
     private fun TestScope.repo(
         source: FakeProfileDataSource,
         user: MutableStateFlow<String?> = MutableStateFlow("u1"),
-    ) = DefaultProfileRepository(user, source, backgroundScope)
+    ) = DefaultProfileRepository(user, { user.value }, source, backgroundScope)
 
     @Test
     fun followsTheSignedInPersonsProfile() = runTest(UnconfinedTestDispatcher()) {
@@ -98,7 +98,7 @@ class DefaultProfileRepositoryTest {
     fun saveProfileAnsweringUnauthenticatedEndsTheSignIn() = runTest(UnconfinedTestDispatcher()) {
         val source = FakeProfileDataSource(RemoteProfile.Present(alex)).apply { stored = alex }
         var ended = 0
-        val repo = DefaultProfileRepository(MutableStateFlow("u1"), source, backgroundScope, onSignInEnded = { ended++ })
+        val repo = DefaultProfileRepository(MutableStateFlow("u1"), { "u1" }, source, backgroundScope, onSignInEnded = { ended++ })
         source.failNext = ProfileFailure.SignInEnded
         assertEquals(SaveProfileResult.Failed(ProfileFailure.SignInEnded), repo.update { it.copy(name = "Al") })
         assertEquals(1, ended)
@@ -111,7 +111,7 @@ class DefaultProfileRepositoryTest {
     fun aFailedListenerRetriesWithBackoffAndSaysSoAfterTheFirstRetryFails() = runTest {
         val source = FakeProfileDataSource(RemoteProfile.Present(alex))
         repeat(7) { source.listenerFailures.addLast(ProfileFailure.Network) }
-        val repo = DefaultProfileRepository(MutableStateFlow("u1"), source, backgroundScope)
+        val repo = DefaultProfileRepository(MutableStateFlow("u1"), { "u1" }, source, backgroundScope)
         runCurrent()
         assertEquals(1, source.listenerStarts)
         assertFalse("one failure stays quiet", repo.updatesUnavailable.value)
@@ -139,7 +139,7 @@ class DefaultProfileRepositoryTest {
     fun theLastKnownProfileStaysWhileTheListenerIsDown() = runTest {
         val source = FakeProfileDataSource(RemoteProfile.Present(alex))
         val user = MutableStateFlow<String?>("u1")
-        val repo = DefaultProfileRepository(user, source, backgroundScope)
+        val repo = DefaultProfileRepository(user, { user.value }, source, backgroundScope)
         runCurrent()
         assertEquals(ProfileState.Ready(alex), repo.profile.value)
         // Signing in again restarts the listener, which now fails twice.
@@ -167,7 +167,7 @@ class DefaultProfileRepositoryTest {
         val source = FakeProfileDataSource(RemoteProfile.Present(alex))
         source.listenerFailures.addLast(ProfileFailure.SignInEnded)
         var ended = 0
-        DefaultProfileRepository(MutableStateFlow("u1"), source, backgroundScope, onSignInEnded = { ended++ })
+        DefaultProfileRepository(MutableStateFlow("u1"), { "u1" }, source, backgroundScope, onSignInEnded = { ended++ })
         runCurrent()
         advanceTimeBy(120_000)
         runCurrent()

@@ -120,10 +120,23 @@ jobs:
         with:
           node-version: 24.18.0
           cache: npm
-          cache-dependency-path: code/viewer/package-lock.json
+          cache-dependency-path: |
+            code/viewer/package-lock.json
+            code/backend/functions/package-lock.json
+      # The live e2e runs real sessions on the Firebase test emulators (code/backend/scripts/with-test-emulators.sh).
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          # firebase-tools 15 refuses Java older than 21.
+          distribution: temurin
+          java-version: "21"
+      - name: Restore the Firebase emulator downloads (the backend job saves them)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('code/backend/scripts/env.sh') }}
       - name: Google Chrome (preinstalled on the runner) for the headless e2e tests
         run: google-chrome --version
-      - name: Lint, typecheck, unit tests, build, e2e
+      - name: Lint, typecheck, unit tests, build, e2e, live e2e on the Firebase test emulators
         run: code/check-all.sh --only viewer
       - name: Upload the logs and test reports
         if: failure()
@@ -134,6 +147,55 @@ jobs:
             ${{ runner.temp }}/tml-check-all/
             code/viewer/test-results/
             code/viewer/playwright-report/
+            code/backend/test-logs/*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  qa:
+    name: QA harness (routes, fake sharer, Gate G2 sharing e2e in Chrome)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # The harness is TypeScript run by Node's type stripping.
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: |
+            code/qa/fake-sharer/package-lock.json
+            code/qa/e2e-sharing/package-lock.json
+            code/viewer/package-lock.json
+            code/backend/functions/package-lock.json
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          # firebase-tools 15 refuses Java older than 21.
+          distribution: temurin
+          java-version: "21"
+      - name: Restore the Firebase emulator downloads (the backend job saves them)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('code/backend/scripts/env.sh') }}
+      - name: Google Chrome (preinstalled on the runner) for the headless e2e
+        run: google-chrome --version
+      - name: Routes, typecheck, unit tests, and the sharing e2e on the Firebase test emulators
+        env:
+          TML_E2E_SHOTS: ${{ runner.temp }}/tml-e2e-sharing
+        run: code/check-all.sh --only qa
+      - name: Upload the logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qa-logs
+          path: |
+            ${{ runner.temp }}/tml-check-all/
+            ${{ runner.temp }}/tml-e2e-sharing/
+            code/backend/test-logs/*.log
           retention-days: 7
           if-no-files-found: ignore
 

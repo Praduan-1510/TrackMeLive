@@ -127,6 +127,11 @@ public enum TMLMascotAccessory: String, Codable, CaseIterable, Sendable {
     case headlamp
 }
 
+/// shareSessions/{sessionId}/alerts doc ids: which alert (FSD §4 View notification). link_opened only in v1; call_ended and expiry come later.
+public enum TMLAlertKind: String, Codable, CaseIterable, Sendable {
+    case linkOpened = "link_opened"
+}
+
 // MARK: - Documents and payloads
 
 /// users.settings: the app settings (FSD §4 Settings), restored when signing in on a new phone. New accounts start with the defaults below, as in the prototype (x-decisions Q-SETTINGS).
@@ -342,7 +347,7 @@ public struct TMLUser: Codable, Hashable, Sendable {
 public struct TMLDevice: Codable, Hashable, Sendable {
     /// ios or android.
     public var platform: TMLDevicePlatform
-    /// The APNs (iOS) or FCM (Android) token for alerts (FSD §5).
+    /// The FCM registration token, on both platforms (on iOS, FCM delivers through APNs; FSD §5; x-decisions Q-ALERT-PUSH).
     public var pushToken: String
     /// iOS only: the Live Activity push-to-start token. Null on Android or until iOS issues one.
     public var liveActivityStartToken: String?
@@ -440,6 +445,8 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
     public var shareBackAllowed: Bool
     /// The app's last check-in, not the newest location: set to started_at when the session starts, then refreshed with every ping and every 30 seconds even without a GPS fix. Viewer writes need it under 2 minutes old (x-decisions Q-LAST-PING).
     public var lastPingAt: Date
+    /// recorded_at of the newest ping; null until the first one. The sharer's app writes it in the same batch as each ping, with the check-in, and firestore.rules hold every ping to it: recorded_at at least MIN_PING_SPACING_SECONDS (2) after it, which keeps pings in order and bounds how fast they're written (x-decisions Q-PING-WRITE). createSession writes null. Optional only so sessions started before it existed still read; treat a missing field as null. Not for display: Last seen uses the newest ping's recorded_at.
+    public var lastFixAt: Date?
     /// The ping interval in use, in seconds (e.g. 3.5). createSession writes 5; the sharer's app overwrites it with the interval actually in use and whenever it changes with the battery steps: 3–5 above 20%, 15 from 20% to 10%, 60 under 10% (x-decisions Q-PING-INTERVAL-INIT).
     public var pingIntervalS: Double
     /// The precision of the pings being written now.
@@ -471,6 +478,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         callEndedAt: Date? = nil,
         shareBackAllowed: Bool,
         lastPingAt: Date,
+        lastFixAt: Date? = nil,
         pingIntervalS: Double,
         precision: TMLPrecision,
         precisionNext: TMLPrecision? = nil,
@@ -493,6 +501,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         self.callEndedAt = callEndedAt
         self.shareBackAllowed = shareBackAllowed
         self.lastPingAt = lastPingAt
+        self.lastFixAt = lastFixAt
         self.pingIntervalS = pingIntervalS
         self.precision = precision
         self.precisionNext = precisionNext
@@ -518,6 +527,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         case callEndedAt = "call_ended_at"
         case shareBackAllowed = "share_back_allowed"
         case lastPingAt = "last_ping_at"
+        case lastFixAt = "last_fix_at"
         case pingIntervalS = "ping_interval_s"
         case precision
         case precisionNext = "precision_next"
@@ -545,6 +555,7 @@ public struct TMLShareSession: Codable, Hashable, Sendable {
         try c.encode(callEndedAt, forKey: .callEndedAt)
         try c.encode(shareBackAllowed, forKey: .shareBackAllowed)
         try c.encode(lastPingAt, forKey: .lastPingAt)
+        try c.encodeIfPresent(lastFixAt, forKey: .lastFixAt)
         try c.encode(pingIntervalS, forKey: .pingIntervalS)
         try c.encode(precision, forKey: .precision)
         try c.encode(precisionNext, forKey: .precisionNext)
@@ -605,7 +616,7 @@ public struct TMLSessionPrivateMeta: Codable, Hashable, Sendable {
     }
 }
 
-/// One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, accuracy_m ≥ 0, recorded_at no later than server time + 1 minute, on a session that is active and before both stop_at and expires_at.
+/// One location. pings: the sharer's, which the viewer's map listens to. viewerPings: the viewer's, written only while they share back; the sharer's app listens to them. Both are deleted 24 hours after the session ends (FSD §6, §8). While the sharer is approximate, lat/lng are already rounded to about 500 m on the phone; precision lives on the session, not on each ping. firestore.rules accept a ping write only with exactly these four fields, lat/lng in range, 0 ≤ accuracy_m ≤ MAX_ACCURACY_METERS, recorded_at no later than server time + PING_CLOCK_SKEW_SECONDS, a doc id of 1 to PING_ID_MAX_LENGTH characters [A-Za-z0-9_-], on a session that is active and before both stop_at and expires_at. The sharer's pings also go in one batch with the session's check-in and last_fix_at, in order and at least 2 s apart (x-decisions Q-PING-WRITE).
 /// Firestore: `shareSessions/{sessionId}/pings/{pingId} and shareSessions/{sessionId}/viewerPings/{pingId}`.
 public struct TMLPing: Codable, Hashable, Sendable {
     /// Latitude, WGS 84 degrees.
@@ -719,6 +730,67 @@ public struct TMLViewerSignIn: Codable, Hashable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(role, forKey: .role)
         try c.encode(createdAt, forKey: .createdAt)
+    }
+}
+
+/// Function-only: makes each alert fire once per session, however often its trigger runs (x-decisions Q-ALERT-ONCE). Deleted with the session (30-day purge, deleteAccount, discardSession).
+/// Firestore: `shareSessions/{sessionId}/alerts/{kind}`.
+public struct TMLAlertDelivery: Codable, Hashable, Sendable {
+    /// Which alert; also the doc id.
+    public var kind: TMLAlertKind
+    /// sending while an attempt holds lease_until or a retry is due; sent once every device was tried; skipped when the user's alert setting was off.
+    public var state: String
+    /// users/{userId}/devices ids FCM accepted the alert for, so a retry never sends to them twice.
+    public var delivered: [String]
+    /// Attempts that claimed the alert.
+    public var attempts: Int
+    /// Until then an attempt is in flight and no other may send.
+    public var leaseUntil: Date
+    /// When the first attempt claimed it.
+    public var createdAt: Date
+    /// Server timestamp of the last change.
+    public var updatedAt: Date
+
+    public init(
+        kind: TMLAlertKind,
+        state: String,
+        delivered: [String],
+        attempts: Int,
+        leaseUntil: Date,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.kind = kind
+        self.state = state
+        self.delivered = delivered
+        self.attempts = attempts
+        self.leaseUntil = leaseUntil
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    /// The Firestore field names (`Field.callActive.rawValue == "call_active"`).
+    public enum CodingKeys: String, CodingKey, CaseIterable, Sendable {
+        case kind
+        case state
+        case delivered
+        case attempts
+        case leaseUntil = "lease_until"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+    public typealias Field = CodingKeys
+
+    // Required fields are always written, as null when empty (schema.json: every field present).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(state, forKey: .state)
+        try c.encode(delivered, forKey: .delivered)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encode(leaseUntil, forKey: .leaseUntil)
+        try c.encode(createdAt, forKey: .createdAt)
+        try c.encode(updatedAt, forKey: .updatedAt)
     }
 }
 
@@ -1397,6 +1469,10 @@ public enum TMLPaths {
     public static func viewerSignIn(sessionId: String, viewerUid: String) -> String { "shareSessions/\(sessionId)/viewerSignIns/\(viewerUid)" }
     /// The collection holding `shareSessions/{sessionId}/viewerSignIns/{viewerUid}`.
     public static func viewerSignInCollection(sessionId: String) -> String { "shareSessions/\(sessionId)/viewerSignIns" }
+    /// `shareSessions/{sessionId}/alerts/{kind}`
+    public static func alertDelivery(sessionId: String, kind: String) -> String { "shareSessions/\(sessionId)/alerts/\(kind)" }
+    /// The collection holding `shareSessions/{sessionId}/alerts/{kind}`.
+    public static func alertDeliveryCollection(sessionId: String) -> String { "shareSessions/\(sessionId)/alerts" }
     /// `mascots/{mascotId}`
     public static func mascot(mascotId: String) -> String { "mascots/\(mascotId)" }
     /// The collection holding `mascots/{mascotId}`.
@@ -1430,6 +1506,16 @@ public enum TMLSchemaConstants {
     public static let callStopGraceMinutes = 10
     /// Never fewer than 1 ping per 60 s while active. (FSD §4 Battery-aware pings, §7)
     public static let maxPingIntervalSeconds = 60
+    /// firestore.rules: each ping's recorded_at is at least 2 s after the previous one's (shareSessions.last_fix_at). The fastest cadence is a ping every 3 s, so 1 s of jitter is allowed. (FSD §4 Battery-aware pings, §7; x-decisions Q-PING-WRITE)
+    public static let minPingSpacingSeconds = 2
+    /// firestore.rules: a ping's recorded_at may be at most 60 s ahead of the server's time (pings and viewerPings). (FSD §7; x-decisions Q-PING-WRITE)
+    public static let pingClockSkewSeconds = 60
+    /// firestore.rules: a session's first ping may be recorded at most 5 minutes before started_at (a fix taken just before Share, or a phone clock a little behind). (FSD §7; x-decisions Q-PING-WRITE)
+    public static let firstPingBeforeStartMinutes = 5
+    /// firestore.rules: accuracy_m is at most 100 km (pings and viewerPings); anything coarser isn't a location. (FSD §6; x-decisions Q-PING-WRITE)
+    public static let maxAccuracyMeters = 100000
+    /// firestore.rules: ping and viewer ping doc ids are 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids (20 characters) fit. (FSD §6; x-decisions Q-PING-WRITE)
+    public static let pingIdMaxLength = 64
     /// From 20% to 10% battery. (FSD §4 Battery-aware pings)
     public static let pingIntervalLowBatterySeconds = 15
     /// Under 10% battery. (FSD §4 Battery-aware pings)

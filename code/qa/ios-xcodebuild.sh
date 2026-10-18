@@ -107,13 +107,14 @@ fi
 xcb() { # <log> <build settings and actions...>
   local log="$1"
   shift
+  # xcodebuild refuses an existing -resultBundlePath, so each attempt (signed, then unsigned) starts clean.
+  rm -rf "${OUT}/${SCHEME}-tests.xcresult"
   xcodebuild -project "${PROJECT}" -scheme "${SCHEME}" -configuration Debug \
     -destination "${destination}" -derivedDataPath "${DERIVED}" \
     -clonedSourcePackagesDirPath "${PACKAGES}" "${packages_flags[@]+"${packages_flags[@]}"}" "$@" > "${log}" 2>&1
 }
 extra=()
 if [[ "${action}" == test ]]; then
-  rm -rf "${OUT}/${SCHEME}-tests.xcresult"
   extra=(-resultBundlePath "${OUT}/${SCHEME}-tests.xcresult")
 fi
 

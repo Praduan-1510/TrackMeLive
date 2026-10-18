@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Our explainers before each system prompt, and the way back from a refusal (prototype › sysPrompt). -->
+    <string name="perm_location_title">Allow location to share</string>
+    <string name="perm_location_body">Track Me Live uses your location only while you’re sharing. Nobody sees it until you send your link, and it stops when you do.</string>
+    <string name="perm_continue">Continue</string>
+    <string name="perm_not_now">Not now</string>
+
+    <string name="perm_location_off_title">Location is off for Track Me Live</string>
+    <string name="perm_location_off_body">To share where you are, allow location in Settings. It’s only used while you share.</string>
+    <string name="perm_services_off_title">Location is off on this phone</string>
+    <string name="perm_services_off_body">To share where you are, turn on location in Settings. It’s only used while you share.</string>
+    <string name="perm_open_settings">Open settings</string>
+
+    <string name="perm_alerts_title_named">Know when %1$s opens it</string>
+    <string name="perm_alerts_title">Know when your link is opened</string>
+    <string name="perm_alerts_body">Turn on alerts to hear when your link is opened, when a call ends while you’re sharing, and when sharing stops.</string>
+    <string name="perm_alerts_yes">Turn on alerts</string>
+</resources>

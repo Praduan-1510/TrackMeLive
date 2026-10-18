@@ -6,6 +6,7 @@ import { docPaths, type DiscardSessionResponse } from "../shared/schema.js";
 import { endSession } from "./end.js";
 import { readOwnedSession, sessionRefs } from "./read.js";
 import { parseRequest, refuse } from "./request.js";
+import { runContended } from "./transactions.js";
 
 /**
  * The share sheet closed without a choice, so the session is deleted before
@@ -25,7 +26,7 @@ export const discardSession = onCall<unknown, Promise<DiscardSessionResponse>>(a
   const db = getFirestore();
   const refs = sessionRefs(db, sessionId);
 
-  await db.runTransaction(async (tx) => {
+  await runContended(db, "discardSession", async (tx) => {
     const { session } = await readOwnedSession(tx, refs, uid);
     if (session.first_viewed_at !== null) {
       throw refuse("link_opened", "Someone has opened this link, so it can't be discarded.");

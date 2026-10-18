@@ -3,6 +3,7 @@ package live.trackme.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -13,20 +14,26 @@ import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import live.trackme.app.ui.map.LocalUseGoogleMap
 import live.trackme.design.TmlTheme
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 
-/** Our theme with the bundled fonts, at [fontScale], in light or [dark]. */
+/**
+ * Our theme with the bundled fonts, at [fontScale], in light or [dark]. The live map is always the
+ * keyless one, so a Maps key in local.properties can't change what a test sees.
+ */
 fun ComposeContentTestRule.setTmlContent(
     fontScale: Float = 1f,
     dark: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     setContent {
-        DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
-            TmlTheme(darkTheme = dark, display = Gabarito, text = Figtree) {
-                Box(Modifier.background(TmlTheme.colors.ground)) { content() }
+        CompositionLocalProvider(LocalUseGoogleMap provides false) {
+            DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(fontScale)) {
+                TmlTheme(darkTheme = dark, display = Gabarito, text = Figtree) {
+                    Box(Modifier.background(TmlTheme.colors.ground)) { content() }
+                }
             }
         }
     }

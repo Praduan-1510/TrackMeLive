@@ -8,8 +8,18 @@ import kotlinx.coroutines.flow.StateFlow
  * number. Firebase Authentication alone holds the number, in E.164; the app never stores it.
  */
 interface AuthRepository {
-    /** The signed-in user's id, or null when signed out. Survives app restarts. */
+    /**
+     * The signed-in user's id, or null when signed out, for observing over time. Survives app restarts.
+     * Code that runs right after a sign-in or sign-out reads [currentUserId] instead.
+     */
     val userId: StateFlow<String?>
+
+    /**
+     * Who is signed in right now, settled: it changes the moment [verifyCode], [sendCode] (signed in on
+     * the spot) or [signOut] completes (FirebaseAuth.currentUser). Read this, never [userId]'s value, in
+     * code that runs right after one of them, such as the profile fetch after a code is verified.
+     */
+    fun currentUserId(): String?
 
     /**
      * Codes the phone read from the incoming text by itself (Android's SMS retrieval), so the code

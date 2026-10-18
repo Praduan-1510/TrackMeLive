@@ -88,6 +88,18 @@ object AppType {
     val navLabel: TextStyle
         @Composable @ReadOnlyComposable get() = TextStyle(fontFamily = TmlTheme.type.text, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp)
 
+    /** Small print under a main action: Figtree 400, 12/16 (prototype `.a-fine`). */
+    val fine: TextStyle
+        @Composable @ReadOnlyComposable get() = TextStyle(fontFamily = TmlTheme.type.text, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp)
+
+    /** A sheet's or dialog's title: Gabarito 700, 24/32 (prototype `.a-bsheet h2`, `.a-explain h2`). */
+    val sheetTitle: TextStyle
+        @Composable @ReadOnlyComposable get() = TextStyle(fontFamily = TmlTheme.type.display, fontWeight = FontWeight.W700, fontSize = 24.sp, lineHeight = 32.sp, letterSpacing = (-0.1).sp)
+
+    /** A quiet note: Figtree 400, 13/18 (prototype `.a-note`, `.a-prec-note`). */
+    val note: TextStyle
+        @Composable @ReadOnlyComposable get() = TextStyle(fontFamily = TmlTheme.type.text, fontWeight = FontWeight.W400, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = 0.2.sp)
+
     /** Status pill: tokens footnote at 600. */
     val pill: TextStyle
         @Composable @ReadOnlyComposable get() = TmlTheme.type.footnote.copy(fontWeight = FontWeight.W600)

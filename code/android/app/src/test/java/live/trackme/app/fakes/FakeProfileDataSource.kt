@@ -38,7 +38,11 @@ class FakeProfileDataSource(initial: RemoteProfile = RemoteProfile.Missing) : Pr
         if (failure != null) emit(RemoteProfile.Failed(failure)) else emitAll(live)
     }
 
+    /** The uid of each fetch, in order. */
+    val fetchedFor = mutableListOf<String>()
+
     override suspend fun fetch(uid: String): Profile? {
+        fetchedFor += uid
         failFetch?.let {
             failFetch = null
             throw ProfileDataException(it)

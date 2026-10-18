@@ -7,7 +7,8 @@
     "test": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning \"src/**/*.test.ts\"",
     "test:contract": "node --test --disable-warning=ExperimentalWarning src/contract.test.ts",
     "test:rules": "node --test --disable-warning=ExperimentalWarning src/rules.test.ts",
-    "test:functions": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning src/createSession.test.ts src/sessions.test.ts src/lifecycle.test.ts src/profile.test.ts src/redeemLinkToken.test.ts src/deleteAccount.test.ts",
+    "test:functions": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning src/createSession.test.ts src/sessions.test.ts src/lifecycle.test.ts src/profile.test.ts src/redeemLinkToken.test.ts src/deleteAccount.test.ts src/alerts.test.ts src/retention.test.ts src/devScheduler.test.ts",
+    "test:auth": "node --test --disable-warning=ExperimentalWarning src/auth.test.ts src/profileRequest.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {

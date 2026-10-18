@@ -79,6 +79,7 @@ export class ViewerController {
         this.dispatch({ type: 'place', place });
       },
       () => Date.now(),
+      deps.places.minGapMs ?? 0,
     );
   }
 

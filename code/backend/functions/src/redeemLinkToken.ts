@@ -5,6 +5,7 @@ import { viewerSignInOf } from "./auth.js";
 import { mintViewerToken, newViewerUid } from "./authViewer.js";
 import { isRecord, type FieldError } from "./contracts.js";
 import { sessionForToken } from "./sessionLookup.js";
+import { runContended } from "./sessions/transactions.js";
 import {
   MAX_VIEWER_SIGN_INS,
   collectionPaths,
@@ -52,7 +53,7 @@ function isLive(session: ShareSession, nowMs: number): boolean {
 }
 
 type Redeemed =
-  | { outcome: "redeemed"; role: ViewerRole; canShareBack: boolean; customToken: string }
+  | { outcome: "redeemed"; role: ViewerRole; canShareBack: boolean }
   | { outcome: "ended"; sharer: SharerSnapshot }
   | { outcome: "full" };
 
@@ -68,8 +69,13 @@ type Redeemed =
  *  - each new browser's uid is recorded in viewerSignIns, for the cleanup.
  *    A session takes at most MAX_VIEWER_SIGN_INS browsers (10), the viewer
  *    included, so a leaked link can't create Auth users without end;
- *  - the custom token is minted for the role decided, so a token is only
- *    returned for a role that was committed.
+ *  - nothing slow happens inside it. The sharer's pings update the session
+ *    doc every few seconds, and a transaction that read it holds it until it
+ *    commits, so signing a token in there (an IAM round trip in production)
+ *    once timed out those locks. Both possible tokens, viewer and watcher, are
+ *    signed before it, in parallel, and only the one for the role it commits
+ *    is returned; the other never leaves this function. So a returned token
+ *    always names a committed role, and a signing failure writes nothing.
  * A browser that redeems again with the viewer sign-in it already has for
  * this session (a refresh or a reopen) keeps its uid and its role.
  *
@@ -90,6 +96,8 @@ type Redeemed =
  *  - resource-exhausted {reason: "too_many_viewers"} for a new browser once
  *    the session has MAX_VIEWER_SIGN_INS sign-ins. Browsers that already have
  *    one can still refresh;
+ *  - unavailable when the transaction keeps losing to other writes on the
+ *    session after its retries; the page tries again;
  *  - invalid-argument when the request isn't {link_token: string}.
  */
 export const redeemLinkToken = onCall<unknown, Promise<RedeemLinkTokenResponse>>(async (request) => {
@@ -109,7 +117,13 @@ export const redeemLinkToken = onCall<unknown, Promise<RedeemLinkTokenResponse>>
   const uid = existing?.claims.sid === sessionId ? existing.uid : newViewerUid(sessionId);
   const signInRef = db.doc(docPaths.viewerSignIn(sessionId, uid));
 
-  const redeemed = await db.runTransaction<Redeemed>(async (tx) => {
+  // Signed before the transaction (above): either role, for this uid.
+  const [viewerToken, watcherToken] = await Promise.all([
+    mintViewerToken(uid, { sid: sessionId, role: "viewer" }),
+    mintViewerToken(uid, { sid: sessionId, role: "watcher" }),
+  ]);
+
+  const redeemed = await runContended(db, "redeemLinkToken", async (tx): Promise<Redeemed> => {
     const [sessionSnap, metaSnap, signInSnap] = await tx.getAll(sessionRef, metaRef, signInRef);
     if (!sessionSnap.exists || !metaSnap.exists) throw notFound();
     const session: unknown = sessionSnap.data();
@@ -142,9 +156,8 @@ export const redeemLinkToken = onCall<unknown, Promise<RedeemLinkTokenResponse>>
       tx.update(metaRef, { viewer_uid: meta.viewer_uid ?? uid });
     }
 
-    const customToken = await mintViewerToken(uid, { sid: sessionId, role });
     const canShareBack = role === "viewer" && session.share_back_allowed && session.call_active;
-    return { outcome: "redeemed", role, canShareBack, customToken };
+    return { outcome: "redeemed", role, canShareBack };
   });
 
   switch (redeemed.outcome) {
@@ -161,7 +174,7 @@ export const redeemLinkToken = onCall<unknown, Promise<RedeemLinkTokenResponse>>
   }
   logger.info("link redeemed", { session_id: sessionId, role: redeemed.role, reopened: existing?.claims.sid === sessionId });
   return {
-    custom_token: redeemed.customToken,
+    custom_token: redeemed.role === "viewer" ? viewerToken : watcherToken,
     session_id: sessionId,
     role: redeemed.role,
     can_share_back: redeemed.canShareBack,

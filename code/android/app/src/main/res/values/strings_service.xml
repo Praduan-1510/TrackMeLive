@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The location service's ongoing notification (FSD §8 Background sharing; prototype/js/android.js shade()
+     and app.js islandSub()). -->
+<resources>
+    <!-- The notification channel, as Settings › Notifications lists it. -->
+    <string name="notification_channel_sharing">Sharing in progress</string>
+    <string name="notification_channel_sharing_description">Shows while you share your location, with Open and Stop sharing.</string>
+
+    <!-- The header's line after the app name. -->
+    <string name="notification_sharing_subtext">Sharing location</string>
+    <string name="notification_sharing_title">Sharing your location</string>
+    <!-- %1$s is who it's for, as typed on the share screen ("Mom"). -->
+    <string name="notification_sharing_title_with">Sharing your location with %1$s</string>
+
+    <!-- The second line: when sharing stops, or what's wrong. %1$s is a time ("10:08 pm"). -->
+    <string name="notification_until_call_ends">Until the call ends</string>
+    <string name="notification_until">Until %1$s</string>
+    <string name="notification_limit_soon">Sharing stops at %1$s · 1-hour limit</string>
+    <string name="notification_no_gps">No GPS signal</string>
+    <string name="notification_no_gps_last_seen">No GPS signal · last seen %1$s</string>
+    <string name="notification_no_connection">No connection</string>
+    <string name="notification_no_connection_last_seen">No connection · last seen %1$s</string>
+
+    <!-- The link-opened alert (Backend-Alerts sends it; shown here when it arrives with the app open). -->
+    <string name="notification_channel_link_opened">Link opened</string>
+    <!-- Only when the alert comes without its own title; the server's names who it's for. -->
+    <string name="notification_link_opened_title">They opened your link</string>
+
+    <string name="notification_action_open">Open</string>
+    <!-- Opens the app to confirm, as the prototype's notification does. -->
+    <string name="notification_action_stop">Stop sharing</string>
+</resources>

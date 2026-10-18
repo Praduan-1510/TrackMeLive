@@ -1,14 +1,10 @@
 import Observation
 import SwiftUI
 import TMLCore
+import UIKit
 
 enum AppTab: Hashable {
     case home, mascot, settings
-}
-
-/// Screens pushed on Home's navigation stack.
-enum HomeDestination: Hashable {
-    case share
 }
 
 /// The app's composition root: the account flow (TMLCore's `AccountModel`), the tabs and their
@@ -20,11 +16,12 @@ final class AppModel {
     @ObservationIgnored let dependencies: AppDependencies
 
     var selectedTab: AppTab = .home
-    var homePath: [HomeDestination] = []
 
     /// The Mascot and Settings tabs' models, made once per signed-in account.
     private(set) var mascotTab: MascotPickerModel?
     private(set) var settingsTab: SettingsModel?
+    /// Sharing from Home: the location step, then the share, live and ended screens on Home's stack.
+    private(set) var shareFlow: ShareFlowModel?
     /// The picker a new account sees after sign-up (onboarding mode).
     private(set) var mascotSetup: MascotPickerModel?
 
@@ -69,12 +66,18 @@ final class AppModel {
         case .launch, .onboarding, .signUp:
             mascotSetup = nil
             resetTabs()
+            // Signed out (Delete account, or the sign-in ended elsewhere): the server removes or
+            // expires this phone's device doc, so just stop keeping it current. v1 has no plain
+            // Sign out with a profile, which would call `willSignOut()` first.
+            dependencies.deviceRegistrar.stop()
         }
+        registerDevice()
     }
 
     /// Call when the profile changes (another device, or a save answering): the open screens follow.
     func profileDidChange() {
         guard let profile else { return }
+        registerDevice()
         // A model waiting for the profile to load.
         if (account.route == .chooseMascot && mascotSetup == nil) || (account.route == .main && mascotTab == nil) {
             routeDidChange()
@@ -87,6 +90,31 @@ final class AppModel {
     /// Call when the profile listener stops or starts getting through: Settings says so quietly.
     func profileUpdatesDidChange() {
         settingsTab?.profileUpdatesUnavailable = account.profiles.updatesUnavailable
+    }
+
+    /// Once signed in with a profile (every launch, and right after sign-up creates it): keep this
+    /// phone's device doc current, so alerts reach it. Repeat calls cost nothing; nothing waits on it.
+    private func registerDevice() {
+        guard profile != nil, let uid = account.user?.uid,
+              account.route == .main || account.route == .chooseMascot else { return }
+        dependencies.deviceRegistrar.profileReady(uid: uid)
+    }
+
+    /// Alerts can be shown: ask iOS for this phone's push token (FirebaseServices hands it to FCM).
+    /// At launch when they're already allowed, and as soon as they're allowed.
+    func notificationsDidChange() {
+        guard dependencies.permissions.notifications == .allowed else { return }
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// A tap on one of the server's alerts: the live screen while it's about the share that's
+    /// running, otherwise Home, as it was left.
+    func open(_ alert: PushAlert) {
+        if alert.opensLive(activeSessionId: dependencies.sharing.state.live?.sessionId) {
+            open(.live)
+        } else if account.route == .main {
+            selectedTab = .home
+        }
     }
 
     private func makeTabModels() {
@@ -102,6 +130,12 @@ final class AppModel {
             permissions: dependencies.permissions,
             onAccountDeleted: { [weak self] in self?.resetTabs() }
         )
+        shareFlow = ShareFlowModel(
+            sharing: dependencies.sharing,
+            access: dependencies.locationAccess,
+            permissions: dependencies.permissions,
+            profile: { [weak self] in self?.profile }
+        )
         profileUpdatesDidChange()
     }
 
@@ -109,8 +143,13 @@ final class AppModel {
         tabsUID = nil
         mascotTab = nil
         settingsTab = nil
-        homePath = []
+        shareFlow = nil
         selectedTab = .home
+    }
+
+    /// Call when the share's state changes: the ended screen replaces the live one.
+    func shareStateDidChange() {
+        shareFlow?.stateDidChange()
     }
 
     // MARK: Deep links
@@ -122,13 +161,12 @@ final class AppModel {
             return
         }
         selectedTab = .home
-        switch route {
-        case .share:
-            homePath = [.share]
-        case .live, .stop:
-            // TODO(sharing): the live map and the Stop sharing confirmation.
-            homePath = []
+        // The profile is still loading: open it once the tabs' models exist.
+        guard let shareFlow else {
+            pendingRoute = route
+            return
         }
+        Task { await shareFlow.open(route) }
     }
 
     func handleOpenURL(_ url: URL) {
@@ -147,7 +185,7 @@ final class AppModel {
 
 extension AppModel {
     /// For previews: in-memory fakes, signed in on the tabs, or signed out at onboarding.
-    static func preview(signedIn: Bool = true, mascot: TMLMascotId = .fox) -> AppModel {
-        AppModel(dependencies: .preview(signedIn: signedIn, mascot: mascot))
+    static func preview(signedIn: Bool = true, mascot: TMLMascotId = .fox, sharing: ShareState = .idle) -> AppModel {
+        AppModel(dependencies: .preview(signedIn: signedIn, mascot: mascot, sharing: sharing))
     }
 }

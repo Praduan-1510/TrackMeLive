@@ -34,7 +34,7 @@ class DefaultAccountRepositoryTest {
     private val steps = mutableListOf<String>()
 
     private fun TestScope.session(): Pair<AccountSession, DefaultProfileRepository> {
-        val profiles = DefaultProfileRepository(auth.userId, FakeProfileDataSource(RemoteProfile.Present(Profile(name = "Alex"))), backgroundScope)
+        val profiles = DefaultProfileRepository(auth.userId, auth::currentUserId, FakeProfileDataSource(RemoteProfile.Present(Profile(name = "Alex"))), backgroundScope)
         // The cache is cleared only once the profile listener has let go of the account.
         val session = AccountSession(auth, prefs, { profiles }, clearLocalCache = { steps += "cache:${profiles.profile.value}" })
         return session to profiles

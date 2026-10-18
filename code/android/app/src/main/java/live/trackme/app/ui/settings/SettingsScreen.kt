@@ -227,7 +227,7 @@ private fun SettingsContent(
         }
 
         SectionHeader(stringResource(R.string.settings_section_permissions))
-        PermissionRows(state.permissions)
+        PermissionRows(state.permissions, onEvent)
         ListFootnote(stringResource(R.string.settings_background_note), Modifier.padding(top = TmlSpacing.Space1))
         ListFootnote(stringResource(R.string.settings_pip_note))
 
@@ -262,9 +262,9 @@ private fun SettingsContent(
     }
 }
 
-/** Location, Phone and Notifications, each with where it stands in words. Display only for now. */
+/** Location, Phone and Notifications, each with where it stands in words. Location and Notifications open their pages. */
 @Composable
-private fun PermissionRows(p: PermissionsUiState) {
+private fun PermissionRows(p: PermissionsUiState, onEvent: (SettingsEvent) -> Unit) {
     val location = when (p.location) {
         PermissionStatus.NotAsked -> stringResource(R.string.settings_permission_not_set)
         PermissionStatus.Denied -> stringResource(R.string.settings_location_denied)
@@ -286,6 +286,7 @@ private fun PermissionRows(p: PermissionsUiState) {
             headline = stringResource(R.string.settings_permission_location),
             supporting = location,
             leadingIcon = R.drawable.ic_location_on,
+            onClick = { onEvent(SettingsEvent.LocationPermissionTapped) },
         )
         ListRow(
             headline = stringResource(R.string.settings_permission_phone),
@@ -296,6 +297,7 @@ private fun PermissionRows(p: PermissionsUiState) {
             headline = stringResource(R.string.settings_permission_notifications),
             supporting = notifications,
             leadingIcon = R.drawable.ic_notifications,
+            onClick = { onEvent(SettingsEvent.NotificationsPermissionTapped) },
         )
     }
 }

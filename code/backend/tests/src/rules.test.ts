@@ -36,6 +36,11 @@ import {
 import {
   APPROXIMATE_ROUNDING_METERS,
   DEFAULT_USER_SETTINGS,
+  FIRST_PING_BEFORE_START_MINUTES,
+  MAX_ACCURACY_METERS,
+  MIN_PING_SPACING_SECONDS,
+  PING_CLOCK_SKEW_SECONDS,
+  PING_ID_MAX_LENGTH,
   validate,
 } from "../../../shared/schema/generated/ts/schema.ts";
 import { FIRESTORE, PROJECT_ID } from "./emulators.ts";
@@ -106,6 +111,7 @@ function sessionDoc(overrides: Record<string, unknown> = {}) {
     call_ended_at: null,
     share_back_allowed: true,
     last_ping_at: at(now - 10_000),
+    last_fix_at: null,
     ping_interval_s: 5,
     precision: "precise",
     precision_next: null,
@@ -178,6 +184,12 @@ async function seedSession(sessionId: string, ownerUid: string, session: Record<
   });
 }
 
+/** The view alert's once-only marker, as Backend-Alerts' trigger writes it (function-only). */
+function alertDoc() {
+  const t = Timestamp.now();
+  return { kind: "link_opened", state: "sent", delivered: ["d1"], attempts: 1, lease_until: t, created_at: t, updated_at: t };
+}
+
 /** Changes the seeded s-alice session, with rules off. */
 async function patchSession(changes: Record<string, unknown>, sessionId = "s-alice"): Promise<void> {
   await env.withSecurityRulesDisabled(async (ctx) => {
@@ -208,6 +220,7 @@ beforeEach(async () => {
     await setDoc(doc(db, "users/alice/trustedContacts/t1"), { contact_user_id: "bob", relation: "friend" });
     await setDoc(doc(db, "mascots/fox"), { character: "fox", set: "classics", default_color: "original", accessories: ["headphones", "glasses", "headlamp"] });
     await setDoc(doc(db, "callLogs/s-alice"), { user_id: "alice", session_id: "s-alice", call_id: "call-1", call_time: Timestamp.now() });
+    await setDoc(doc(db, "shareSessions/s-alice/alerts/link_opened"), alertDoc());
   });
 });
 
@@ -222,7 +235,7 @@ const update = (who: Who, path: string, data: Record<string, unknown>) => update
 const updateSession = (who: Who, data: Record<string, unknown>) => update(who, "shareSessions/s-alice", data);
 
 describe("the seed docs match the shared schema", () => {
-  it("sessions, meta, user, device, ping, call log and sign-in", () => {
+  it("sessions, meta, user, device, ping, call log, sign-in and alert", () => {
     for (const s of [sessionDoc(), manualSession(), stoppedSession(), expiredSession(), pastStopAtSession()]) {
       assert.deepEqual(validate("ShareSession", s), []);
     }
@@ -232,6 +245,7 @@ describe("the seed docs match the shared schema", () => {
     assert.deepEqual(validate("Ping", ping(8)), []);
     assert.deepEqual(validate("CallLog", { user_id: "alice", session_id: "s-alice", call_id: "call-1", call_time: Timestamp.now() }), []);
     assert.deepEqual(validate("ViewerSignIn", { role: "viewer", created_at: Timestamp.now() }), []);
+    assert.deepEqual(validate("AlertDelivery", alertDoc()), []);
   });
 });
 
@@ -239,10 +253,13 @@ describe("function-only paths: no client access at all", () => {
   const docs = [
     "callLogs/s-alice",
     "shareSessions/s-alice/viewerSignIns/viewer-1",
+    "shareSessions/s-alice/alerts/link_opened",
     "users/alice/trustedContacts/t1",
     "somethingElse/x",
   ];
-  const collections = ["callLogs", "shareSessions/s-alice/viewerSignIns", "users/alice/trustedContacts", "somethingElse"];
+  const collections = [
+    "callLogs", "shareSessions/s-alice/viewerSignIns", "shareSessions/s-alice/alerts", "users/alice/trustedContacts", "somethingElse",
+  ];
 
   for (const [label, who] of EVERYONE) {
     describe(label, () => {
@@ -407,19 +424,6 @@ describe("shareSessions/{sessionId}: the sharer's updates", () => {
     await assertFails(updateSession(alice, { precision: null }));
   });
 
-  it("the next ping applies precision_next in the same batch, and is judged by the precision it sets", async () => {
-    await patchSession({ precision_next: "approximate" });
-    const db = dbOf(alice);
-    const apply = (accuracy: number) => {
-      const batch = writeBatch(db);
-      batch.update(doc(db, "shareSessions/s-alice"), { precision: "approximate", precision_next: null, last_ping_at: serverTimestamp() });
-      batch.set(doc(collection(db, "shareSessions/s-alice/pings")), ping(accuracy));
-      return batch.commit();
-    };
-    await assertFails(apply(12));
-    await assertSucceeds(apply(APPROXIMATE_ROUNDING_METERS));
-  });
-
   describe("the timer sheet", () => {
     it("a timer stops in the future and never after the 1-hour limit", async () => {
       await assertSucceeds(updateSession(alice, { stop_rule: "minutes", stop_minutes: 15, stop_at: at(Date.now() + 15 * MIN) }));
@@ -428,6 +432,34 @@ describe("shareSessions/{sessionId}: the sharer's updates", () => {
       await assertFails(updateSession(alice, { stop_rule: "minutes", stop_minutes: 60, stop_at: at(seeded.expires_at.toMillis() + 1000) }));
       await assertFails(updateSession(alice, { stop_rule: "minutes", stop_minutes: 15, stop_at: at(Date.now() - 1000) }));
       await assertFails(updateSession(alice, { stop_rule: "minutes", stop_minutes: 15, stop_at: null }));
+    });
+
+    it("a timer's stop_at is now plus its minutes, within 60 s, never another time up to the limit", async () => {
+      const timer = (minutes: number, stopAtMs: number) => updateSession(alice, { stop_rule: "minutes", stop_minutes: minutes, stop_at: at(stopAtMs) });
+      const skew = PING_CLOCK_SKEW_SECONDS * 1000;
+      for (const minutes of [15, 30]) {
+        const target = Date.now() + minutes * MIN;
+        await assertSucceeds(timer(minutes, target - skew + 5_000));
+        await assertSucceeds(timer(minutes, target + skew - 5_000));
+        await assertFails(timer(minutes, target - skew - 5_000));
+        await assertFails(timer(minutes, target + skew + 5_000));
+      }
+      // "In 15 min" can't carry a later stop_at, even one the limit would allow.
+      await assertFails(timer(15, Date.now() + 45 * MIN));
+      await assertFails(timer(30, Date.now() + 15 * MIN));
+    });
+
+    it("past the limit, a timer is capped at exactly expires_at", async () => {
+      // seeded: expires_at is 55 minutes away, so In 1 hour is capped.
+      const timer = (stopAtMs: number) => updateSession(alice, { stop_rule: "minutes", stop_minutes: 60, stop_at: at(stopAtMs) });
+      await assertSucceeds(timer(seeded.expires_at.toMillis()));
+      await assertFails(timer(seeded.expires_at.toMillis() - 30_000));
+      await assertFails(timer(seeded.expires_at.toMillis() + 1));
+      // A timer whose end lands just past the limit is capped there, or just inside it.
+      await patchSession({ expires_at: at(Date.now() + 30 * MIN + 20_000) });
+      const expiresAt = Date.now() + 30 * MIN + 20_000;
+      await assertSucceeds(updateSession(alice, { stop_rule: "minutes", stop_minutes: 30, stop_at: at(Date.now() + 30 * MIN) }));
+      await assertFails(updateSession(alice, { stop_rule: "minutes", stop_minutes: 30, stop_at: at(expiresAt + 10 * MIN) }));
     });
 
     it("\"At the 1-hour limit\" is exactly expires_at", async () => {
@@ -609,6 +641,25 @@ describe("shareSessions/{sessionId}/pings: reading", () => {
     }
   });
 
+  it("right up to the end: 5 s before expires_at or stop_at they read, 1 s after they don't", async () => {
+    const now = Date.now();
+    const cases: [Record<string, unknown>, boolean][] = [
+      [{ started_at: at(now - 60 * MIN + 5_000), expires_at: at(now + 5_000) }, true],
+      [{ started_at: at(now - 60 * MIN - 1_000), expires_at: at(now - 1_000) }, false],
+      [{ stop_rule: "minutes", stop_minutes: 15, stop_at: at(now + 5_000) }, true],
+      [{ stop_rule: "minutes", stop_minutes: 15, stop_at: at(now - 1_000) }, false],
+    ];
+    for (const [change, live] of cases) {
+      await patchSession(change);
+      for (const who of [viewer, watcher]) {
+        await (live ? assertSucceeds : assertFails)(list(who, PINGS));
+        // The session doc itself stays readable either way, for the ended state.
+        await assertSucceeds(get(who, "shareSessions/s-alice"));
+      }
+      await patchSession(sessionDoc());
+    }
+  });
+
   it("nobody else, and no viewer page of another session", async () => {
     for (const who of [bob, aliceAnonymous, stranger, otherViewer, phoneWithViewerClaims, customWithoutClaims]) {
       await assertFails(get(who, `${PINGS}/p1`));
@@ -617,21 +668,50 @@ describe("shareSessions/{sessionId}/pings: reading", () => {
   });
 });
 
-describe("shareSessions/{sessionId}/pings: writing", () => {
-  const add = (sessionId: string, data: Record<string, unknown>, who: Who = alice) =>
-    addDoc(collection(dbOf(who), `shareSessions/${sessionId}/pings`), data);
+/**
+ * A ping as the apps write it (x-decisions Q-PING-WRITE): the ping, and in the
+ * same batch the session's check-in and last_fix_at = its recorded_at.
+ * `session` replaces that session update; null leaves the session alone.
+ */
+function sendPing(
+  sessionId: string,
+  data: Record<string, unknown>,
+  opts: { who?: Who; session?: Record<string, unknown> | null; id?: string } = {},
+) {
+  const db = dbOf(opts.who ?? alice);
+  const batch = writeBatch(db);
+  const pings = `shareSessions/${sessionId}/pings`;
+  batch.set(opts.id === undefined ? doc(collection(db, pings)) : doc(db, `${pings}/${opts.id}`), data);
+  const session = opts.session === undefined ? { last_ping_at: serverTimestamp(), last_fix_at: data.recorded_at } : opts.session;
+  if (session) batch.update(doc(db, `shareSessions/${sessionId}`), session);
+  return batch.commit();
+}
 
-  it("a precise session takes the raw accuracy", async () => {
-    await assertSucceeds(add("s-alice", ping(4.7)));
-    await assertSucceeds(add("s-alice", ping(0)));
+describe("shareSessions/{sessionId}/pings: writing", () => {
+  // Each test's pings, 3 s apart, starting 50 s ago, so they're in order.
+  let clock = 0;
+  const nextFix = () => at((clock += 3_000));
+
+  beforeEach(() => {
+    clock = Date.now() - 50_000;
   });
 
   it("a ping and its check-in go in one batch", async () => {
-    const db = dbOf(alice);
-    const batch = writeBatch(db);
-    batch.set(doc(collection(db, "shareSessions/s-alice/pings")), ping(8));
-    batch.update(doc(db, "shareSessions/s-alice"), { last_ping_at: serverTimestamp() });
-    await assertSucceeds(batch.commit());
+    await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: nextFix() })));
+  });
+
+  it("never without the check-in: alone, or with the phone's time as last_ping_at", async () => {
+    await assertFails(sendPing("s-alice", ping(8), { session: null }));
+    await assertFails(sendPing("s-alice", ping(8), { session: { last_ping_at: Timestamp.now(), last_fix_at: Timestamp.now() } }));
+    await assertFails(sendPing("s-alice", ping(8), { session: { ping_interval_s: 5 } }));
+  });
+
+  it("a precise session takes the raw accuracy, from 0 up to 100 km", async () => {
+    assert.equal(MAX_ACCURACY_METERS, 100_000);
+    for (const accuracy of [0, 4.7, MAX_ACCURACY_METERS]) await assertSucceeds(sendPing("s-alice", ping(accuracy, { recorded_at: nextFix() })));
+    for (const accuracy of [-1, -0.01, MAX_ACCURACY_METERS + 0.01, Infinity, NaN]) {
+      await assertFails(sendPing("s-alice", ping(accuracy, { recorded_at: nextFix() })));
+    }
   });
 
   describe("while the session is Approximate, accuracy_m is at least 500", () => {
@@ -641,48 +721,189 @@ describe("shareSessions/{sessionId}/pings: writing", () => {
 
     it("refuses a ping that is more accurate than the rounded point", async () => {
       for (const accuracy of [4.7, 100, 499, 499.99]) {
-        await assertFails(add("s-approx", ping(accuracy)));
+        await assertFails(sendPing("s-approx", ping(accuracy, { recorded_at: nextFix() })));
       }
     });
 
     it("takes max(raw, 500): exactly 500, or a worse raw fix", async () => {
       assert.equal(APPROXIMATE_ROUNDING_METERS, 500);
-      await assertSucceeds(add("s-approx", ping(Math.max(12, APPROXIMATE_ROUNDING_METERS))));
-      await assertSucceeds(add("s-approx", ping(Math.max(850, APPROXIMATE_ROUNDING_METERS))));
+      await assertSucceeds(sendPing("s-approx", ping(Math.max(12, APPROXIMATE_ROUNDING_METERS), { recorded_at: nextFix() })));
+      await assertSucceeds(sendPing("s-approx", ping(Math.max(850, APPROXIMATE_ROUNDING_METERS), { recorded_at: nextFix() })));
     });
 
     it("applies the floor from the next ping after switching to Approximate", async () => {
       // Precise now: a 12 m ping is fine. Then the switch lands, and the same ping isn't.
-      await assertSucceeds(add("s-alice", ping(12)));
+      await assertSucceeds(sendPing("s-alice", ping(12, { recorded_at: nextFix() })));
       await patchSession({ precision: "approximate" });
-      await assertFails(add("s-alice", ping(12)));
-      await assertSucceeds(add("s-alice", ping(500)));
+      await assertFails(sendPing("s-alice", ping(12, { recorded_at: nextFix() })));
+      await assertSucceeds(sendPing("s-alice", ping(500, { recorded_at: nextFix() })));
+    });
+
+    it("the ping that applies precision_next is judged by the precision the batch sets", async () => {
+      await patchSession({ precision: "precise", precision_next: "approximate" }, "s-approx");
+      const apply = (accuracy: number, recordedAt: Timestamp) => sendPing("s-approx", ping(accuracy, { recorded_at: recordedAt }), {
+        session: { precision: "approximate", precision_next: null, last_ping_at: serverTimestamp(), last_fix_at: recordedAt },
+      });
+      await assertFails(apply(12, nextFix()));
+      await assertSucceeds(apply(APPROXIMATE_ROUNDING_METERS, nextFix()));
     });
   });
 
   it("must be exactly lat, lng, recorded_at and accuracy_m, in range", async () => {
-    const { accuracy_m: _, ...noAccuracy } = ping(8);
-    await assertFails(add("s-alice", noAccuracy));
-    await assertFails(add("s-alice", ping(-1)));
-    await assertFails(add("s-alice", ping(8, { speed: 3 })));
-    await assertFails(add("s-alice", ping(8, { lat: 91 })));
-    await assertFails(add("s-alice", ping(8, { lng: -181 })));
-    await assertFails(add("s-alice", ping(8, { lat: "37.7" })));
-    await assertFails(add("s-alice", ping(8, { accuracy_m: "8" })));
-    await assertFails(add("s-alice", ping(8, { recorded_at: at(Date.now() + 10 * MIN) })));
+    const { accuracy_m: _, ...noAccuracy } = ping(8, { recorded_at: nextFix() });
+    await assertFails(sendPing("s-alice", noAccuracy));
+    await assertFails(sendPing("s-alice", ping(8, { speed: 3, recorded_at: nextFix() })));
+    for (const lat of [-90.0001, 90.0001, NaN, Infinity, "37.7", null]) await assertFails(sendPing("s-alice", ping(8, { lat, recorded_at: nextFix() })));
+    for (const lng of [-180.0001, 180.0001, NaN, -Infinity, "-122"]) await assertFails(sendPing("s-alice", ping(8, { lng, recorded_at: nextFix() })));
+    await assertFails(sendPing("s-alice", ping(8, { accuracy_m: "8", recorded_at: nextFix() })));
+    await assertFails(sendPing("s-alice", ping(8, { recorded_at: Date.now() })));
+    await assertFails(sendPing("s-alice", ping(8, { recorded_at: "now" })));
+  });
+
+  it("takes the extremes of each range", async () => {
+    for (const [lat, lng] of [[-90, -180], [90, 180], [0, 0]]) {
+      await assertSucceeds(sendPing("s-alice", ping(8, { lat, lng, recorded_at: nextFix() })));
+    }
+  });
+
+  it("recorded_at at most 60 s ahead of the server's clock", async () => {
+    assert.equal(PING_CLOCK_SKEW_SECONDS, 60);
+    await assertFails(sendPing("s-alice", ping(8, { recorded_at: at(Date.now() + 10 * MIN) })));
+    await assertFails(sendPing("s-alice", ping(8, { recorded_at: at(Date.now() + (PING_CLOCK_SKEW_SECONDS + 5) * 1000) })));
+    await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: at(Date.now() + (PING_CLOCK_SKEW_SECONDS - 5) * 1000) })));
+  });
+
+  it("doc ids: 1 to 64 characters of [A-Za-z0-9_-], which Firestore's auto ids are", async () => {
+    assert.equal(PING_ID_MAX_LENGTH, 64);
+    for (const id of ["a", "Z9_-", "x".repeat(PING_ID_MAX_LENGTH)]) {
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: nextFix() }), { id }));
+    }
+    for (const id of ["x".repeat(PING_ID_MAX_LENGTH + 1), "has space", "dot.dot", "\u00fcn\u00ef", "a+b"]) {
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: nextFix() }), { id }));
+    }
   });
 
   it("only while the session is live: not once stopped, past expires_at, or past stop_at", async () => {
     await seedSession("s-stopped", "alice", stoppedSession());
     await seedSession("s-expired", "alice", expiredSession());
     await seedSession("s-past-stop", "alice", pastStopAtSession());
-    for (const id of ["s-stopped", "s-expired", "s-past-stop"]) await assertFails(add(id, ping(8)));
+    for (const id of ["s-stopped", "s-expired", "s-past-stop"]) await assertFails(sendPing(id, ping(8)));
+  });
+
+  it("right up to the end: 5 s before expires_at or stop_at it's live, 1 s after it isn't", async () => {
+    const now = Date.now();
+    await seedSession("s-ending", "alice", sessionDoc({ started_at: at(now - 60 * MIN + 5_000), expires_at: at(now + 5_000) }));
+    await seedSession("s-ended", "alice", sessionDoc({ started_at: at(now - 60 * MIN - 1_000), expires_at: at(now - 1_000) }));
+    await seedSession("s-timer-ending", "alice", manualSession({ stop_at: at(now + 5_000) }));
+    await seedSession("s-timer-ended", "alice", manualSession({ stop_at: at(now - 1_000) }));
+    await assertSucceeds(sendPing("s-ending", ping(8)));
+    await assertFails(sendPing("s-ended", ping(8)));
+    await assertSucceeds(sendPing("s-timer-ending", ping(8)));
+    await assertFails(sendPing("s-timer-ended", ping(8)));
   });
 
   it("only the sharer, and pings never change", async () => {
-    for (const who of [bob, aliceAnonymous, stranger, viewer, watcher]) await assertFails(add("s-alice", ping(8), who));
+    for (const who of [bob, aliceAnonymous, stranger, viewer, watcher]) await assertFails(sendPing("s-alice", ping(8), { who }));
     await assertFails(update(alice, "shareSessions/s-alice/pings/p1", { accuracy_m: 1 }));
     await assertFails(deleteDoc(doc(dbOf(alice), "shareSessions/s-alice/pings/p1")));
+  });
+
+  describe("in order, and at most one ping per 2 s (x-decisions Q-PING-WRITE)", () => {
+    it("needs last_fix_at = its recorded_at in the same batch", async () => {
+      assert.equal(MIN_PING_SPACING_SECONDS, 2);
+      const t = nextFix();
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: t }), { session: { last_ping_at: serverTimestamp() } }));
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: t }), { session: { last_ping_at: serverTimestamp(), last_fix_at: at(t.toMillis() - 1) } }));
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: t }), { session: { last_ping_at: serverTimestamp(), last_fix_at: at(t.toMillis() + 1) } }));
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: t })));
+    });
+
+    it("each recorded_at at least 2 s after the last: equal, earlier or 1.999 s later is refused, exactly 2 s later lands", async () => {
+      const t = Date.now() - 30_000;
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: at(t) })));
+      for (const bad of [t, t - 1, t - 60_000, t + MIN_PING_SPACING_SECONDS * 1000 - 1]) {
+        await assertFails(sendPing("s-alice", ping(8, { recorded_at: at(bad) })));
+      }
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: at(t + MIN_PING_SPACING_SECONDS * 1000) })));
+    });
+
+    it("a retried batch that already landed is refused, so it can't land twice", async () => {
+      const data = ping(8, { recorded_at: nextFix() });
+      await assertSucceeds(sendPing("s-alice", data));
+      await assertFails(sendPing("s-alice", data));
+    });
+
+    it("a backlog queued offline still lands, in order, however fast it's sent", async () => {
+      const t = Date.now() - 10 * MIN;
+      await patchSession({ last_fix_at: at(t) });
+      for (let i = 1; i <= 5; i++) await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: at(t + i * 3_000) })));
+    });
+
+    it("a burst can't outrun the clock: at most 60 s of pings ahead of the server, then it waits", async () => {
+      const t = Date.now();
+      await patchSession({ last_fix_at: at(t) });
+      let landed = 0;
+      for (let i = 1; i <= 40; i++) {
+        const recordedAt = at(t + i * MIN_PING_SPACING_SECONDS * 1000);
+        try {
+          await sendPing("s-alice", ping(8, { recorded_at: recordedAt }));
+          landed++;
+        } catch {
+          break;
+        }
+      }
+      // 2 s apart, up to 60 s ahead (plus the few seconds the loop itself takes).
+      assert.ok(landed >= 28 && landed <= 33, `landed ${landed}`);
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: at(t + (PING_CLOCK_SKEW_SECONDS + 10) * 1000) })));
+    });
+
+    it("the first ping: recorded at most 5 minutes before started_at", async () => {
+      assert.equal(FIRST_PING_BEFORE_START_MINUTES, 5);
+      const startedAt = Date.now() - MIN;
+      const fresh = () => patchSession({ started_at: at(startedAt), last_fix_at: null });
+      await fresh();
+      await assertFails(sendPing("s-alice", ping(8, { recorded_at: at(startedAt - FIRST_PING_BEFORE_START_MINUTES * MIN - 1) })));
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: at(startedAt - FIRST_PING_BEFORE_START_MINUTES * MIN) })));
+      // A session backdated by the Admin SDK (QA's --end-in, --limit-in) only lowers that floor.
+      await patchSession({ started_at: at(Date.now() - 55 * MIN), expires_at: at(Date.now() + 5 * MIN), last_fix_at: null });
+      await assertSucceeds(sendPing("s-alice", ping(8)));
+    });
+
+    it("a session from before last_fix_at existed takes its first ping by the same floor", async () => {
+      const { last_fix_at: _, ...old } = sessionDoc();
+      await seedSession("s-old", "alice", old);
+      await assertFails(sendPing("s-old", ping(8, { recorded_at: at(old.started_at.toMillis() - FIRST_PING_BEFORE_START_MINUTES * MIN - 1) })));
+      await assertSucceeds(sendPing("s-old", ping(8)));
+    });
+  });
+});
+
+describe("shareSessions/{sessionId}.last_fix_at: the newest ping's recorded_at", () => {
+  it("moves forward only, as a timestamp, at most 60 s ahead of the server", async () => {
+    const t = Date.now() - 60_000;
+    await assertSucceeds(updateSession(alice, { last_fix_at: at(t) }));
+    await assertSucceeds(updateSession(alice, { last_fix_at: at(t + 1) }));
+    // Writing the value it already has changes nothing, so it stands.
+    await assertSucceeds(updateSession(alice, { last_fix_at: at(t + 1) }));
+    for (const bad of [at(t), at(t - 60_000), null, "now", t + 10_000, at(Date.now() + (PING_CLOCK_SKEW_SECONDS + 5) * 1000)]) {
+      await assertFails(updateSession(alice, { last_fix_at: bad }));
+    }
+  });
+
+  it("a session from before the field existed takes its first one", async () => {
+    const { last_fix_at: _, ...old } = sessionDoc();
+    await seedSession("s-old", "alice", old);
+    await assertSucceeds(update(alice, "shareSessions/s-old", { last_ping_at: serverTimestamp(), last_fix_at: Timestamp.now() }));
+  });
+
+  it("only the sharer, only while live", async () => {
+    for (const who of [bob, aliceAnonymous, stranger, viewer, watcher]) {
+      await assertFails(updateSession(who, { last_fix_at: Timestamp.now() }));
+    }
+    for (const over of [stoppedSession(), expiredSession(), pastStopAtSession()]) {
+      await patchSession(over);
+      await assertFails(updateSession(alice, { last_fix_at: Timestamp.now() }));
+    }
   });
 });
 
@@ -727,9 +948,20 @@ describe("shareSessions/{sessionId}/viewerPings", () => {
     it("takes exactly a ping, in range", async () => {
       await patchSession({ viewer_sharing: true });
       await assertSucceeds(add(viewer, ping(0)));
+      await assertSucceeds(add(viewer, ping(MAX_ACCURACY_METERS)));
       await assertFails(add(viewer, ping(15, { speed: 1 })));
       await assertFails(add(viewer, ping(15, { lat: -91 })));
       await assertFails(add(viewer, ping(-1)));
+      await assertFails(add(viewer, ping(MAX_ACCURACY_METERS + 1)));
+      await assertFails(add(viewer, ping(15, { recorded_at: at(Date.now() + (PING_CLOCK_SKEW_SECONDS + 5) * 1000) })));
+    });
+
+    it("doc ids: 1 to 64 characters of [A-Za-z0-9_-]", async () => {
+      await patchSession({ viewer_sharing: true });
+      const put = (id: string) => setDoc(doc(dbOf(viewer), `${VIEWER_PINGS}/${id}`), ping(15));
+      await assertSucceeds(put("x".repeat(PING_ID_MAX_LENGTH)));
+      await assertFails(put("x".repeat(PING_ID_MAX_LENGTH + 1)));
+      await assertFails(put("no spaces"));
     });
 
     it("never from a watcher, a page posing as the viewer, another session's viewer, or the sharer", async () => {

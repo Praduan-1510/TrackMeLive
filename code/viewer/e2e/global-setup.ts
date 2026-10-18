@@ -20,13 +20,18 @@ const configFile = fileURLToPath(new URL('../vite.config.ts', import.meta.url));
 export default async function setup(project: TestProject): Promise<() => Promise<void>> {
   const outDir = await mkdtemp(join(tmpdir(), 'tml-viewer-e2e-'));
   // A production build, as shipped: Vitest runs with NODE_ENV=test, which would make it a dev build.
-  const nodeEnv = process.env.NODE_ENV;
+  // A Maps key in .env.local stays out of it (Vite never lets a .env file override the environment),
+  // so the build under test is the same on every machine and never carries a real key.
+  const saved = { NODE_ENV: process.env.NODE_ENV, VITE_MAPS_API_KEY: process.env.VITE_MAPS_API_KEY };
   process.env.NODE_ENV = 'production';
+  process.env.VITE_MAPS_API_KEY = '';
   try {
     await build({ root, configFile, mode: 'production', logLevel: 'warn', build: { outDir, emptyOutDir: true } });
   } finally {
-    if (nodeEnv === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = nodeEnv;
+    if (saved.NODE_ENV === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = saved.NODE_ENV;
+    if (saved.VITE_MAPS_API_KEY === undefined) delete process.env.VITE_MAPS_API_KEY;
+    else process.env.VITE_MAPS_API_KEY = saved.VITE_MAPS_API_KEY;
   }
   const server = await preview({
     root,

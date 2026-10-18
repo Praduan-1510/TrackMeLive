@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The live screen (prototype › viewLive, Android). -->
+    <string name="live_back">Home</string>
+    <string name="live_bar_title">Sharing live</string>
+    <string name="live_bar_stops">Stops at %1$s</string>
+    <string name="live_title">Sharing live</string>
+    <string name="live_map">Map around you</string>
+
+    <string name="badge_live">LIVE</string>
+    <string name="badge_live_spoken">Sharing live</string>
+    <string name="badge_no_signal">NO SIGNAL</string>
+    <string name="badge_no_signal_spoken">No GPS signal</string>
+    <string name="badge_no_connection">NO CONNECTION</string>
+    <string name="badge_no_connection_spoken">No connection</string>
+
+    <string name="live_sub_sent_named">Link sent to %1$s. You’ll know when it’s opened.</string>
+    <string name="live_sub_sent">Link sent. You’ll know when it’s opened.</string>
+    <string name="live_sub_opened_named">%1$s opened your link at %2$s.</string>
+    <string name="live_sub_opened">They opened your link at %1$s.</string>
+    <string name="live_sub_offline">No connection right now. %1$s</string>
+    <string name="live_sub_no_gps">No GPS signal right now. %1$s</string>
+    <string name="live_sees_last_named">%1$s sees where you were last seen.</string>
+    <string name="live_sees_last">They see where you were last seen.</string>
+    <string name="live_will_see_named">%1$s will see where you were last seen when they open the link.</string>
+    <string name="live_will_see">They’ll see where you were last seen when they open the link.</string>
+    <string name="live_limit">Sharing stops at %1$s · 1-hour limit</string>
+
+    <!-- The three tiles: read as one phrase each. -->
+    <string name="live_tile_not_shared_value">—</string>
+    <string name="live_tile_not_shared">not shared</string>
+    <string name="live_tile_not_shared_spoken">Distance not shared</string>
+    <string name="live_tile_sharing">sharing</string>
+    <string name="live_tile_sharing_spoken">Sharing for %1$s</string>
+    <string name="live_tile_stops">stops</string>
+    <string name="live_tile_stops_spoken">Stops at %1$s</string>
+    <string name="live_tile_stops_call">When call ends</string>
+    <string name="live_tile_stops_call_spoken">Stops when the call ends</string>
+
+    <!-- The people rows. -->
+    <string name="live_you">You</string>
+    <string name="live_precise">Precise</string>
+    <string name="live_approximate">Approximate</string>
+    <string name="live_you_detail">%1$s · every %2$s s</string>
+    <string name="live_you_detail_spoken">%1$s, updates every %2$s</string>
+    <plurals name="live_seconds_spoken">
+        <item quantity="one">%1$s second</item>
+        <item quantity="other">%1$s seconds</item>
+    </plurals>
+    <string name="live_no_gps">No GPS signal</string>
+    <string name="live_no_connection">No connection</string>
+    <string name="live_status_live">Live</string>
+    <string name="live_status_last_seen">Last seen</string>
+    <string name="live_them">Them</string>
+    <string name="live_viewer_not_opened">Link sent · not opened yet</string>
+    <string name="live_viewer_not_opened_spoken">Link sent, not opened yet</string>
+    <string name="live_viewer_opened">Opened at %1$s</string>
+    <string name="live_status_waiting">Waiting</string>
+    <string name="live_status_watching">Watching</string>
+    <string name="live_share_back_note_named">%1$s can share back only when you start sharing during a call.</string>
+    <string name="live_share_back_note">They can share back only when you start sharing during a call.</string>
+    <string name="live_marker_you">You, live</string>
+    <string name="live_marker_you_approximate">You, live, approximate location</string>
+    <string name="live_marker_you_last_seen">You, last seen %1$s</string>
+    <string name="live_marker_last_seen">Last seen %1$s</string>
+
+    <!-- Location detail, mid-session: the change waits for the next ping. -->
+    <string name="live_location">Location</string>
+    <string name="live_next_approximate">Approximate from the next update</string>
+    <string name="live_next_precise">Precise from the next update</string>
+
+    <string name="live_change_timer">Change timer</string>
+    <string name="live_send_again">Send link again</string>
+    <string name="live_stop">Stop sharing</string>
+    <string name="live_update_failed">That didn’t go through. Check your connection, then try again.</string>
+
+    <!-- The Stop sharing? dialog. -->
+    <string name="stop_title">Stop sharing your location?</string>
+    <string name="stop_body_seen_named">%1$s will see that sharing ended.</string>
+    <string name="stop_body_seen">They’ll see that sharing ended.</string>
+    <string name="stop_body_unseen">Your link will stop working.</string>
+    <string name="stop_cancel">Cancel</string>
+    <string name="stop_confirm">Stop</string>
+</resources>

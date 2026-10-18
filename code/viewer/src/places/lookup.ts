@@ -1,7 +1,9 @@
 /**
  * Where someone is, in words: the nearest street, the park they're in, or (while the sharer is
- * approximate) only the area. The real page asks the Maps API in the viewer's browser (Sprint 2) and
- * never stores the answer; the sample city answers from its own map (src/sample/sample-places.ts).
+ * approximate) only the area. A real share link asks the Maps API's Geocoder in the viewer's browser
+ * (src/places/google.ts), through an in-memory cache (src/places/cache.ts), and never stores the
+ * answer; without a Maps key it says where in coordinates (src/places/coordinates.ts). The sample
+ * city answers from its own map (src/sample/sample-places.ts).
  */
 
 import type { Precision } from '@tml/shared/schema/generated/ts/schema';
@@ -20,4 +22,6 @@ export type Place =
 export interface PlaceLookup {
   /** A lookup that can't name a street names the area; one that can't answer at all rejects. */
   describe(at: LatLng, precision: Precision): Promise<Place>;
+  /** A lookup that costs a request asks at most once per this many ms while the sharer moves. */
+  readonly minGapMs?: number;
 }

@@ -11,7 +11,8 @@ public final class FirebaseProfileBackend: ProfileBackend {
     /// Makes a configured Firestore: once at start, and again after `clearLocalCache()` has
     /// terminated the old one (a terminated instance can't be used again).
     private let makeFirestore: @MainActor () -> Firestore
-    private var firestore: Firestore
+    /// The instance in use; the session backend shares it.
+    private(set) var firestore: Firestore
     private let functions: Functions
 
     init(makeFirestore: @escaping @MainActor () -> Firestore, functions: Functions) {

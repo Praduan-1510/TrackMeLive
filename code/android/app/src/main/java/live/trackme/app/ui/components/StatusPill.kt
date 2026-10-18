@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -125,7 +127,7 @@ private fun PillMark(kind: PillKind, color: Color) {
  * uppercase text anywhere, in the `badge` style; [text] comes from resources already uppercase.
  */
 @Composable
-fun StatusBadge(text: String, modifier: Modifier = Modifier, kind: BadgeKind = BadgeKind.Live) {
+fun StatusBadge(text: String, modifier: Modifier = Modifier, kind: BadgeKind = BadgeKind.Live, spoken: String? = null) {
     val c = TmlTheme.colors
     val (container, content) = when (kind) {
         BadgeKind.Live -> c.lamplightWash to c.lamplightText
@@ -137,6 +139,8 @@ fun StatusBadge(text: String, modifier: Modifier = Modifier, kind: BadgeKind = B
             .heightIn(min = StatusPillDefaults.BadgeMinHeight)
             .clip(RoundedCornerShape(percent = 50))
             .background(container)
+            // Uppercase to the eye, a plain phrase to TalkBack ("Sharing live", not spelled-out letters).
+            .then(if (spoken != null) Modifier.clearAndSetSemantics { contentDescription = spoken } else Modifier)
             .padding(horizontal = TmlSpacing.Space2, vertical = TmlSpacing.Space1),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(TmlSpacing.Space2),
