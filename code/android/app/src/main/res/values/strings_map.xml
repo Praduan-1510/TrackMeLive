@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The live map's credits: what OpenFreeMap's tiles and OpenStreetMap's data licenses ask for
+         (tiles.openfreemap.org/planet attribution; openstreetmap.org/copyright). Brand names aren't translated. -->
+    <string name="map_attribution" translatable="false">OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors</string>
+    <string name="map_attribution_spoken">Map data: OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors</string>
+    <string name="map_attribution_action">show the map’s sources</string>
+    <string name="map_credits_title">Map data</string>
+    <string name="map_credits_body">The map is drawn from OpenStreetMap data, made by its contributors, with free tiles from OpenFreeMap built on OpenMapTiles.</string>
+    <string name="map_credit_openfreemap" translatable="false">OpenFreeMap</string>
+    <string name="map_credit_openmaptiles" translatable="false">© OpenMapTiles</string>
+    <string name="map_credit_osm" translatable="false">© OpenStreetMap contributors</string>
+    <string name="map_credit_open">open in your browser</string>
+    <string name="map_credits_close">Close</string>
+</resources>

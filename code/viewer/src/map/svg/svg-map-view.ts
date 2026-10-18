@@ -1,11 +1,12 @@
 /**
- * The SVG map, a stand-in for the Google Maps JS map behind the same MapView interface, with the
- * people over one of two backdrops:
+ * The SVG map: the people (markers, trail, connector line) over one of two backdrops:
  *   'sample-city'  the stylized sample city, for the sample and review links;
- *   'plain'        a real session's map until the Maps API draws one: the land with a faint 300 m
- *                  grid, so movement reads, and no streets at all, so it never shows streets that
- *                  aren't there. It's drawn around the session's first position, and hidden from
- *                  screen readers (the where line says where; each marker reads as one phrase).
+ *   'plain'        a real session's: the land with a faint 300 m grid, so movement reads, and no
+ *                  streets at all, so it never shows streets that aren't there. It's drawn in Web
+ *                  Mercator around the session's first position, and hidden from screen readers
+ *                  (the where line says where; each marker reads as one phrase). The street map
+ *                  (src/map/open/) slides in under the people and takes the grid's place; this
+ *                  view's camera drives it, so both always show the same place (hooks.onPaint).
  *
  * Layers, bottom to top: the city (one <svg role="img">, only its inner group moves), an overlay SVG
  * for the trail and the connector line, and an HTML layer for the markers and the distance chip.
@@ -22,7 +23,7 @@ import type { Band, FrameOptions, MapScene, MapView } from '../map-view';
 import { SharerMarker, ViewerMarker } from '../markers';
 import { trailDots, type TrailDot } from '../trail';
 import { citySvg } from './city';
-import { METERS_PER_PX, projectionAt, SAMPLE_PROJECTION, type Projection } from './projection';
+import { mercatorAt, METERS_PER_PX, SAMPLE_PROJECTION, type MercatorProjection, type Projection } from './projection';
 
 const PAN_MS = 600;
 const GLIDE_MS = 600;
@@ -30,6 +31,14 @@ const GLIDE_MS = 600;
 const PAD = 56;
 const AREA_D = APPROXIMATE_CIRCLE_DIAMETER_METERS / METERS_PER_PX;
 const LIMITS = { minZoom: 0.3, maxZoom: 1, lift: 8 };
+/**
+ * A real session's zooms, as a street map's (512 px tiles): from z15.5, where minor streets and paths
+ * are named, out to z9 (about 90 km across a phone), so two people far apart still both fit. While
+ * approximate, never closer than 1 (6 m/px), so the 1 km circle always fits.
+ */
+export const STREET_ZOOMS = { min: 9, max: 15.5 } as const;
+/** Below this zoom the plain grid's 300 m lines would crowd into a wash; the land shows alone. */
+const GRID_MIN_ZOOM = 0.25;
 const TRAIL = { gap: 14, clear: 34, max: 8 };
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -72,6 +81,14 @@ class Mover {
 
 export type MapBackdrop = 'sample-city' | 'plain';
 
+export interface SvgMapHooks {
+  /** Kept under the map's own layers (the street map) and over them (its attribution). */
+  readonly under?: readonly HTMLElement[];
+  readonly over?: readonly HTMLElement[];
+  /** Every time the plain map draws: where its camera is, in its projection. */
+  readonly onPaint?: (camera: Camera, projection: MercatorProjection) => void;
+}
+
 /** The plain backdrop's grid: a line every 50 world px (300 m), over a square far larger than an hour of travel. */
 const GRID = 50;
 const GRID_REACH = 60_000;
@@ -80,8 +97,10 @@ export class SvgMapView implements MapView {
   private readonly host: HTMLElement;
   private readonly reduceMotion: MediaQueryList;
   private readonly backdrop: MapBackdrop;
+  private readonly hooks: SvgMapHooks;
   /** The plain map's projection is set by the first position it draws. */
   private proj: Projection | null;
+  private mercator: MercatorProjection | null = null;
   private readonly sharer = new SharerMarker();
   private readonly viewer = new ViewerMarker();
   private readonly sharerAt = new Mover();
@@ -99,10 +118,11 @@ export class SvgMapView implements MapView {
   private dots: TrailDot[] = [];
   private raf = 0;
 
-  constructor(host: HTMLElement, reduceMotion: MediaQueryList, backdrop: MapBackdrop = 'sample-city') {
+  constructor(host: HTMLElement, reduceMotion: MediaQueryList, backdrop: MapBackdrop = 'sample-city', hooks: SvgMapHooks = {}) {
     this.host = host;
     this.reduceMotion = reduceMotion;
     this.backdrop = backdrop;
+    this.hooks = hooks;
     this.proj = backdrop === 'sample-city' ? SAMPLE_PROJECTION : null;
     this.chip.className = 'chip';
     this.chip.setAttribute('aria-hidden', 'true');
@@ -115,8 +135,19 @@ export class SvgMapView implements MapView {
   }
 
   private project(p: LatLng): Pt {
-    this.proj ??= projectionAt(p);
+    if (!this.proj) {
+      this.mercator = mercatorAt(p);
+      this.proj = this.mercator;
+    }
     return this.proj.project(p);
+  }
+
+  /** How far in and out the camera may go for this scene. */
+  private limits(): { minZoom: number; maxZoom: number; lift: number } {
+    const m = this.mercator;
+    if (!m) return LIMITS;
+    const maxZoom = m.zoomFor(STREET_ZOOMS.max);
+    return { minZoom: m.zoomFor(STREET_ZOOMS.min), maxZoom: this.scene?.sharer?.approximate ? Math.min(1, maxZoom) : maxZoom, lift: LIMITS.lift };
   }
 
   private draw(): void {
@@ -135,6 +166,8 @@ export class SvgMapView implements MapView {
     this.marks = this.host.querySelector('.marks');
     this.marks?.style.setProperty('--area-d', `${fx(AREA_D)}px`);
     this.marks?.append(this.sharer.root, this.viewer.root, this.chip);
+    this.host.prepend(...(this.hooks.under ?? []));
+    this.host.append(...(this.hooks.over ?? []));
     // Before anyone is framed, the city's middle sits in the middle of the window.
     this.cam = { x: this.host.clientWidth / 2, y: this.host.clientHeight / 2, zoom: 1 };
     this.paint();
@@ -182,7 +215,7 @@ export class SvgMapView implements MapView {
     const pad = this.scene?.sharer?.approximate ? Math.max(PAD, AREA_D / 2 + 8) : PAD;
     const current = this.camAnim?.to ?? this.cam;
     if (options.mode === 'contain' && keepsInBand(current, pts, band, Math.max(24, pad - 16))) return;
-    const target = frameCamera(pts, band, { pad, ...LIMITS });
+    const target = frameCamera(pts, band, { pad, ...this.limits() });
     if (sameCamera(current, target)) return;
     if (options.animate && !this.still) {
       this.camAnim = { from: this.cam, to: target, start: performance.now(), ms: PAN_MS };
@@ -240,6 +273,8 @@ export class SvgMapView implements MapView {
     // Labels counter-scale, so they stay caption-2 sized when the map zooms out.
     world.style.setProperty('--k', (1 / c.zoom).toFixed(4));
     marks.style.setProperty('--z', c.zoom.toFixed(4));
+    this.base?.classList.toggle('coarse', c.zoom < GRID_MIN_ZOOM);
+    if (this.mercator) this.hooks.onPaint?.(c, this.mercator);
     const place = (root: HTMLElement, p: Pt | null): Pt | null => {
       if (!p) return null;
       const s = toScreen(c, p);

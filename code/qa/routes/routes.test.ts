@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { buildRoute, serializeRoute, SPECS } from './build-routes.ts';
 import { geoFixArgs, mockFixArgs, play, simctlFixArgs, type SentFix } from './play.ts';
-import { ROUTES_DIR, distanceMeters, loadRoute, positionAt, routeIds, validateRoute, type Route } from './route.ts';
+import { ROUTES_DIR, distanceMeters, loadRoute, placeLabelAt, positionAt, routeIds, validateRoute, type Route } from './route.ts';
 import { toGpx } from './to-gpx.ts';
 
 const routes = routeIds().map(loadRoute);
@@ -74,6 +74,57 @@ describe('route files', () => {
   test('a broken route says what is wrong', () => {
     assert.throws(() => validateRoute({ format: 'tml-route/1', id: 'x', title: 't', summary: '', mode: 'walk', duration_s: 1, distance_m: 0, points: [{ t_s: 0, lat: 91, lng: 0, accuracy_m: 5, speed_mps: 0, course_deg: 0 }, { t_s: 0, lat: 0, lng: 0, accuracy_m: 0, speed_mps: 0, course_deg: 0 }] }), /lat out of range[\s\S]*is not after[\s\S]*accuracy_m/);
     assert.throws(() => loadRoute('no-such-route'), /No route "no-such-route".*walk-ferry-building/);
+  });
+});
+
+describe('places: what a geocoder says along each route (x-decisions Q-PLACE)', () => {
+  for (const r of routes) {
+    test(`${r.id}: labels from the start, in San Francisco, with named places, streets and areas`, () => {
+      const places = r.places ?? [];
+      assert.ok(places.length >= 4, `${r.id} has ${String(places.length)} labels`);
+      assert.equal(places[0]?.from_t_s, 0);
+      for (const p of places) {
+        assert.equal(p.city, 'San Francisco');
+        assert.ok(p.street, `${r.id}: every stretch is on a street`);
+        assert.ok(p.area, `${r.id}: every stretch is in an area`);
+      }
+      assert.ok(places.filter((p) => p.name !== null).length >= 2, `${r.id} names at least two places`);
+      assert.ok(new Set(places.map((p) => p.area)).size >= 2, `${r.id} crosses at least two areas`);
+    });
+  }
+
+  test('the walk passes the Ferry Building on The Embarcadero, in the Financial District', () => {
+    const walk = loadRoute('walk-ferry-building');
+    const at = (name: string) => walk.places?.find((p) => p.name === name);
+    assert.deepEqual(placeLabelAt(walk, at('Ferry Building')?.from_t_s ?? -1), {
+      name: 'Ferry Building', street: 'The Embarcadero', area: 'Financial District', city: 'San Francisco',
+    });
+  });
+
+  test('placeLabelAt: the label in force, from its first second until the next one', () => {
+    const r = loadRoute('drive-embarcadero-south');
+    const [a, b] = r.places ?? [];
+    assert.ok(a && b);
+    const parts = ({ from_t_s: _, ...rest }: typeof a) => rest;
+    assert.deepEqual(placeLabelAt(r, 0), parts(a));
+    assert.deepEqual(placeLabelAt(r, b.from_t_s - 0.5), parts(a));
+    assert.deepEqual(placeLabelAt(r, b.from_t_s), parts(b));
+    assert.deepEqual(placeLabelAt(r, 1e9), parts((r.places ?? []).at(-1) ?? a));
+    const { places: _, ...bare } = r;
+    assert.equal(placeLabelAt(bare, 10), null, 'a route without places names none');
+  });
+
+  test('broken places say what is wrong', () => {
+    const base = { format: 'tml-route/1', id: 'x', title: 't', summary: '', mode: 'walk', duration_s: 1, distance_m: 0, points: [{ t_s: 0, lat: 0, lng: 0, accuracy_m: 5, speed_mps: 0, course_deg: 0 }, { t_s: 1, lat: 0, lng: 0, accuracy_m: 5, speed_mps: 0, course_deg: 0 }] };
+    const ok = { from_t_s: 0, name: null, street: 'Market Street', area: null, city: null };
+    assert.doesNotThrow(() => validateRoute({ ...base, places: [ok] }));
+    assert.throws(() => validateRoute({ ...base, places: [] }), /non-empty list/);
+    assert.throws(() => validateRoute({ ...base, places: [{ ...ok, from_t_s: 1 }] }), /must start at from_t_s 0/);
+    assert.throws(() => validateRoute({ ...base, places: [ok, { ...ok, from_t_s: 0 }] }), /is not after/);
+    assert.throws(() => validateRoute({ ...base, places: [ok, { ...ok, from_t_s: 5 }] }), /past the end/);
+    assert.throws(() => validateRoute({ ...base, places: [{ ...ok, street: ' Market' }] }), /trimmed name or null/);
+    assert.throws(() => validateRoute({ ...base, places: [{ ...ok, street: null }] }), /at least one of/);
+    assert.throws(() => validateRoute({ ...base, places: [{ ...ok, house: '1' }] }), /unknown field house/);
   });
 });
 

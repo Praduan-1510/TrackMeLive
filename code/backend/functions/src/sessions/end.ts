@@ -60,10 +60,13 @@ export function recordedEnd(session: Session): SessionEnd | null {
 /**
  * The fields an end writes. Share back stops with the session, and cleaned_at
  * is written as null even on a doc that lacks it, so the 24-hour cleanup finds
- * every ended session.
+ * every ended session. place goes back to null: the viewer still reads the
+ * session doc after the end, and it must hold no location (x-decisions Q-PLACE).
  */
-export function endFields(end: SessionEnd): Pick<Session, "status" | "ended_at" | "end_reason" | "viewer_sharing" | "cleaned_at"> {
-  return { status: "stopped", ended_at: end.at, end_reason: end.reason, viewer_sharing: false, cleaned_at: null };
+export function endFields(
+  end: SessionEnd,
+): Pick<Session, "status" | "ended_at" | "end_reason" | "viewer_sharing" | "cleaned_at" | "place"> {
+  return { status: "stopped", ended_at: end.at, end_reason: end.reason, viewer_sharing: false, cleaned_at: null, place: null };
 }
 
 /**

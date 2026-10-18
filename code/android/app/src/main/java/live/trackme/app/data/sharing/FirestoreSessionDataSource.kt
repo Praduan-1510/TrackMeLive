@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.tasks.await
+import live.trackme.app.data.place.PlaceParts
 import live.trackme.schema.CreateSessionRequest
 import live.trackme.schema.CreateSessionResponse
 import live.trackme.schema.DiscardSessionRequest
@@ -28,6 +29,7 @@ import live.trackme.schema.MascotCatalog
 import live.trackme.schema.MascotColor
 import live.trackme.schema.MascotId
 import live.trackme.schema.Ping
+import live.trackme.schema.Place
 import live.trackme.schema.Precision
 import live.trackme.schema.SessionStatus
 import live.trackme.schema.ShareSession
@@ -123,6 +125,7 @@ class FirestoreSessionDataSource(
                 put(ShareSession.Fields.PRECISION, it.wire)
                 put(ShareSession.Fields.PRECISION_NEXT, null)
             }
+            checkIn.place?.let { put(ShareSession.Fields.PLACE, placeValueOf(it)) }
         }
         batch.update(sessionRef, fields)
         firestoreCall("ping") { batch.commit().await() }
@@ -139,10 +142,13 @@ class FirestoreSessionDataSource(
         )
     }
 
-    override suspend fun setPrecisionNext(sessionId: String, precision: Precision?) {
+    override suspend fun setPrecisionNext(sessionId: String, precision: Precision?, place: PlaceUpdate?) {
+        val fields = buildMap<String, Any?> {
+            put(ShareSession.Fields.PRECISION_NEXT, precision?.wire)
+            place?.let { put(ShareSession.Fields.PLACE, placeValueOf(it)) }
+        }
         firestoreCall("precision_next") {
-            firestore().document(TmlPaths.shareSession(sessionId))
-                .update(ShareSession.Fields.PRECISION_NEXT, precision?.wire).await()
+            firestore().document(TmlPaths.shareSession(sessionId)).update(fields).await()
         }
     }
 
@@ -238,6 +244,20 @@ class FirestoreSessionDataSource(
 
         fun timestampOf(millis: Long): Timestamp =
             Timestamp(Math.floorDiv(millis, 1000L), (Math.floorMod(millis, 1000L) * 1_000_000).toInt())
+
+        /** shareSessions.place as written: all five keys, null for a missing part (firestore.rules validPlaceShape). */
+        fun placeValueOf(update: PlaceUpdate): Map<String, Any?>? = when (update) {
+            PlaceUpdate.Clear -> null
+            is PlaceUpdate.Set -> with(update.place) {
+                mapOf(
+                    Place.Fields.NAME to parts.name,
+                    Place.Fields.STREET to parts.street,
+                    Place.Fields.AREA to parts.area,
+                    Place.Fields.CITY to parts.city,
+                    Place.Fields.AT to timestampOf(atMillis),
+                )
+            }
+        }
     }
 }
 
@@ -294,7 +314,24 @@ internal fun sessionViewOf(data: Map<String, Any?>): SessionView {
         firstViewedAtMillis = time(ShareSession.Fields.FIRST_VIEWED_AT),
         viewerSharing = data[ShareSession.Fields.VIEWER_SHARING] as Boolean? ?: false,
         shareBackRequestedAtMillis = time(ShareSession.Fields.SHARE_BACK_REQUESTED_AT),
+        place = placeOf(data[ShareSession.Fields.PLACE] as Map<*, *>?),
     )
+}
+
+/**
+ * shareSessions.place, or null: missing on sessions from before it existed, null until the first
+ * lookup, and null for one that isn't a place (never written by the app; the rules refuse it).
+ */
+internal fun placeOf(map: Map<*, *>?): SessionPlace? {
+    map ?: return null
+    val at = (map[Place.Fields.AT] as? Timestamp)?.millis ?: return null
+    val parts = PlaceParts.of(
+        map[Place.Fields.NAME] as? String,
+        map[Place.Fields.STREET] as? String,
+        map[Place.Fields.AREA] as? String,
+        map[Place.Fields.CITY] as? String,
+    ) ?: return null
+    return SessionPlace(parts, at)
 }
 
 private fun sharerOf(map: Map<*, *>?): SharerSnapshot = SharerSnapshot(

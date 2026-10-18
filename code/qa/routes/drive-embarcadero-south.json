@@ -6,6 +6,15 @@
   "summary": "About 2 km by car in under 5 minutes: south on The Embarcadero under the Bay Bridge, then King Street to 3rd, with three red lights.",
   "duration_s": 276,
   "distance_m": 2059,
+  "places": [
+    {"from_t_s":0,"name":"Ferry Building","street":"The Embarcadero","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":26,"name":null,"street":"The Embarcadero","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":56,"name":"Rincon Park","street":"The Embarcadero","area":"Rincon Hill","city":"San Francisco"},
+    {"from_t_s":106,"name":null,"street":"The Embarcadero","area":"Rincon Hill","city":"San Francisco"},
+    {"from_t_s":126,"name":"South Beach Harbor","street":"The Embarcadero","area":"South Beach","city":"San Francisco"},
+    {"from_t_s":191,"name":null,"street":"King Street","area":"South Beach","city":"San Francisco"},
+    {"from_t_s":247,"name":"Oracle Park","street":"King Street","area":"Mission Bay","city":"San Francisco"}
+  ],
   "points": [
     {"t_s":0,"lat":37.794697,"lng":-122.393318,"accuracy_m":8,"speed_mps":0,"course_deg":145},
     {"t_s":1,"lat":37.794675,"lng":-122.393301,"accuracy_m":6,"speed_mps":1.8,"course_deg":145},

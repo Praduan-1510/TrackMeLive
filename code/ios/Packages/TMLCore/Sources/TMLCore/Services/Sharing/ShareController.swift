@@ -210,7 +210,7 @@ public final class ShareController: SharingService {
         run.uploader?.setPrecision(precision)
         sync(run)
         do {
-            try await backend.requestPrecision(sessionId: live.sessionId, precision)
+            try await backend.requestPrecision(sessionId: live.sessionId, precision, place: nil)
         } catch {
             // Back to Precise only if the write failed for it; Approximate stays, whatever happens.
             if precision == .precise, self.run === run, run.chosenPrecision == precision {

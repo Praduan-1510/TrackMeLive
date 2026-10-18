@@ -222,6 +222,9 @@ describe("createSession: what it writes", () => {
     assert.equal(s.viewer_sharing, false);
     assert.equal(s.share_back_requested_at, null);
     assert.equal(s.cleaned_at, null);
+    // No lookup yet: the sharer's phone writes it (x-decisions Q-PLACE).
+    assert.ok("place" in s);
+    assert.equal(s.place, null);
     assert.deepEqual(s.sharer, { name: "Alex", mascot_id: "ninja", mascot_color: "dusk", mascot_accessory: "headphones" });
 
     // private/meta: owner from the auth token, token stored only as a hash.
@@ -317,7 +320,8 @@ describe("createSession: one session at a time", () => {
     const overdue = ok(await create(callShare));
     // Still "active", but past expires_at: the stop job just hasn't run yet.
     const expiresAt = Timestamp.fromMillis(Date.now() - 1000);
-    await db.doc(`shareSessions/${overdue.session_id}`).update({ expires_at: expiresAt, viewer_sharing: true });
+    const place = { name: "Ferry Building", street: "The Embarcadero", area: "Financial District", city: "San Francisco", at: Timestamp.now() };
+    await db.doc(`shareSessions/${overdue.session_id}`).update({ expires_at: expiresAt, viewer_sharing: true, place });
     const next = ok(await create(manualShare));
 
     const old = await sessionOf(overdue.session_id);
@@ -327,6 +331,8 @@ describe("createSession: one session at a time", () => {
     assert.equal(old.ended_at.toMillis(), expiresAt.toMillis());
     assert.equal(old.viewer_sharing, false);
     assert.equal(old.cleaned_at, null);
+    // The viewer still reads the ended doc: it holds no place (x-decisions Q-PLACE).
+    assert.equal(old.place, null);
     assert.equal((await userOf(alex.uid)).active_session_id, next.session_id);
   });
 
@@ -344,7 +350,9 @@ describe("createSession: one session at a time", () => {
 
   it("force-ends a session behind the pointer that doesn't match the schema, instead of leaving it active", async () => {
     const broken = ok(await create(manualShare));
-    await db.doc(`shareSessions/${broken.session_id}`).update({ sharer: FieldValue.delete(), ping_interval_s: "fast", viewer_sharing: true });
+    await db.doc(`shareSessions/${broken.session_id}`).update({
+      sharer: FieldValue.delete(), ping_interval_s: "fast", viewer_sharing: true, place: { street: "The Embarcadero" },
+    });
     const t0 = Date.now();
     const next = ok(await create(manualShare));
 
@@ -355,6 +363,7 @@ describe("createSession: one session at a time", () => {
     assert.ok(old.ended_at.toMillis() >= t0 - 1000 && old.ended_at.toMillis() <= Date.now() + 1000);
     assert.equal(old.viewer_sharing, false);
     assert.equal(old.cleaned_at, null);
+    assert.equal(old.place, null);
     assert.equal((await userOf(alex.uid)).active_session_id, next.session_id);
   });
 

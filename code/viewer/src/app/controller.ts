@@ -4,13 +4,12 @@
  * (src/state/view.ts), and the DOM, the map, the live regions and focus brought in line with it.
  *
  * Effects live here and only here: following the browser's location while share back is on, writing
- * share-back pings (one every few seconds), asking for the place name when the sharer has moved,
- * and stopping the session listener once the page can't change any more.
+ * share-back pings (one every few seconds), and stopping the session listener once the page can't
+ * change any more. Where the sharer is in words comes with the session (src/places/session-place.ts).
  */
 
 import type { LocationProvider } from '../location/provider';
 import type { MapScene, MapView } from '../map/map-view';
-import type { PlaceLookup } from '../places/lookup';
 import type { SessionSource } from '../session/source';
 import { announce } from '../state/announce';
 import { shareBackEffects, type Effect } from '../state/effects';
@@ -22,7 +21,6 @@ import { bar, binds, body, gap, head, loadingMain, messageMain, PAGE_MAIN, type 
 import type { Announcer } from './announcer';
 import { moveFocus, rebuildKeepingFocus } from './focus';
 import { openBand, updateTall } from './layout';
-import { PlaceAsker } from './place-asker';
 
 const ACTIONS = ['show-sharer', 'dismiss-share-back', 'share-back', 'stop-share-back', 'retry-map', 'location-help', 'reload'] as const;
 export type Action = (typeof ACTIONS)[number];
@@ -31,7 +29,6 @@ const isAction = (s: string | undefined): s is Action => ACTIONS.some((a) => a =
 export interface ViewerDeps {
   readonly source: SessionSource;
   readonly location: LocationProvider;
-  readonly places: PlaceLookup;
   readonly map: MapView;
   /** The map's own element (#map): a region labelled Map, hidden when there's no map to show. */
   readonly mapHost: HTMLElement;
@@ -58,7 +55,6 @@ export class ViewerController {
   private ticker = 0;
   private stopWatch: (() => void) | null = null;
   private lastWriteAt = -Infinity;
-  private readonly places: PlaceAsker;
   private focusNext: string | null = null;
   private frameKey = '';
   private framed = false;
@@ -73,14 +69,6 @@ export class ViewerController {
   constructor(deps: ViewerDeps) {
     this.d = deps;
     this.model = initialModel(Date.now());
-    this.places = new PlaceAsker(
-      deps.places,
-      (place) => {
-        this.dispatch({ type: 'place', place });
-      },
-      () => Date.now(),
-      deps.places.minGapMs ?? 0,
-    );
   }
 
   start(): void {
@@ -215,8 +203,6 @@ export class ViewerController {
       if (m.shareBack === 'denied' || m.shareBack === 'unavailable') this.focusAfterAnswer('[data-key="share"]');
     }
 
-    const newest = m.pings[0];
-    if (newest && m.session) this.places.update({ lat: newest.lat, lng: newest.lng }, m.session.precision);
   }
 
   private carryOut(effect: Effect): void {

@@ -175,6 +175,20 @@ export interface TrustedContact {
   relation: string;
 }
 
+/** shareSessions.place: where the sharer is, in words, for the viewer's "Where Alex is" line (FSD §4). The sharer's phone looks it up with the platform's free reverse geocoder (Android Geocoder, iOS CLGeocoder); the viewer never calls a geocoder (owner decision Oct 19). Exactly these five fields, and at least one of name, street, area and city is non-null. While the session's effective precision is approximate (precision_next when set, else precision, as written), name and street are null and the lookup uses the rounded point, so the words never say more than the map (x-decisions Q-PLACE). TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
+export interface Place<TTime = FirestoreTimestamp> {
+  /** A named place at the fix: a park, landmark or venue (e.g. Ferry Building). Precise only: null while approximate, or when the lookup names none. */
+  name: string | null;
+  /** The thoroughfare, without a house number (e.g. The Embarcadero). Precise only: null while approximate, or when there is none. */
+  street: string | null;
+  /** The neighbourhood or sub-locality (e.g. Financial District); null when the lookup has none. */
+  area: string | null;
+  /** The locality (e.g. San Francisco); null when the lookup has none. */
+  city: string | null;
+  /** recorded_at of the fix this place describes: the ping written in the same batch, or, when place is written on its own, a fix no later than the session's last_fix_at. At most PING_CLOCK_SKEW_SECONDS (60) ahead of the server. */
+  at: TTime;
+}
+
 /** One doc per active or past share, holding only what the viewer may see (FSD §6). Created only by the createSession function, never by a client (x-decisions Q-CLIENT-CREATE). The viewer reads it and its pings with a session-scoped sign-in while it is active; after it ends, only this doc, for the ended state (x-decisions Q-VIEWER-SIGNIN). Session metadata is kept 30 days (FSD §8). Firestore: shareSessions/{sessionId}. TTime is the timestamp type: the SDK Timestamp when reading, and e.g. Timestamp | FieldValue when writing. */
 export interface ShareSession<TTime = FirestoreTimestamp> {
   /** active while sharing; stopped once ended (with ended_at and end_reason). */
@@ -221,6 +235,8 @@ export interface ShareSession<TTime = FirestoreTimestamp> {
   share_back_requested_at: TTime | null;
   /** Function-owned: when the 24-hour cleanup deleted this session's pings, viewerPings and viewer sign-ins (FSD §8 Retention); null until then. The cleanup finds stopped sessions with cleaned_at null and ended_at at least 24 hours ago, so a session ended late, with ended_at set back to when it was due, is still cleaned on the next run (x-decisions Q-CLEANUP-MARK). */
   cleaned_at: TTime | null;
+  /** Where the sharer is, in words, for "Where Alex is"; null until the phone's first lookup. createSession writes null. The sharer's app writes it while the session is live and only when the looked-up place changes: in the same batch as a ping (at = that ping's recorded_at), or on its own with at no later than last_fix_at. Every end sets it to null (stopSession, the stop job, the watchdog, reportCallEnded, createSession behind a stale pointer, deleteAccount), so after the end the viewer, who still reads this doc, never sees it (x-decisions Q-PLACE). Optional only so sessions started before it existed still read; treat a missing field as null. */
+  place?: Place<TTime> | null;
 }
 
 /** Sharer-only fields: readable by the sharer and Cloud Functions, never by the viewer (FSD §6). Firestore: shareSessions/{sessionId}/private/meta. */
@@ -567,6 +583,12 @@ export const FIRST_PING_BEFORE_START_MINUTES = 5;
 export const MAX_ACCURACY_METERS = 100000;
 /** firestore.rules: ping and viewer ping doc ids are 1 to 64 characters of [A-Za-z0-9_-]; Firestore's auto ids (20 characters) fit. (FSD §6; x-decisions Q-PING-WRITE) */
 export const PING_ID_MAX_LENGTH = 64;
+/** firestore.rules: each shareSessions.place part (name, street, area, city) is 1–80 UTF-16 code units; the apps trim it and cut it at a character boundary. (FSD §4 Where Alex is, in words; x-decisions Q-PLACE) */
+export const PLACE_PART_MAX_LENGTH = 80;
+/** The sharer's phone reverse-geocodes at most once per 10 s… (FSD §4 Where Alex is, in words; x-decisions Q-PLACE) */
+export const PLACE_LOOKUP_MIN_SECONDS = 10;
+/** …and only after moving at least 25 m from the fix it last looked up. A precision change looks up at once. (FSD §4 Where Alex is, in words; x-decisions Q-PLACE) */
+export const PLACE_LOOKUP_MIN_METERS = 25;
 /** From 20% to 10% battery. (FSD §4 Battery-aware pings) */
 export const PING_INTERVAL_LOW_BATTERY_SECONDS = 15;
 /** Under 10% battery. (FSD §4 Battery-aware pings) */
@@ -971,6 +993,68 @@ export const SCHEMA_DEFS = {
     ],
     "additionalProperties": false
   },
+  "PlacePart": {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 80,
+    "pattern": "^[^ \\p{Cc}\\u202A-\\u202E\\u2066-\\u2069]([^\\p{Cc}\\u202A-\\u202E\\u2066-\\u2069]*[^ \\p{Cc}\\u202A-\\u202E\\u2066-\\u2069])?$"
+  },
+  "Place": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/PlacePart"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "street": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/PlacePart"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "area": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/PlacePart"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "city": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/PlacePart"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "at": {
+        "$ref": "#/$defs/Timestamp"
+      }
+    },
+    "required": [
+      "name",
+      "street",
+      "area",
+      "city",
+      "at"
+    ],
+    "additionalProperties": false
+  },
   "ShareSession": {
     "type": "object",
     "properties": {
@@ -1109,6 +1193,16 @@ export const SCHEMA_DEFS = {
         "anyOf": [
           {
             "$ref": "#/$defs/Timestamp"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "place": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Place"
           },
           {
             "type": "null"

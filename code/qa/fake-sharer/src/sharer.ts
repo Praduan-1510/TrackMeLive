@@ -9,7 +9,8 @@
  *   - each ping as one batch, exactly as FSD §6, the schema's x-decisions Q-PING-WRITE and
  *     firestore.rules expect: a `pings` doc {lat, lng, recorded_at, accuracy_m} plus the session's
  *     check-in (`last_ping_at` = server time, `last_fix_at` = that same recorded_at, and
- *     `ping_interval_s` when it changes). The security rules judge every write;
+ *     `ping_interval_s` when it changes), and the session's `place` when the caller passes one
+ *     (x-decisions Q-PLACE; place.ts decides when). The security rules judge every write;
  *   - Stop through the stopSession callable.
  *
  * One test-only shortcut, on demo-* emulators only: backdate() moves a session's started_at,
@@ -59,6 +60,7 @@ import {
   type StopSessionResponse,
 } from '../../../shared/schema/generated/ts/schema.ts';
 import { authBase, checkEmulators, emulatorSet, firestoreBase, type EmulatorSet } from './env.ts';
+import type { PlaceParts } from './place.ts';
 
 const MIN = 60_000;
 
@@ -115,6 +117,8 @@ export interface Fix {
 export interface WrittenPing extends Fix {
   readonly id: string;
   readonly recorded_at: Date;
+  /** The place written in the same batch (at = recorded_at), null when it cleared it; absent when untouched. */
+  readonly place?: PlaceParts | null;
 }
 
 /** The server refused a write. `over` is true when the session was due to end (timer or limit). */
@@ -383,10 +387,11 @@ export class FakeSharer {
 
   /**
    * Writes one ping and the check-in that goes with it, in one batch. While approximate, the point is
-   * rounded to about 500 m and the accuracy floored at 500, as the phone does. Throws WriteRefused when
-   * the rules say no.
+   * rounded to about 500 m and the accuracy floored at 500, as the phone does. `place` also sets the
+   * session's place in that batch, with this ping's recorded_at as its at (null clears it). Throws
+   * WriteRefused when the rules say no.
    */
-  async ping(session: Session, fix: Fix, o: { recordedAt?: Date; interval_s?: number; id?: string } = {}): Promise<WrittenPing> {
+  async ping(session: Session, fix: Fix, o: { recordedAt?: Date; interval_s?: number; id?: string; place?: PlaceParts | null } = {}): Promise<WrittenPing> {
     const written = session.precision === 'approximate' ? approximate(fix) : fix;
     // A phone takes fixes on a timer, never two within MIN_PING_SPACING_SECONDS, and the rules refuse
     // a ping that close (Q-PING-WRITE). A fix taken "now" waits out the spacing, so a caller's timing
@@ -404,11 +409,12 @@ export class FakeSharer {
     batch.set(ref, { lat: written.lat, lng: written.lng, recorded_at: recorded, accuracy_m: written.accuracy_m });
     const checkIn: Record<string, unknown> = { last_ping_at: serverTimestamp(), last_fix_at: recorded };
     if (o.interval_s !== undefined && this.intervals.get(session.id) !== o.interval_s) checkIn.ping_interval_s = o.interval_s;
+    if (o.place !== undefined) checkIn.place = o.place === null ? null : { ...o.place, at: recorded };
     batch.update(doc(this.db, 'shareSessions', session.id), checkIn);
     await this.commit(batch, session, recordedAt);
     this.lastRecorded.set(session.id, Math.max(recordedAt.getTime(), this.lastRecorded.get(session.id) ?? -Infinity));
     if (checkIn.ping_interval_s !== undefined) this.intervals.set(session.id, o.interval_s as number);
-    return { id: ref.id, ...written, recorded_at: recordedAt };
+    return { id: ref.id, ...written, recorded_at: recordedAt, ...(o.place !== undefined ? { place: o.place } : {}) };
   }
 
   /** Whether the session holds a ping recorded at exactly this time (the owner may read pings). */

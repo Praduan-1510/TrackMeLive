@@ -41,6 +41,7 @@ import {
   MIN_PING_SPACING_SECONDS,
   PING_CLOCK_SKEW_SECONDS,
   PING_ID_MAX_LENGTH,
+  PLACE_PART_MAX_LENGTH,
   validate,
 } from "../../../shared/schema/generated/ts/schema.ts";
 import { FIRESTORE, PROJECT_ID } from "./emulators.ts";
@@ -120,6 +121,7 @@ function sessionDoc(overrides: Record<string, unknown> = {}) {
     viewer_sharing: false,
     share_back_requested_at: null,
     cleaned_at: null,
+    place: null,
     ...overrides,
   };
 }
@@ -904,6 +906,256 @@ describe("shareSessions/{sessionId}.last_fix_at: the newest ping's recorded_at",
       await patchSession(over);
       await assertFails(updateSession(alice, { last_fix_at: Timestamp.now() }));
     }
+  });
+});
+
+// ---- place: where the sharer is, in words (x-decisions Q-PLACE) ---------------
+
+const cp = (...points: number[]) => String.fromCodePoint(...points);
+
+/** A place as the apps write it for a precise session: every part set. */
+function placeAt(fix: Timestamp, parts: Record<string, unknown> = {}) {
+  return { name: "Ferry Building", street: "The Embarcadero", area: "Financial District", city: "San Francisco", at: fix, ...parts };
+}
+/** What an approximate session may say: the area and the city. */
+const areaOnly = (fix: Timestamp) => placeAt(fix, { name: null, street: null });
+
+describe("shareSessions/{sessionId}.place: where the sharer is, in words (x-decisions Q-PLACE)", () => {
+  // The session's newest fix is 20 s old; each test's pings come 3 s apart after it.
+  let lastFix: Timestamp;
+  let clock = 0;
+  const nextFix = () => at((clock += 3_000));
+
+  beforeEach(async () => {
+    lastFix = at(Date.now() - 20_000);
+    clock = lastFix.toMillis();
+    await patchSession({ last_fix_at: lastFix });
+  });
+
+  const setPlace = (place: unknown, who: Who = alice) => updateSession(who, { place });
+  const placeOf = async (who: Who = alice) => (await get(who, "shareSessions/s-alice")).get("place");
+  /** A ping as the apps write it, with `place(fix)` in the same batch, plus any other session fields. */
+  const pingWithPlace = (place: (fix: Timestamp) => unknown, extra: Record<string, unknown> = {}, accuracy = 8) => {
+    const fix = nextFix();
+    return sendPing("s-alice", ping(accuracy, { recorded_at: fix }), {
+      session: { last_ping_at: serverTimestamp(), last_fix_at: fix, place: place(fix), ...extra },
+    });
+  };
+
+  it("the seeds match the shared schema", () => {
+    const t = Timestamp.now();
+    for (const p of [placeAt(t), areaOnly(t)]) assert.deepEqual(validate("Place", p), []);
+    for (const place of [placeAt(t), null]) assert.deepEqual(validate("ShareSession", sessionDoc({ place })), []);
+  });
+
+  describe("when it's written", () => {
+    it("with a ping, in the same batch, at = that ping's recorded_at", async () => {
+      await assertSucceeds(pingWithPlace((fix) => placeAt(fix)));
+      const place = await placeOf();
+      assert.equal(place.at.toMillis(), clock);
+      assert.equal(place.street, "The Embarcadero");
+    });
+
+    it("in a ping's batch, at may be an earlier fix (a slow lookup) but never later than the ping", async () => {
+      await assertFails(pingWithPlace((fix) => placeAt(at(fix.toMillis() + 1))));
+      await assertSucceeds(pingWithPlace((fix) => placeAt(at(fix.toMillis() - 3_000))));
+    });
+
+    it("on its own, at no later than last_fix_at", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertSucceeds(setPlace(placeAt(at(lastFix.toMillis() - MIN), { name: "Pier 1" })));
+      await assertFails(setPlace(placeAt(at(lastFix.toMillis() + 1), { name: "Pier 3" })));
+    });
+
+    it("never before the first ping: last_fix_at null, or a session from before last_fix_at existed", async () => {
+      await patchSession({ last_fix_at: null });
+      await assertFails(setPlace(placeAt(at(Date.now() - MIN))));
+      const { last_fix_at: _, ...old } = sessionDoc();
+      await seedSession("s-old", "alice", old);
+      await assertFails(update(alice, "shareSessions/s-old", { place: placeAt(at(Date.now() - MIN)) }));
+    });
+
+    it("at most PING_CLOCK_SKEW_SECONDS ahead of the server, even when last_fix_at is further ahead", async () => {
+      // Only the Admin SDK can put last_fix_at this far ahead; the rules still hold place to the server's clock.
+      await patchSession({ last_fix_at: at(Date.now() + 10 * MIN) });
+      await assertFails(setPlace(placeAt(at(Date.now() + (PING_CLOCK_SKEW_SECONDS + 5) * 1000))));
+      await assertSucceeds(setPlace(placeAt(at(Date.now() + 30_000))));
+    });
+
+    it("at is a timestamp", async () => {
+      const seconds = Math.floor(lastFix.toMillis() / 1000);
+      for (const bad of [null, "now", lastFix.toMillis(), { seconds, nanoseconds: 0 }]) {
+        await assertFails(setPlace(placeAt(lastFix, { at: bad })));
+      }
+    });
+
+    it("null clears it, from a place or from a session from before place existed", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertSucceeds(setPlace(null));
+      assert.equal(await placeOf(), null);
+      const { place: _, ...old } = sessionDoc({ last_fix_at: lastFix });
+      await seedSession("s-old", "alice", old);
+      await assertSucceeds(update(alice, "shareSessions/s-old", { place: null }));
+      await assertSucceeds(update(alice, "shareSessions/s-old", { place: placeAt(lastFix) }));
+    });
+
+    it("a ping or a check-in without it leaves it as it is", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertSucceeds(sendPing("s-alice", ping(8, { recorded_at: nextFix() })));
+      await assertSucceeds(updateSession(alice, { last_ping_at: serverTimestamp() }));
+      assert.equal((await placeOf()).name, "Ferry Building");
+    });
+  });
+
+  describe("its shape", () => {
+    it("exactly name, street, area, city and at", async () => {
+      for (const key of ["name", "street", "area", "city", "at"]) {
+        const missing: Record<string, unknown> = placeAt(lastFix);
+        delete missing[key];
+        await assertFails(setPlace(missing));
+      }
+      await assertFails(setPlace(placeAt(lastFix, { house_number: "1" })));
+      await assertFails(setPlace("Ferry Building"));
+      await assertFails(setPlace([placeAt(lastFix)]));
+    });
+
+    it("at least one of the four parts", async () => {
+      await assertFails(setPlace(placeAt(lastFix, { name: null, street: null, area: null, city: null })));
+      for (const key of ["name", "street", "area", "city"]) {
+        const only = { name: null, street: null, area: null, city: null, [key]: "Somewhere" };
+        await assertSucceeds(setPlace({ ...only, at: lastFix }));
+      }
+    });
+
+    it("each part null or a string", async () => {
+      for (const key of ["name", "street", "area", "city"]) {
+        for (const bad of [42, true, ["Ferry Building"], { en: "Ferry Building" }, lastFix]) {
+          await assertFails(setPlace(placeAt(lastFix, { [key]: bad })));
+        }
+      }
+    });
+
+    it("1 to PLACE_PART_MAX_LENGTH (80) UTF-16 code units", async () => {
+      assert.equal(PLACE_PART_MAX_LENGTH, 80);
+      // 40 emoji are 80 UTF-16 code units; the rules' size() counts those.
+      const bridges = cp(0x1f309).repeat(40);
+      for (const ok of ["x", "x".repeat(80), bridges]) {
+        await assertSucceeds(setPlace(placeAt(lastFix, { name: ok })));
+      }
+      for (const bad of ["", "x".repeat(81), bridges + "x"]) {
+        await assertFails(setPlace(placeAt(lastFix, { name: bad })));
+      }
+    });
+
+    it("trimmed: no space at either end, or a part of only spaces", async () => {
+      for (const bad of [" Ferry Building", "Ferry Building ", " ", "   "]) {
+        await assertFails(setPlace(placeAt(lastFix, { name: bad })));
+      }
+      await assertSucceeds(setPlace(placeAt(lastFix, { name: "Pier 39  Fisherman's Wharf" })));
+    });
+
+    it("no control character, and no bidi override or isolate, anywhere", async () => {
+      for (const c of [0x09, 0x0a, 0x0d, 0x1f, 0x7f, 0x85, 0x9f, 0x202a, 0x202d, 0x202e, 0x2066, 0x2068, 0x2069]) {
+        for (const bad of [`Ferry${cp(c)}Building`, `${cp(c)}Ferry`, `Ferry${cp(c)}`]) {
+          await assertFails(setPlace(placeAt(lastFix, { street: bad })));
+        }
+      }
+    });
+
+    it("any language: accents, CJK, right-to-left text and its marks", async () => {
+      const names = [
+        `Caf${cp(0xe9)} de la Presse`,
+        cp(0x91d1, 0x9580, 0x5927, 0x6a4b),
+        cp(0x645, 0x62a, 0x62d, 0x641),
+        `Ferry${cp(0x200e)} Building`,
+      ];
+      for (const ok of names) await assertSucceeds(setPlace(placeAt(lastFix, { name: ok })));
+    });
+
+    it("the shared schema takes every part the rules take, and refuses what they refuse but for length", async () => {
+      const taken = ["x", "x".repeat(80), cp(0x1f309).repeat(40), "Pier 39", `Caf${cp(0xe9)}`, `a${cp(0x200e)}b`, `${cp(0xa0)}Mission`];
+      for (const part of taken) {
+        await assertSucceeds(setPlace(placeAt(lastFix, { area: part })));
+        assert.deepEqual(validate("PlacePart", part), [], JSON.stringify(part));
+      }
+      const refused = ["", " x", "x ", `a${cp(0x0a)}b`, `a${cp(0x7f)}b`, `a${cp(0x202e)}b`, `a${cp(0x2069)}b`];
+      for (const part of refused) {
+        await assertFails(setPlace(placeAt(lastFix, { area: part })));
+        assert.notDeepEqual(validate("PlacePart", part), [], JSON.stringify(part));
+      }
+      // The schema counts code points, so it is never the stricter of the two.
+      assert.deepEqual(validate("PlacePart", cp(0x1f309).repeat(80)), []);
+    });
+  });
+
+  describe("while Approximate, the area only", () => {
+    it("an approximate session takes area and city, never name or street", async () => {
+      await patchSession({ precision: "approximate" });
+      await assertSucceeds(setPlace(areaOnly(lastFix)));
+      await assertSucceeds(setPlace({ name: null, street: null, area: null, city: "San Francisco", at: lastFix }));
+      await assertFails(setPlace(placeAt(lastFix, { street: null })));
+      await assertFails(setPlace(placeAt(lastFix, { name: null })));
+    });
+
+    it("a pending switch to Approximate counts: precision_next", async () => {
+      await assertFails(updateSession(alice, { precision_next: "approximate", place: placeAt(lastFix) }));
+      await assertSucceeds(updateSession(alice, { precision_next: "approximate", place: areaOnly(lastFix) }));
+    });
+
+    it("turning Approximate on must drop name and street from the place the session holds, in the same write", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertFails(updateSession(alice, { precision_next: "approximate" }));
+      await assertFails(pingWithPlace((fix) => placeAt(fix), { precision: "approximate", precision_next: null }, APPROXIMATE_ROUNDING_METERS));
+      await assertSucceeds(updateSession(alice, { precision_next: "approximate", place: areaOnly(lastFix) }));
+      await assertSucceeds(updateSession(alice, { precision_next: null, place: placeAt(lastFix) }));
+      await assertSucceeds(updateSession(alice, { precision_next: "approximate", place: null }));
+    });
+
+    it("the ping that applies Approximate can carry the new place", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertSucceeds(pingWithPlace(areaOnly, { precision: "approximate", precision_next: null }, APPROXIMATE_ROUNDING_METERS));
+      assert.equal((await placeOf()).street, null);
+    });
+
+    it("a pending switch to Precise lets name and street in at once; cancelling it drops them again", async () => {
+      await patchSession({ precision: "approximate", precision_next: "precise" });
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      await assertFails(updateSession(alice, { precision_next: null }));
+      await assertSucceeds(updateSession(alice, { precision_next: null, place: areaOnly(lastFix) }));
+    });
+  });
+
+  describe("who, and when", () => {
+    it("only the sharer: not the viewer, a watcher, another sharer or anyone else, not even null", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      for (const who of [viewer, watcher, otherViewer, bob, aliceAnonymous, stranger]) {
+        await assertFails(setPlace(placeAt(lastFix, { name: "Pier 1" }), who));
+        await assertFails(setPlace(null, who));
+      }
+      assert.equal((await placeOf()).name, "Ferry Building");
+      await assertFails(updateSession(viewer, { viewer_sharing: true, place: null }));
+    });
+
+    it("only while live: never once it's over (stopped, past expires_at, past stop_at), not even null", async () => {
+      // Past stop_at or expires_at, before the stop job runs, the doc may still hold the last place.
+      for (const over of [stoppedSession(), expiredSession(), pastStopAtSession()]) {
+        await patchSession({ ...over, last_fix_at: lastFix, place: placeAt(lastFix) });
+        await assertFails(setPlace(placeAt(lastFix, { name: "Pier 1" })));
+        await assertFails(setPlace(null));
+      }
+    });
+
+    it("the viewer and a watcher read it with the session while it's live", async () => {
+      await assertSucceeds(setPlace(placeAt(lastFix)));
+      for (const who of [viewer, watcher]) assert.equal((await placeOf(who)).name, "Ferry Building");
+    });
+
+    it("after the end the doc the viewer still reads holds none, and no client can put one back", async () => {
+      // Every end writes place null (functions sessions/end.ts endFields; the functions' tests cover each path).
+      await patchSession(stoppedSession({ last_fix_at: lastFix, place: null }));
+      for (const who of [viewer, watcher]) assert.equal(await placeOf(who), null);
+      await assertFails(setPlace(placeAt(lastFix)));
+    });
   });
 });
 

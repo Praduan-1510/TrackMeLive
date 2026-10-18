@@ -17,10 +17,12 @@ import {
 import { bearingDegrees, distanceMeters, type LatLng } from '../geo/geo';
 import { formatDistance, type Spoken, type Units } from '../format/distance';
 import { agoShort, agoSpoken, formatTime, type ClockStyle } from '../format/time';
+import { isolate } from '../format/bidi';
 import { sharerPhrase, whereLine, type FromViewer } from '../format/where';
 import type { MapScene } from '../map/map-view';
 import { mascotImage, type MascotImage } from '../mascot';
-import type { Place } from '../places/lookup';
+import type { Place } from '../places/place';
+import { placeFor } from '../places/session-place';
 import type { Session, SessionPing } from '../session/source';
 import { endsAt, sessionLive, shareBackOpen, type Model, type ShareBack } from './model';
 
@@ -114,12 +116,7 @@ export type View = LoadingView | MessageView | PageView;
 
 // ---------- Facts from the session ----------
 
-/**
- * The sharer's name, direction-isolated (U+2068 … U+2069, what <bdi> does in markup), so a
- * right-to-left name can't reorder the words around it: in the page, its title, the marker phrases
- * and the announcements alike.
- */
-const isolate = (name: string): string => `\u2068${name}\u2069`;
+/** The sharer's name, direction-isolated (src/format/bidi.ts). */
 const nameOf = (s: SharerSnapshot): string => isolate(s.name.trim() || 'Someone');
 
 /** A person shows as live while their newest ping is under 3 ping intervals old, and at least 15 s (FSD §7). */
@@ -146,12 +143,12 @@ function mapsHref(maps: ViewEnv['maps'], p: SessionPing, name: string): string {
 function mapLabel(place: Place): string {
   switch (place.kind) {
     case 'area':
-      return `Street map of the ${place.name} area`;
+      return `Street map of the ${isolate(place.name)} area`;
     case 'coordinates':
       return 'Street map';
     case 'street':
-    case 'park':
-      return `Street map around ${place.name}`;
+    case 'named':
+      return `Street map around ${isolate(place.name)}`;
   }
 }
 
@@ -212,7 +209,6 @@ function card(m: Model, env: ViewEnv): Card | null {
 interface Basis {
   readonly s: Session;
   readonly newest: SessionPing;
-  readonly place: Place;
   readonly name: string;
 }
 
@@ -220,10 +216,10 @@ function page(m: Model, env: ViewEnv, b: Basis): PageView {
   const { s, newest, name } = b;
   const time = (d: Date): string => formatTime(d, env.clock);
   const approximate = s.precision === 'approximate';
-  // While approximate only an area is ever named: a street or park found before the change waits
-  // for the area to come back, and meanwhile the page says only that the location is approximate.
-  const place: Place = approximate && (b.place.kind === 'street' || b.place.kind === 'park') ? { kind: 'coordinates', lat: newest.lat, lng: newest.lng } : b.place;
   const ended = s.status === 'stopped';
+  // The words from the sharer's phone: never after the end, only the area while approximate, and
+  // coordinates when there are none or they're stale (src/places/session-place.ts).
+  const place: Place = placeFor(s, m.pings, ended) ?? { kind: 'coordinates', lat: newest.lat, lng: newest.lng };
   const lost = !ended && isStale(s, newest, m.now);
   const sharing = !ended && m.shareBack === 'sharing' && m.viewerFix !== null;
   const viewerFix = sharing ? m.viewerFix : null;
@@ -377,7 +373,7 @@ export function toView(m: Model, env: ViewEnv): View {
   const newest = m.pings[0];
   // Ended before a single ping reached this page: there's no last location to show.
   if (s.status === 'stopped' && !newest) return expired(s.sharer);
-  // A skeleton until the session, its first ping and where that is in words have all arrived.
-  if (!newest || !m.place) return loading(`Loading ${name}’s location`);
-  return page(m, env, { s, newest, place: m.place, name });
+  // A skeleton until the session and its first ping have both arrived.
+  if (!newest) return loading(`Loading ${name}’s location`);
+  return page(m, env, { s, newest, name });
 }

@@ -6,6 +6,14 @@
   "summary": "About 1.5 km in rush-hour traffic in 9 minutes: short bursts between lights, crawls behind buses, and seven stops of 15 to 45 seconds between tall buildings, where the accuracy gets worse.",
   "duration_s": 543,
   "distance_m": 1506,
+  "places": [
+    {"from_t_s":0,"name":"Embarcadero Plaza","street":"Market Street","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":38,"name":null,"street":"Market Street","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":232,"name":"Palace Hotel","street":"Market Street","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":319,"name":"Lotta's Fountain","street":"Market Street","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":375,"name":null,"street":"Market Street","area":"Union Square","city":"San Francisco"},
+    {"from_t_s":507,"name":"Cable Car Turnaround","street":"Powell Street","area":"Union Square","city":"San Francisco"}
+  ],
   "points": [
     {"t_s":0,"lat":37.794269,"lng":-122.395317,"accuracy_m":22,"speed_mps":0,"course_deg":224},
     {"t_s":1,"lat":37.794228,"lng":-122.395337,"accuracy_m":17,"speed_mps":1.4,"course_deg":224},

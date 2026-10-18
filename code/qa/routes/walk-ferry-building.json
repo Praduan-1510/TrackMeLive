@@ -6,6 +6,13 @@
   "summary": "About 700 m on foot in 9 minutes: across The Embarcadero at Market (a wait for the light), then north along the waterfront promenade, with a short stop at Pier 3.",
   "duration_s": 560,
   "distance_m": 710,
+  "places": [
+    {"from_t_s":0,"name":"Embarcadero Plaza","street":"Market Street","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":83,"name":null,"street":"The Embarcadero","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":108,"name":"Ferry Building","street":"The Embarcadero","area":"Financial District","city":"San Francisco"},
+    {"from_t_s":419,"name":"Pier 3","street":"The Embarcadero","area":"Northeast Waterfront","city":"San Francisco"},
+    {"from_t_s":431,"name":"Pier 7","street":"The Embarcadero","area":"Northeast Waterfront","city":"San Francisco"}
+  ],
   "points": [
     {"t_s":0,"lat":37.794761,"lng":-122.395883,"accuracy_m":10,"speed_mps":0,"course_deg":75},
     {"t_s":1,"lat":37.794747,"lng":-122.39589,"accuracy_m":8,"speed_mps":0.6,"course_deg":75},

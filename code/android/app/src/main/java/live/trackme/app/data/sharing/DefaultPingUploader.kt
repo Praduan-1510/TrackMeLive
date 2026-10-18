@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -20,6 +21,9 @@ import live.trackme.app.data.location.FixRequest
 import live.trackme.app.data.location.LocationFix
 import live.trackme.app.data.location.LocationPermissionMissing
 import live.trackme.app.data.location.LocationUpdates
+import live.trackme.app.data.place.PlaceCadence
+import live.trackme.app.data.place.PlaceLookup
+import live.trackme.app.data.place.PlaceResult
 import live.trackme.app.domain.ApproximateLocation
 import live.trackme.app.domain.Clock
 import live.trackme.app.domain.PingCadence
@@ -30,9 +34,16 @@ import live.trackme.schema.TmlSchemaConstants
 /**
  * [PingUploader] on a [SessionDataSource] (see the interface for the rules it follows).
  *
- * One run has three parts: the location listener (re-asked whenever the cadence changes), the writer
- * (one batch in flight at a time, the newest fix wins), and the end watch, which cancels both the moment
- * the session is over on the server's clock.
+ * One run has four parts: the location listener (re-asked whenever the cadence changes), the writer
+ * (one batch in flight at a time, the newest fix wins), the place lookups, and the end watch, which
+ * cancels them all the moment the session is over on the server's clock.
+ *
+ * The place ("Where Alex is", x-decisions Q-PLACE): each confirmed ping may start a lookup of its point
+ * as written ([PlaceCadence]: at most once per 10 s, after moving 25 m, at once for a new precision).
+ * A place that differs from what the session holds goes with the next write: the next ping's batch, or
+ * a check-in right away, so it never waits a whole low-battery interval. A failed or empty lookup writes
+ * nothing. Every write keeps the Approximate rule: name and street are dropped from what the session
+ * holds before anything is written while Approximate.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultPingUploader(
@@ -41,6 +52,8 @@ class DefaultPingUploader(
     private val battery: BatteryMonitor,
     private val serverClock: ServerClock,
     private val clock: Clock,
+    /** Names the points written, for the session's place. */
+    private val places: PlaceLookup,
     /** Called with the server clock's offset whenever it gets better, to keep it for this boot. */
     private val onClockSynced: (Long) -> Unit = {},
 ) : PingUploader {
@@ -60,6 +73,7 @@ class DefaultPingUploader(
                 val run = Run(share.sessionId, session, first)
                 launch { run.listen() }
                 launch { session.collect { run.wake.trySend(Unit) } }
+                launch { run.lookUpPlaces() }
                 launch { run.write() }
                 awaitEnd(session)
                 coroutineContext.cancelChildren()
@@ -91,6 +105,11 @@ class DefaultPingUploader(
         private val newestFix = MutableStateFlow<LocationFix?>(null)
         private val fixInterval = MutableStateFlow(initial.pingIntervalSeconds)
         private val startedAt = clock.elapsedMillis()
+        private val placeCadence = PlaceCadence()
+        private val placeRequests = Channel<PlaceRequest>(Channel.CONFLATED)
+
+        /** The newest lookup's answer; the writer deals with it (and keeps [placeCadence]). */
+        private val placeAnswer = MutableStateFlow<PlaceAnswer?>(null)
 
         /** Location fixes at the cadence in use; asked again whenever it changes. */
         suspend fun listen() {
@@ -104,6 +123,21 @@ class DefaultPingUploader(
                     // Without location the share keeps checking in; the row says No GPS signal.
                     Log.w(TAG, "location permission missing while sharing", e)
                 }
+            }
+        }
+
+        /** Looks up each point the writer asks about; a newer request (a precision change) replaces one in flight. */
+        suspend fun lookUpPlaces() {
+            placeRequests.receiveAsFlow().collectLatest { request ->
+                val result = try {
+                    places.lookUp(request.lat, request.lng)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: RuntimeException) {
+                    PlaceResult.Failed(e.javaClass.simpleName)
+                }
+                placeAnswer.value = PlaceAnswer(request, result)
+                wake.trySend(Unit)
             }
         }
 
@@ -121,6 +155,14 @@ class DefaultPingUploader(
             var failures = 0
             var retryAt: Long? = null
             var writtenInterval = initial.pingIntervalSeconds
+            // The place the session holds, as this run last wrote it or saw it change on the session doc.
+            var heldPlace: SessionPlace? = initial.place
+            var seenPlace: SessionPlace? = initial.place
+            var handledAnswer: PlaceAnswer? = null
+            // A looked-up place the session doesn't hold yet.
+            var newPlace: FoundPlace? = null
+            // The newest ping written, for the lookup a precision change makes at once.
+            var lastWritten: PlaceRequest? = null
 
             while (true) {
                 val current = session.value ?: initial
@@ -141,6 +183,22 @@ class DefaultPingUploader(
                     previous = fix
                 }
                 val precision = current.effectivePrecision
+                if (current.place != seenPlace) {
+                    // Changed on the session doc (turning Approximate on drops the street there): that's what it holds.
+                    seenPlace = current.place
+                    heldPlace = current.place
+                }
+                placeAnswer.value?.takeIf { it !== handledAnswer }?.let { answer ->
+                    handledAnswer = answer
+                    onPlaceAnswer(answer)?.let { newPlace = it }
+                }
+                // A precision change looks up at once: the newest point written, rounded when it's now Approximate.
+                // Back to Precise, the next (precise) ping does it.
+                lastWritten?.takeIf { precision != placeCadence.lastPrecision }
+                    ?.takeIf { precision == Precision.APPROXIMATE || it.precision == Precision.PRECISE }
+                    ?.let { requestPlace(it.atPrecision(precision), now) }
+                newPlace = newPlace?.takeIf { it.precision == precision && it.place.parts != heldPlace?.parts }
+                val placeUpdate = newPlace?.let { PlaceUpdate.Set(it.place) } ?: heldPlace?.updateFor(precision)
                 val interval = PingCadence.intervalSeconds(battery.reading(), moving, fix?.accuracyM, precision)
                 fixInterval.value = interval
                 mutableStatus.update {
@@ -159,11 +217,20 @@ class DefaultPingUploader(
                 val pingDue = candidate != null && (lastPingAt == null || now - lastPingAt >= pingSpacing)
                 val checkInEvery = if (serverClock.synced) CHECK_IN_MS else UNSYNCED_CHECK_IN_MS
                 val checkInDue = now - lastCheckInAt >= checkInEvery
-                if (!waiting && (pingDue || checkInDue)) {
+                // A new place doesn't wait for the next ping: a check-in takes it now.
+                val placeDue = placeUpdate != null
+                if (!waiting && (pingDue || checkInDue || placeDue)) {
                     val ping = candidate.takeIf { pingDue }
+                    // With a ping, the place is that ping's: at is its recorded_at (firestore.rules validPlaceShape).
+                    val place = if (ping != null && placeUpdate is PlaceUpdate.Set) {
+                        PlaceUpdate.Set(placeUpdate.place.copy(atMillis = ping.recordedAtMillis))
+                    } else {
+                        placeUpdate
+                    }
                     val checkIn = CheckInWrite(
                         pingIntervalSeconds = interval.takeIf { it != writtenInterval && it != current.pingIntervalSeconds },
                         applyPrecision = if (ping != null) current.precisionNext else null,
+                        place = place,
                     )
                     if (ping != null) mutableStatus.update { it.copy(lastPoint = ping.toShared(precision)) }
                     val sentAt = clock.elapsedMillis()
@@ -171,10 +238,17 @@ class DefaultPingUploader(
                         failures = 0
                         retryAt = null
                         lastCheckInAt = sentAt
+                        if (place != null) {
+                            heldPlace = (place as? PlaceUpdate.Set)?.place
+                            newPlace = null
+                        }
                         if (ping != null) {
                             handled = fix
                             lastPingAt = sentAt
                             lastRecordedAt = ping.recordedAtMillis
+                            val written = PlaceRequest(ping.lat, ping.lng, precision, ping.recordedAtMillis)
+                            lastWritten = written
+                            requestPlace(written, clock.elapsedMillis())
                         }
                         writtenInterval = interval
                         syncClock(sentAt)
@@ -194,6 +268,34 @@ class DefaultPingUploader(
                 ).filter { it > now }
                 val next = deadlines.minOrNull() ?: (now + CHECK_IN_MS)
                 withTimeoutOrNull(next - now) { wake.receive() }
+            }
+        }
+
+        /** Asks for a lookup of [request] when the cadence allows one now. */
+        private fun requestPlace(request: PlaceRequest, now: Long) {
+            if (!placeCadence.isDue(request.lat, request.lng, request.precision, now)) return
+            placeCadence.started(request.precision, now)
+            placeRequests.trySend(request)
+        }
+
+        /** The place to write from a lookup's answer, if any. A failed or empty lookup writes nothing. */
+        private fun onPlaceAnswer(answer: PlaceAnswer): FoundPlace? {
+            val request = answer.request
+            return when (val result = answer.result) {
+                is PlaceResult.Found -> {
+                    placeCadence.answered(request.lat, request.lng)
+                    result.parts.forPrecision(request.precision)
+                        ?.let { FoundPlace(SessionPlace(it, request.recordedAtMillis), request.precision) }
+                }
+                PlaceResult.NoPlace -> {
+                    placeCadence.answered(request.lat, request.lng)
+                    null
+                }
+                is PlaceResult.Failed -> {
+                    // Never the point or the words: only why.
+                    Log.w(TAG, "place lookup failed: ${result.reason}")
+                    null
+                }
             }
         }
 
@@ -299,5 +401,22 @@ class DefaultPingUploader(
 }
 
 private fun PingWrite.toShared(precision: Precision) = SharedPoint(lat, lng, accuracyM, recordedAtMillis, precision)
+
+/** A point to name, as written (rounded while Approximate), with its ping's recorded_at. */
+private data class PlaceRequest(val lat: Double, val lng: Double, val precision: Precision, val recordedAtMillis: Long) {
+    /** The same point at [target] precision: rounded for Approximate. */
+    fun atPrecision(target: Precision): PlaceRequest = if (target == Precision.APPROXIMATE && precision == Precision.PRECISE) {
+        val point = ApproximateLocation.round(lat, lng)
+        PlaceRequest(point.lat, point.lng, target, recordedAtMillis)
+    } else {
+        copy(precision = target)
+    }
+}
+
+/** A lookup's answer. A class, not a data class: two identical answers are still two answers. */
+private class PlaceAnswer(val request: PlaceRequest, val result: PlaceResult)
+
+/** A place to write, at the precision it was looked up for. */
+private data class FoundPlace(val place: SessionPlace, val precision: Precision)
 
 private const val TAG = "TmlPings"

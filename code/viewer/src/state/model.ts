@@ -1,6 +1,6 @@
 /**
  * The viewer page's state machine. One immutable Model, changed only by `reduce(model, event)`:
- * facts from the SessionSource, answers from the browser (location, the map, the place name), the
+ * facts from the SessionSource, answers from the browser (location, the map), the
  * viewer's own taps, and time (`tick`). It does no I/O; the controller (src/app/controller.ts)
  * turns the events into calls and the Model into a View (src/state/view.ts).
  *
@@ -19,7 +19,6 @@
 
 import { SHARE_BACK_FRESHNESS_SECONDS, type SharerSnapshot, type ViewerRole } from '@tml/shared/schema/generated/ts/schema';
 import type { LocationError } from '../location/provider';
-import type { Place } from '../places/lookup';
 import type { Session, SessionEvent, SessionPing } from '../session/source';
 
 export type ShareBack = 'idle' | 'dismissed' | 'requesting' | 'sharing' | 'stopped' | 'denied' | 'unavailable';
@@ -39,8 +38,6 @@ export interface Model {
   readonly session: Session | null;
   /** Newest first. Kept after the session ends, when pings can no longer be read. */
   readonly pings: readonly SessionPing[];
-  /** Where the sharer's newest ping is, in words. */
-  readonly place: Place | null;
   readonly online: boolean;
   readonly map: MapStatus;
   readonly shareBack: ShareBack;
@@ -54,7 +51,6 @@ export interface Model {
 export type ViewerEvent =
   | SessionEvent
   | { readonly type: 'tick'; readonly now: number }
-  | { readonly type: 'place'; readonly place: Place }
   | { readonly type: 'map'; readonly status: MapStatus }
   | { readonly type: 'dismiss-share-back' }
   | { readonly type: 'request-share-back' }
@@ -70,7 +66,6 @@ export function initialModel(now: number): Model {
     link: { kind: 'pending' },
     session: null,
     pings: [],
-    place: null,
     online: true,
     map: 'loading',
     shareBack: 'idle',
@@ -156,8 +151,6 @@ function step(m: Model, e: ViewerEvent): Model {
       return m.session?.status === 'stopped' ? m : { ...m, pings: e.pings };
     case 'connection':
       return { ...m, online: e.online };
-    case 'place':
-      return { ...m, place: e.place };
     case 'map':
       return { ...m, map: e.status };
     case 'dismiss-share-back':

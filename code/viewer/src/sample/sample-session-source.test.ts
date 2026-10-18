@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionEvent } from '../session/source';
-import { describeSamplePlace } from './sample-places';
+import { samplePlace } from './sample-places';
 import { SAMPLE_LATENCY_MS, SampleSessionSource } from './sample-session-source';
 import { CHANGE_AFTER_MS, SCENARIOS, isScenarioName, type Scenario } from './scenarios';
 import { HERE, MOM, T0 } from '../test-fixtures';
@@ -65,7 +65,20 @@ describe('SampleSessionSource', () => {
     const { events } = play(SCENARIOS.ended);
     vi.advanceTimersByTime(SAMPLE_LATENCY_MS + CHANGE_AFTER_MS);
     const s = lastSession(events);
-    expect(s?.type === 'session' && s.session).toMatchObject({ status: 'stopped', end_reason: 'stopped' });
+    expect(s?.type === 'session' && s.session).toMatchObject({ status: 'stopped', end_reason: 'stopped', place: null });
+  });
+
+  it('writes the place with the session, as the phone would, for the newest ping', () => {
+    const { events } = play(SCENARIOS.offer);
+    vi.advanceTimersByTime(SAMPLE_LATENCY_MS);
+    const s = lastSession(events);
+    const pings = events.find((e) => e.type === 'pings');
+    if (s?.type !== 'session' || pings?.type !== 'pings') throw new Error('not opened');
+    expect(s.session.place).toEqual({ name: null, street: 'Harbor Way', area: 'Market', city: null, at: pings.pings[0]?.recorded_at });
+    const approximate = play(SCENARIOS.approximate);
+    vi.advanceTimersByTime(SAMPLE_LATENCY_MS);
+    const a = lastSession(approximate.events);
+    expect(a?.type === 'session' && a.session.place).toMatchObject({ name: null, street: null, area: 'Market' });
   });
 
   it('ends the call and share back with it', async () => {
@@ -121,13 +134,14 @@ describe('scenarios', () => {
   });
 });
 
-describe('describeSamplePlace', () => {
-  it('names the street Alex walks on, and the park someone stands in', () => {
-    expect(describeSamplePlace(HERE, 'precise')).toEqual({ kind: 'street', name: 'Harbor Way' });
-    expect(describeSamplePlace(unproject([-60, -180]), 'precise')).toEqual({ kind: 'park', name: 'Alder Park' });
+describe('samplePlace', () => {
+  const at = new Date(0);
+  it('writes the street Alex walks on, and the park someone stands in as the named place', () => {
+    expect(samplePlace(HERE, 'precise', at)).toEqual({ name: null, street: 'Harbor Way', area: 'Market', city: null, at });
+    expect(samplePlace(unproject([-60, -180]), 'precise', at)).toMatchObject({ name: 'Alder Park' });
   });
-  it('names only the area while approximate', () => {
-    expect(describeSamplePlace(HERE, 'approximate')).toEqual({ kind: 'area', name: 'Market' });
-    expect(describeSamplePlace(MOM, 'approximate')).toEqual({ kind: 'area', name: 'Market' });
+  it('writes only the area while approximate', () => {
+    expect(samplePlace(HERE, 'approximate', at)).toEqual({ name: null, street: null, area: 'Market', city: null, at });
+    expect(samplePlace(MOM, 'approximate', at)).toMatchObject({ name: null, street: null, area: 'Market' });
   });
 });

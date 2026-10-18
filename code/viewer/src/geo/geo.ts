@@ -10,7 +10,7 @@ export interface LatLng {
 }
 
 /** Mean Earth radius (IUGG), in meters. */
-const EARTH_RADIUS_M = 6_371_008.8;
+export const EARTH_RADIUS_M = 6_371_008.8;
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 
 /** Great-circle distance in meters (haversine). */

@@ -21,6 +21,11 @@
  *   --battery <percent>       pick the FSD interval for this battery level (4, 15 or 60 s) instead
  *   --accuracy <m>            every fix's accuracy (default: the route's)
  *   --from <s>                start this far into the route
+ * Where Alex is (the session's place, x-decisions Q-PLACE)
+ *   Each ping's batch also carries the place, as the apps write it, when the route's label there
+ *   changed: looked up at most once per 10 s and only after moving 25 m, area and city only while
+ *   approximate. The route's labels stand in for the phone's geocoder.
+ *   --no-place                never write a place (a phone whose geocoder doesn't answer)
  * How it ends
  *   --at-end stop|hold|quiet|loop   at the route's end (default stop: Stop, through stopSession)
  *   --pings <n>               write n pings, then nothing (the viewer shows Last seen)
@@ -40,7 +45,7 @@
 
 import { parseArgs } from 'node:util';
 import { MASCOT_ACCESSORY_VALUES, MASCOT_COLOR_VALUES, MASCOT_ID_VALUES, type MascotAccessory, type MascotColor, type MascotId, type Precision, type StopMinutes, type StopRule } from '../../../shared/schema/generated/ts/schema.ts';
-import { isMain, loadRoute, parseAccuracy, parseSpeedFactor } from '../../routes/route.ts';
+import { PLACE_PARTS, isMain, loadRoute, parseAccuracy, parseSpeedFactor } from '../../routes/route.ts';
 import { runRoute, type AtEnd, type SharerEvent } from './run.ts';
 import { FakeSharer, checkInterval, intervalForBattery, type Session } from './sharer.ts';
 
@@ -72,6 +77,8 @@ function human(e: SharerEvent): string {
   switch (e.event) {
     case 'ping':
       return `ping ${String(e.n).padStart(3)}  ${e.lat.toFixed(6)},${e.lng.toFixed(6)}  ±${e.accuracy_m.toFixed(0)} m  route ${e.route_t_s.toFixed(0)} s`;
+    case 'place':
+      return e.place === null ? 'place cleared' : `place    ${PLACE_PARTS.map((k) => e.place?.[k]).filter((v) => v != null).join(', ')}`;
     case 'check-in':
       return `check-in without a fix at ${time(e.at)}`;
     case 'quiet':
@@ -111,6 +118,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       battery: { type: 'string' },
       accuracy: { type: 'string' },
       from: { type: 'string' },
+      'no-place': { type: 'boolean' },
       'at-end': { type: 'string' },
       pings: { type: 'string' },
       'gps-lost': { type: 'boolean' },
@@ -207,6 +215,7 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
       interval_s: interval,
       accuracy: parseAccuracy(values.accuracy),
       from_s: num(values.from, 'from'),
+      place: !(values['no-place'] ?? false),
       pings: pingsRaw,
       after_pings: values['gps-lost'] ? 'check-in' : 'quiet',
       stop_after_s: num(values['stop-after'], 'stop-after'),

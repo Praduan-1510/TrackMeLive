@@ -1,6 +1,7 @@
 package live.trackme.app.data.sharing
 
 import kotlinx.coroutines.flow.Flow
+import live.trackme.app.data.place.PlaceParts
 import live.trackme.schema.CreateSessionResponse
 import live.trackme.schema.Precision
 import live.trackme.schema.StopMinutes
@@ -31,7 +32,40 @@ data class CheckInWrite(
     val pingIntervalSeconds: Double? = null,
     /** Applying a pending precision_next: precision becomes this and precision_next null. */
     val applyPrecision: Precision? = null,
+    /**
+     * A new place, or null to leave it. With a ping its at is the ping's recorded_at; on its own, at is
+     * a fix already written (no later than last_fix_at).
+     */
+    val place: PlaceUpdate? = null,
 )
+
+/** shareSessions.place as the app reads and writes it (x-decisions Q-PLACE). */
+data class SessionPlace(
+    val parts: PlaceParts,
+    /** recorded_at of the fix it describes, server time, epoch ms. */
+    val atMillis: Long,
+) {
+    /**
+     * What a write at [precision] must do to this place to keep the Approximate rule (no name or
+     * street): nothing (null), keep only area and city, or clear it when nothing else is left.
+     */
+    fun updateFor(precision: Precision): PlaceUpdate? {
+        val kept = parts.forPrecision(precision)
+        return when {
+            kept == parts -> null
+            kept == null -> PlaceUpdate.Clear
+            else -> PlaceUpdate.Set(SessionPlace(kept, atMillis))
+        }
+    }
+}
+
+/** A change to shareSessions.place. */
+sealed interface PlaceUpdate {
+    data class Set(val place: SessionPlace) : PlaceUpdate
+
+    /** place = null: the session no longer says where. */
+    data object Clear : PlaceUpdate
+}
 
 /** The session's server-written marks, epoch ms. */
 data class ServerMarks(val lastPingAtMillis: Long, val lastFixAtMillis: Long?)
@@ -68,8 +102,12 @@ interface SessionDataSource {
      */
     suspend fun serverMarks(sessionId: String): ServerMarks
 
-    /** precision_next: a precision for the next ping, or null to cancel a pending change. */
-    suspend fun setPrecisionNext(sessionId: String, precision: Precision?)
+    /**
+     * precision_next: a precision for the next ping, or null to cancel a pending change. [place] goes in
+     * the same write (null leaves it): turning Approximate on drops the place's name and street there, or
+     * the rules refuse the write.
+     */
+    suspend fun setPrecisionNext(sessionId: String, precision: Precision?, place: PlaceUpdate?)
 
     /** The timer sheet's new stop rule. Needs the server: offline it fails with [SharingFailure.Network]. */
     suspend fun setStop(sessionId: String, stop: StopWrite)

@@ -81,6 +81,8 @@ data class SessionView(
     val firstViewedAtMillis: Long?,
     val viewerSharing: Boolean,
     val shareBackRequestedAtMillis: Long?,
+    /** Where the sharer is, in words, as the session holds it ("Where Alex is"); null before the first lookup. */
+    val place: SessionPlace? = null,
 ) {
     /** When sharing ends at the latest: the earlier of stop_at and expires_at. */
     val endsAtMillis: Long get() = stopAtMillis?.let { minOf(it, expiresAtMillis) } ?: expiresAtMillis

@@ -391,7 +391,10 @@ class DefaultSharingRepository(
         val (sessionId, view) = liveSession() ?: return UpdateShareResult.Failed(SharingFailure.NotSharing)
         val next = precision.takeIf { it != view.precision }
         if (next == view.precisionNext) return UpdateShareResult.Updated
-        return update { source.setPrecisionNext(sessionId, next) }
+        // Turning Approximate on drops the place's name and street in the same write (x-decisions Q-PLACE):
+        // the words never say more than the map, and the rules refuse a write that would leave them.
+        val place = view.place?.updateFor(next ?: view.precision)
+        return update { source.setPrecisionNext(sessionId, next, place) }
     }
 
     override suspend fun changeStop(choice: StopChoice): UpdateShareResult {

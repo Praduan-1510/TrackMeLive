@@ -161,6 +161,8 @@ export const createSession = onCall<unknown, Promise<CreateSessionResponse>>(asy
       viewer_sharing: false,
       share_back_requested_at: null,
       cleaned_at: null,
+      // No lookup yet; the sharer's phone writes it (x-decisions Q-PLACE).
+      place: null,
     };
     const meta: SessionPrivateMeta = {
       user_id: uid,

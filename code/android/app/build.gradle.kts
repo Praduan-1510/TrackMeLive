@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,14 +8,11 @@ plugins {
 // (and bind the emulators to 0.0.0.0 in code/backend/firebase.json).
 val emulatorHost: String = providers.gradleProperty("tml.emulatorHost").getOrElse("10.0.2.2")
 
-/** A value from local.properties (git-ignored), or "" when the file or the key is missing. */
-fun localProperty(key: String): String {
-    val file = rootProject.file("local.properties")
-    if (!file.isFile) return ""
-    val props = Properties()
-    file.inputStream().use(props::load)
-    return props.getProperty(key, "").trim()
-}
+// Where the live map's styles come from: the one setting for the map provider. OpenFreeMap is free,
+// keyless and donation-run with no uptime promise, so a self-hosted copy (or another host serving the
+// same styles) is a rebuild away: -Ptml.mapStyles=https://maps.example.org/styles. The app appends
+// /positron (light) and /dark, and falls back to its keyless map when they don't load.
+val mapStyles: String = providers.gradleProperty("tml.mapStyles").getOrElse("https://tiles.openfreemap.org/styles")
 
 android {
     namespace = "live.trackme.app"
@@ -31,9 +26,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // The Maps SDK key, from local.properties (MAPS_API_KEY=...), never committed. Without one the live
-        // screen draws the keyless street map (ui/map/CityMap.kt) instead of Google Maps.
-        manifestPlaceholders["mapsApiKey"] = localProperty("MAPS_API_KEY")
+        buildConfigField("String", "MAP_STYLES", "\"${mapStyles.trimEnd('/')}\"")
     }
 
     buildTypes {
@@ -106,7 +99,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.libphonenumber)
     implementation(libs.play.services.location)
-    implementation(libs.maps.compose)
+    implementation(libs.maplibre.android)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

@@ -1,15 +1,15 @@
 /**
- * The sample city's place lookup: the park someone is in, or the nearest named street, or (while the
- * sharer is approximate) the nearest part of town. Reads the city's own geometry, so the words always
- * match the drawing. The real page asks the Maps API in the browser (Sprint 2).
+ * The sample city's stand-in for the sharer's phone looking its fix up (x-decisions Q-PLACE): the
+ * session's `place`, with the park someone is in as the named place, the nearest named street, and
+ * the nearest part of town as the area; while approximate, the area only. Reads the city's own
+ * geometry, so the words always match the drawing. A real share gets them from the sharer's phone.
  */
 
-import type { Precision } from '@tml/shared/schema/generated/ts/schema';
+import type { Place, Precision } from '@tml/shared/schema/generated/ts/schema';
 import type { LatLng } from '../geo/geo';
 import type { Pt } from '../map/camera';
 import { CITY_AREAS, CITY_PARKS, CITY_STREETS } from '../map/svg/city';
 import { project } from '../map/svg/projection';
-import type { Place, PlaceLookup } from '../places/lookup';
 
 function segmentDistance(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0];
@@ -53,18 +53,12 @@ function nearest<T>(items: readonly T[], distance: (item: T) => number): T | und
   return best;
 }
 
-export function describeSamplePlace(at: LatLng, precision: Precision): Place {
+/** What the sharer's phone would write for a fix at `at`, recorded at `recordedAt`. */
+export function samplePlace(at: LatLng, precision: Precision, recordedAt: Date): Place<Date> {
   const p = project(at);
-  if (precision === 'approximate') {
-    const area = nearest(CITY_AREAS, (a) => Math.hypot(p[0] - a.center[0], p[1] - a.center[1]));
-    return { kind: 'area', name: area?.name ?? 'Harbor' };
-  }
+  const area = nearest(CITY_AREAS, (a) => Math.hypot(p[0] - a.center[0], p[1] - a.center[1]))?.name ?? 'Harbor';
+  if (precision === 'approximate') return { name: null, street: null, area, city: null, at: recordedAt };
   const park = CITY_PARKS.find((k) => inside(p, k.outline));
-  if (park) return { kind: 'park', name: park.name };
-  const street = nearest(CITY_STREETS, (s) => lineDistance(p, s.line));
-  return { kind: 'street', name: street?.name ?? 'Harbor Way' };
+  const street = nearest(CITY_STREETS, (s) => lineDistance(p, s.line))?.name ?? 'Harbor Way';
+  return { name: park?.name ?? null, street, area, city: null, at: recordedAt };
 }
-
-export const samplePlaces: PlaceLookup = {
-  describe: (at, precision) => Promise.resolve(describeSamplePlace(at, precision)),
-};

@@ -2,15 +2,18 @@
  * "Where Alex is, in words" (FSD §4): the page's text alternative to the map, read before it.
  *
  *   Near Harbor Way
+ *   At Ferry Building                                   (a named place at the fix)
  *   Near Harbor Way · 1.2 km north-east of you          (once the viewer shares back)
  *   In the Market area · about 1 km from you            (approximate: no direction)
  *   Last seen near Harbor Way · about 1.2 km north-east of you
  *
+ * Place names come from the sharer's phone, so each is direction-isolated like a name.
  * Also the one phrase each marker reads as ("Alex, live, 1.2 kilometers away, updated 2 seconds ago").
  */
 
 import { compass } from '../geo/geo';
-import type { Place } from '../places/lookup';
+import type { Place } from '../places/place';
+import { isolate } from './bidi';
 import { formatDistance, type Spoken, type Units } from './distance';
 
 export interface FromViewer {
@@ -40,14 +43,15 @@ const degrees = (v: number, positive: Hemisphere, negative: Hemisphere): Spoken 
 function placePhrase(place: Place, lastSeen: boolean, approximate: boolean): Spoken {
   const near = lastSeen ? 'Last seen near' : 'Near';
   const inside = lastSeen ? 'Last seen in' : 'In';
+  const atPlace = lastSeen ? 'Last seen at' : 'At';
   const same = (s: string): Spoken => ({ text: s, spoken: s });
   switch (place.kind) {
+    case 'named':
+      return same(`${atPlace} ${isolate(place.name)}`);
     case 'street':
-      return same(`${near} ${place.name}`);
-    case 'park':
-      return same(`${inside} ${place.name}`);
+      return same(`${near} ${isolate(place.name)}`);
     case 'area':
-      return same(`${inside} the ${place.name} area`);
+      return same(`${inside} the ${isolate(place.name)} area`);
     case 'coordinates': {
       // Approximate gives the area only (FSD §4): never numbers finer than the rounding implies.
       if (approximate) return same(lastSeen ? 'Last seen at an approximate location' : 'Approximate location');

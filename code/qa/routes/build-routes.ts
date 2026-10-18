@@ -4,7 +4,8 @@
  * (code/viewer/src/map/svg/projection.ts). Each route is a list of waypoints and stops with a
  * cruising speed per leg; this turns that into a fix every second with realistic acceleration,
  * braking, waits at lights and GPS noise. The noise comes from a seeded generator, so a build always
- * writes the same files.
+ * writes the same files. Each step also names the place a phone's reverse geocoder would give there
+ * (the route's `places`, which the fake sharer writes as the session's place; x-decisions Q-PLACE).
  *
  *   node code/qa/routes/build-routes.ts           write the route files
  *   node code/qa/routes/build-routes.ts --check   fail if a file isn't what the specs produce
@@ -12,15 +13,18 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROUTE_FORMAT, ROUTES_DIR, bearingDegrees, distanceMeters, isMain, validateRoute, type Route, type RouteMode, type RoutePoint } from './route.ts';
+import { PLACE_PARTS, ROUTE_FORMAT, ROUTES_DIR, bearingDegrees, distanceMeters, isMain, validateRoute, type PlaceLabel, type Route, type RouteMode, type RoutePlace, type RoutePoint } from './route.ts';
 
 type LatLng = readonly [lat: number, lng: number];
 
 export type Step =
   /** Drive or walk through these waypoints, cruising at `cruise` m/s. */
-  | { readonly go: readonly LatLng[]; readonly cruise: number }
+  | { readonly go: readonly LatLng[]; readonly cruise: number; readonly place: PlaceLabel }
   /** Stand still for this many seconds (a red light, a crossing, a look at the bay). */
-  | { readonly stop: number };
+  | { readonly stop: number; readonly place: PlaceLabel };
+
+/** A place in San Francisco, as Android's Geocoder or iOS's CLGeocoder would name it. */
+const sf = (name: string | null, street: string | null, area: string | null): PlaceLabel => ({ name, street, area, city: 'San Francisco' });
 
 export interface RouteSpec {
   readonly id: string;
@@ -51,11 +55,11 @@ export const SPECS: readonly RouteSpec[] = [
     accuracy: { base: 5, spread: 4 },
     start: [37.79475, -122.3959],
     steps: [
-      { go: [[37.795, -122.3947]], cruise: 1.35 },
-      { stop: 25 },
-      { go: [[37.79525, -122.394], [37.7961, -122.3943], [37.79735, -122.3952], [37.79815, -122.3959]], cruise: 1.4 },
-      { stop: 12 },
-      { go: [[37.7987, -122.3965], [37.79925, -122.3972]], cruise: 1.3 },
+      { go: [[37.795, -122.3947]], cruise: 1.35, place: sf('Embarcadero Plaza', 'Market Street', 'Financial District') },
+      { stop: 25, place: sf(null, 'The Embarcadero', 'Financial District') },
+      { go: [[37.79525, -122.394], [37.7961, -122.3943], [37.79735, -122.3952], [37.79815, -122.3959]], cruise: 1.4, place: sf('Ferry Building', 'The Embarcadero', 'Financial District') },
+      { stop: 12, place: sf('Pier 3', 'The Embarcadero', 'Northeast Waterfront') },
+      { go: [[37.7987, -122.3965], [37.79925, -122.3972]], cruise: 1.3, place: sf('Pier 7', 'The Embarcadero', 'Northeast Waterfront') },
     ],
   },
   {
@@ -70,14 +74,14 @@ export const SPECS: readonly RouteSpec[] = [
     accuracy: { base: 4, spread: 4 },
     start: [37.7947, -122.3933],
     steps: [
-      { go: [[37.7931, -122.3919]], cruise: 10 },
-      { stop: 30 },
-      { go: [[37.7917, -122.3908], [37.7903, -122.38975], [37.7888, -122.3888]], cruise: 12 },
-      { stop: 20 },
-      { go: [[37.787, -122.388], [37.7845, -122.3877], [37.7816, -122.3883]], cruise: 13.5 },
-      { go: [[37.7799, -122.3899]], cruise: 8 },
-      { stop: 25 },
-      { go: [[37.7783, -122.3917]], cruise: 9 },
+      { go: [[37.7931, -122.3919]], cruise: 10, place: sf('Ferry Building', 'The Embarcadero', 'Financial District') },
+      { stop: 30, place: sf(null, 'The Embarcadero', 'Financial District') },
+      { go: [[37.7917, -122.3908], [37.7903, -122.38975], [37.7888, -122.3888]], cruise: 12, place: sf('Rincon Park', 'The Embarcadero', 'Rincon Hill') },
+      { stop: 20, place: sf(null, 'The Embarcadero', 'Rincon Hill') },
+      { go: [[37.787, -122.388], [37.7845, -122.3877], [37.7816, -122.3883]], cruise: 13.5, place: sf('South Beach Harbor', 'The Embarcadero', 'South Beach') },
+      { go: [[37.7799, -122.3899]], cruise: 8, place: sf(null, 'King Street', 'South Beach') },
+      { stop: 25, place: sf(null, 'King Street', 'South Beach') },
+      { go: [[37.7783, -122.3917]], cruise: 9, place: sf('Oracle Park', 'King Street', 'Mission Bay') },
     ],
   },
   {
@@ -92,22 +96,22 @@ export const SPECS: readonly RouteSpec[] = [
     accuracy: { base: 9, spread: 14 },
     start: [37.79425, -122.39535],
     steps: [
-      { go: [[37.79355, -122.3962], [37.7929, -122.397]], cruise: 6 },
-      { stop: 35 },
-      { go: [[37.79225, -122.39785]], cruise: 2.5 },
-      { go: [[37.791, -122.3994]], cruise: 7 },
-      { stop: 20 },
-      { go: [[37.79025, -122.40035]], cruise: 5 },
-      { stop: 40 },
-      { go: [[37.7889, -122.40205]], cruise: 3 },
-      { stop: 15 },
-      { go: [[37.788, -122.4032]], cruise: 6 },
-      { stop: 30 },
-      { go: [[37.7873, -122.404]], cruise: 4 },
-      { stop: 25 },
-      { go: [[37.78575, -122.406]], cruise: 8 },
-      { stop: 45 },
-      { go: [[37.7848, -122.4076]], cruise: 5 },
+      { go: [[37.79355, -122.3962], [37.7929, -122.397]], cruise: 6, place: sf('Embarcadero Plaza', 'Market Street', 'Financial District') },
+      { stop: 35, place: sf(null, 'Market Street', 'Financial District') },
+      { go: [[37.79225, -122.39785]], cruise: 2.5, place: sf(null, 'Market Street', 'Financial District') },
+      { go: [[37.791, -122.3994]], cruise: 7, place: sf(null, 'Market Street', 'Financial District') },
+      { stop: 20, place: sf(null, 'Market Street', 'Financial District') },
+      { go: [[37.79025, -122.40035]], cruise: 5, place: sf(null, 'Market Street', 'Financial District') },
+      { stop: 40, place: sf(null, 'Market Street', 'Financial District') },
+      { go: [[37.7889, -122.40205]], cruise: 3, place: sf('Palace Hotel', 'Market Street', 'Financial District') },
+      { stop: 15, place: sf('Palace Hotel', 'Market Street', 'Financial District') },
+      { go: [[37.788, -122.4032]], cruise: 6, place: sf("Lotta's Fountain", 'Market Street', 'Financial District') },
+      { stop: 30, place: sf("Lotta's Fountain", 'Market Street', 'Financial District') },
+      { go: [[37.7873, -122.404]], cruise: 4, place: sf(null, 'Market Street', 'Union Square') },
+      { stop: 25, place: sf(null, 'Market Street', 'Union Square') },
+      { go: [[37.78575, -122.406]], cruise: 8, place: sf(null, 'Market Street', 'Union Square') },
+      { stop: 45, place: sf(null, 'Market Street', 'Union Square') },
+      { go: [[37.7848, -122.4076]], cruise: 5, place: sf('Cable Car Turnaround', 'Powell Street', 'Union Square') },
     ],
   },
 ];
@@ -170,6 +174,15 @@ export function buildRoute(spec: RouteSpec): Route {
   let accWander = 0;
 
   const points: RoutePoint[] = [];
+  const places: RoutePlace[] = [];
+  // A step's label holds from its first fix (the start fix belongs to the first step); a label the
+  // same as the one before just continues it.
+  const label = (from: number, place: PlaceLabel): void => {
+    const prev = places[places.length - 1];
+    if (prev && PLACE_PARTS.every((k) => prev[k] === place[k])) return;
+    if (prev && prev.from_t_s === from) places.pop();
+    places.push({ from_t_s: from, name: place.name, street: place.street, area: place.area, city: place.city });
+  };
   let here: LatLng = spec.start;
   let speed = 0;
   let course = 0;
@@ -199,6 +212,7 @@ export function buildRoute(spec: RouteSpec): Route {
   emit(here);
 
   spec.steps.forEach((step, i) => {
+    label(i === 0 ? 0 : t + 1, step.place);
     if ('stop' in step) {
       speed = 0;
       for (let k = 0; k < step.stop; k++) {
@@ -241,20 +255,23 @@ export function buildRoute(spec: RouteSpec): Route {
       summary: spec.summary,
       duration_s: last.t_s,
       distance_m: Math.round(traveled),
+      places,
       points,
     },
     spec.id,
   );
 }
 
-/** Pretty JSON with one fix per line, so diffs stay readable. */
+/** Pretty JSON with one fix (and one place) per line, so diffs stay readable. */
 export function serializeRoute(r: Route): string {
-  const head = { ...r, points: undefined };
+  const head = { ...r, places: undefined, points: undefined };
   const lines = Object.entries(head)
     .filter(([, v]) => v !== undefined)
     .map(([k, v]) => `  ${JSON.stringify(k)}: ${JSON.stringify(v)},`);
-  const pts = r.points.map((p, i) => `    ${JSON.stringify(p)}${i < r.points.length - 1 ? ',' : ''}`);
-  return `{\n${lines.join('\n')}\n  "points": [\n${pts.join('\n')}\n  ]\n}\n`;
+  const list = (key: string, items: readonly unknown[]): string =>
+    `  ${JSON.stringify(key)}: [\n${items.map((p, i) => `    ${JSON.stringify(p)}${i < items.length - 1 ? ',' : ''}`).join('\n')}\n  ]`;
+  const lists = [...(r.places ? [list('places', r.places)] : []), list('points', r.points)];
+  return `{\n${lines.join('\n')}\n${lists.join(',\n')}\n}\n`;
 }
 
 function main(): void {

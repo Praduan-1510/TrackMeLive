@@ -130,13 +130,65 @@ service cloud.firestore {
       return ownsSession(sessionId)
         && isLive(resource.data)
         && onlyChanges(['last_ping_at', 'last_fix_at', 'ping_interval_s', 'precision', 'precision_next',
-                        'stop_rule', 'stop_minutes', 'stop_at', 'share_back_requested_at'])
+                        'stop_rule', 'stop_minutes', 'stop_at', 'share_back_requested_at', 'place'])
         && validCheckIn(request.resource.data)
         && validLastFix(resource.data, request.resource.data)
         && validPingInterval(request.resource.data)
         && validPrecision(request.resource.data)
         && validStopRule(resource.data, request.resource.data)
-        && validAskToShare(resource.data, request.resource.data);
+        && validAskToShare(resource.data, request.resource.data)
+        && validPlace(request.resource.data);
+    }
+
+    // x-decisions Q-PLACE: where the sharer is, in words, from the phone's own
+    // geocoder. A new place has its shape and is no newer than the session's
+    // last_fix_at as written: a ping's batch sets both to the ping's recorded_at,
+    // and a place written on its own describes a fix already written. null
+    // clears it. Every update, place changed or not, keeps the Approximate rule,
+    // so the write that turns Approximate on also drops name and street. Sessions
+    // started before place existed don't have it: read as null.
+    function validPlace(after) {
+      let place = after.get('place', null);
+      return (!changes('place') || place == null || validPlaceShape(place, after.get('last_fix_at', null)))
+        && (place == null || !approximateAfter(after)
+            || (place.get('name', null) == null && place.get('street', null) == null));
+    }
+
+    // The precision the next ping is written at: precision_next while one is
+    // pending, otherwise precision.
+    function approximateAfter(after) {
+      return after.precision_next == 'approximate'
+        || (after.precision_next == null && after.precision == 'approximate');
+    }
+
+    // Exactly name, street, area, city and at (shared Place), at least one part
+    // set, and at no later than PING_CLOCK_SKEW_SECONDS (60) ahead of the server
+    // nor than last_fix_at.
+    function validPlaceShape(p, lastFix) {
+      return p is map
+        && p.keys().hasOnly(['name', 'street', 'area', 'city', 'at'])
+        && p.keys().hasAll(['name', 'street', 'area', 'city', 'at'])
+        && validPlacePart(p.name)
+        && validPlacePart(p.street)
+        && validPlacePart(p.area)
+        && validPlacePart(p.city)
+        && (p.name != null || p.street != null || p.area != null || p.city != null)
+        && p.at is timestamp
+        && p.at <= request.time + duration.value(60, 's')
+        && lastFix is timestamp
+        && p.at <= lastFix;
+    }
+
+    // Shared PlacePart: null, or PLACE_PART_MAX_LENGTH (80) characters at most
+    // (size() counts UTF-16 code units), with no control character (Cc), no bidi
+    // override or isolate (U+202A to U+202E, U+2066 to U+2069) and no space at
+    // either end. The apps trim, strip and cut before writing.
+    function validPlacePart(s) {
+      return s == null
+        || (s is string
+            && s.size() >= 1
+            && s.size() <= 80
+            && s.matches('^[^ \\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]([^\\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]*[^ \\p{Cc}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}])?$'));
     }
 
     // A check-in carries the server's time, never the phone's.
@@ -304,6 +356,9 @@ service cloud.firestore {
     // Only what the viewer may see. No client lists, creates or deletes sessions.
     match /shareSessions/{sessionId} {
       // The viewer keeps reading the session doc after the end, for the ended state.
+      // That doc then holds no location: pings stay unreadable, and every end
+      // sets place to null (functions sessions/end.ts endFields; x-decisions
+      // Q-PLACE), which no client can write back once it's over.
       allow get: if ownsSession(sessionId) || isViewerOf(sessionId);
       allow update: if isSharerSessionUpdate(sessionId) || isViewerSessionUpdate(sessionId);
 

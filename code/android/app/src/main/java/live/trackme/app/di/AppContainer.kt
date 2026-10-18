@@ -24,6 +24,7 @@ import live.trackme.app.data.firebase.FirebaseServices
 import live.trackme.app.data.location.AndroidLocationPermissions
 import live.trackme.app.data.location.FusedLocationUpdates
 import live.trackme.app.data.location.LocationPermissions
+import live.trackme.app.data.place.AndroidPlaceLookup
 import live.trackme.app.data.profile.DefaultProfileRepository
 import live.trackme.app.data.profile.FirestoreProfileDataSource
 import live.trackme.app.data.profile.ProfileRepository
@@ -159,6 +160,7 @@ class DefaultAppContainer(
                 battery = SystemBatteryMonitor(context),
                 serverClock = serverClock,
                 clock = clock,
+                places = AndroidPlaceLookup(context),
                 onClockSynced = store::saveClockOffset,
             ),
             store = store,

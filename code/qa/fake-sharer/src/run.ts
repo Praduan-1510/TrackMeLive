@@ -2,11 +2,14 @@
  * Shares a route in real time: a ping every `interval_s` (FSD §7: 3-5 s above 20% battery), at the
  * route position `speed` times further along than the clock, until the route ends, a ping limit is
  * reached, Stop is due, or the session ends (whoever ends it: Stop, the stop job at the timer or the
- * 1-hour limit). Every step is reported as an event, so a test can wait on exactly what happened.
+ * 1-hour limit). A ping's batch also carries the session's place when the route's label there changed,
+ * at the apps' lookup cadence (place.ts; x-decisions Q-PLACE). Every step is reported as an event, so
+ * a test can wait on exactly what happened.
  */
 
 import { CHECK_IN_INTERVAL_SECONDS } from '../../../shared/schema/generated/ts/schema.ts';
-import { positionAt, type Route } from '../../routes/route.ts';
+import { placeLabelAt, positionAt, type Route } from '../../routes/route.ts';
+import { PlaceTracker, type PlaceParts } from './place.ts';
 import { WriteRefused, dueAt, type FakeSharer, type Session, type SessionState } from './sharer.ts';
 
 export type AtEnd =
@@ -35,12 +38,15 @@ export interface RunOptions {
   readonly at_end?: AtEnd;
   /** After the session is due to end and nothing has marked it stopped, give up waiting after this long. */
   readonly end_grace_s?: number;
+  /** Write the session's place from the route's labels (default true); false acts like a phone whose geocoder never answers. */
+  readonly place?: boolean;
   readonly signal?: AbortSignal;
   readonly onEvent?: (event: SharerEvent) => void;
 }
 
 export type SharerEvent =
   | { readonly event: 'ping'; readonly n: number; readonly id: string; readonly lat: number; readonly lng: number; readonly accuracy_m: number; readonly recorded_at: number; readonly route_t_s: number }
+  | { readonly event: 'place'; readonly place: PlaceParts | null; readonly at: number; readonly route_t_s: number }
   | { readonly event: 'check-in'; readonly at: number }
   | { readonly event: 'quiet'; readonly after_pings: number; readonly mode: 'quiet' | 'check-in' }
   | { readonly event: 'route-end'; readonly at_end: AtEnd }
@@ -114,6 +120,7 @@ export async function runRoute(sharer: FakeSharer, session: Session, o: RunOptio
   let lastCheckIn = 0;
   const startedAt = Date.now();
   let routeOffset = 0;
+  const places = new PlaceTracker();
   try {
     for (let tick = 0; ; tick++) {
       if (o.signal?.aborted) return finish('aborted');
@@ -150,11 +157,17 @@ export async function runRoute(sharer: FakeSharer, session: Session, o: RunOptio
         }
         if (!quiet) {
           const p = positionAt(o.route, Math.min(routeT, o.route.duration_s));
+          // The phone's lookup is of its own fix; the fake's geocoder is the route's label at this point.
+          const place = o.place === false ? undefined : places.next(p, session.precision, Date.now(), () => placeLabelAt(o.route, p.t_s));
           try {
-            const w = await sharer.ping(session, { lat: p.lat, lng: p.lng, accuracy_m: o.accuracy ?? p.accuracy_m }, { interval_s: interval });
+            const w = await sharer.ping(session, { lat: p.lat, lng: p.lng, accuracy_m: o.accuracy ?? p.accuracy_m }, { interval_s: interval, place: place?.place });
             pings += 1;
             lastCheckIn = Date.now();
             emit({ event: 'ping', n: pings, id: w.id, lat: w.lat, lng: w.lng, accuracy_m: w.accuracy_m, recorded_at: w.recorded_at.getTime(), route_t_s: p.t_s });
+            if (place) {
+              places.wrote(place);
+              emit({ event: 'place', place: place.place, at: w.recorded_at.getTime(), route_t_s: p.t_s });
+            }
           } catch (e) {
             if (!(e instanceof WriteRefused)) throw e;
             emit({ event: 'refused', over: e.over, message: e.message });

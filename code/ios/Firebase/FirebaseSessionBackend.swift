@@ -136,7 +136,7 @@ public final class FirebaseSessionBackend: SessionBackend {
         }
     }
 
-    public func requestPrecision(sessionId: String, _ precision: TMLPrecision) async throws(SharingError) {
+    public func requestPrecision(sessionId: String, _ precision: TMLPrecision, place: PlaceUpdate?) async throws(SharingError) {
         do {
             try await update(sessionId, [TMLShareSession.Field.precisionNext.rawValue: precision.rawValue])
         } catch .sessionEnded {

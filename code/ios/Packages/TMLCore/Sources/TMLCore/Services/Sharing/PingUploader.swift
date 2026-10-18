@@ -25,6 +25,16 @@ import Foundation
 /// - **The end.** Nothing is written from the moment the session is due by the server's clock
 ///   (`stop_at` or `expires_at`), from `stop()`, or once the server refuses a write for good. A
 ///   write already in flight then is the last.
+/// - **Place** (x-decisions Q-PLACE). With a `PlaceLookup`, a ping first looks up its own point
+///   (the rounded one when Approximate) when one is due: the first ping, the first at a new
+///   precision (at once), and otherwise at most once per 10 s and only 25 m from the point last
+///   answered. It waits for the answer at most `Timing.placeWait`. The batch carries `place`
+///   (`at` = its `recorded_at`) only when the parts differ from what the session holds. A
+///   failed or empty lookup writes nothing; a failed one is tried again after 10, 20, 40, then
+///   every 60 s. While Approximate only the area and city go, and a batch that would leave the
+///   session Approximate with a name or street on it drops them (keeping area, city and `at`),
+///   since the rules refuse the whole batch otherwise. `ShareController`'s precision write asks
+///   `placeUpdate(forPrecisionRequest:)` for the same.
 ///
 /// Times are the phone's clock, except `endsAt` and `recorded_at`, which are the server's.
 @MainActor
@@ -48,6 +58,15 @@ public final class PingUploader {
         /// A write unanswered this long shows as No connection.
         public var offlineAfter: TimeInterval = 10
         public var backoff: [TimeInterval] = [2, 4, 8, 16, 30]
+        /// At most one place lookup per this many seconds…
+        public var placeSpacing = TimeInterval(TMLSchemaConstants.placeLookupMinSeconds)
+        /// …and only once the point is this far (m) from the one last looked up.
+        public var placeDistance = Double(TMLSchemaConstants.placeLookupMinMeters)
+        /// How long a ping waits for its place lookup. A slower one is cancelled and the ping goes
+        /// without (it counts as failed).
+        public var placeWait: TimeInterval = 3
+        /// The wait before the next lookup after 1, 2, 3, then 4 or more failed ones in a row.
+        public var placeBackoff: [TimeInterval] = [10, 20, 40, 60]
 
         public init() {}
     }
@@ -58,18 +77,45 @@ public final class PingUploader {
     static let maxAccuracy = Double(TMLSchemaConstants.maxAccuracyMeters)
 
     private enum Action {
-        case ping(PingWrite)
+        /// A ping; `fresh` when it's a new one rather than a failed batch sent again.
+        case ping(PingWrite, fresh: Bool)
         case checkIn
     }
 
     /// What a refused ping turned out to be.
     private enum Refusal {
-        /// The session has it: a retry of a batch that had landed.
-        case written
+        /// The session has it: a retry of a batch that had landed. With the session's `place`.
+        case written(TMLPlace?)
         /// The session is over (or gone).
         case over
         /// The session can't be read now; try again later.
         case unknown
+    }
+
+    /// What the uploader knows of the session's `place`.
+    public struct PlaceOnServer: Hashable, Sendable {
+        /// The place as the server last confirmed it (createSession writes null).
+        public var confirmed: TMLPlace?
+        /// A place with a name or street may be there instead: a write carrying one failed or went
+        /// unanswered, and may have landed.
+        public var unsure: Bool
+
+        public init(confirmed: TMLPlace? = nil, unsure: Bool = false) {
+            self.confirmed = confirmed
+            self.unsure = unsure
+        }
+
+        /// Whether the session may hold a name or street now.
+        public var mayHaveNameOrStreet: Bool {
+            unsure || confirmed.map { $0.name != nil || $0.street != nil } == true
+        }
+
+        /// What may stay once the session is Approximate: the confirmed place's area and city with
+        /// its `at` (a millisecond under, so never after `last_fix_at` as stored), or null.
+        public var withoutNameOrStreet: PlaceUpdate {
+            guard let confirmed, let parts = PlaceParts(area: confirmed.area, city: confirmed.city) else { return .clear }
+            return .set(parts.place(at: confirmed.at.wholeMillisecondBefore))
+        }
     }
 
     public private(set) var status: UploadStatus = .waitingForFix
@@ -87,6 +133,8 @@ public final class PingUploader {
     /// Its `recorded_at`.
     public var lastSentAt: Date? { lastSent?.recordedAt }
     public private(set) var isStopped = false
+    /// The session's `place` as far as the uploader knows.
+    public private(set) var placeOnServer: PlaceOnServer
 
     /// Called after `status`, `interval`, `precision`, `pendingPrecision` or `lastSent` change.
     public var onChange: (@MainActor () -> Void)?
@@ -95,6 +143,7 @@ public final class PingUploader {
 
     public let sessionId: String
     private let backend: any SessionBackend
+    private let places: (any PlaceLookup)?
     private let clock: any ShareClock
     private let battery: any BatteryMonitor
     private let timing: Timing
@@ -125,15 +174,38 @@ public final class PingUploader {
     private var failures = 0
     private var retryAt: Date?
     private var wake: Task<Void, Never>?
+    /// The ping batch in flight.
+    private var sending: PingWrite?
+
+    // Place lookups.
+    /// The newest place looked up, and the precision it was looked up at (already only area and
+    /// city when Approximate). Written with each ping at that precision until the session has it.
+    private var found: (parts: PlaceParts, precision: TMLPrecision)?
+    /// When the last lookup started, and at which precision.
+    private var lookupStartedAt: Date?
+    private var lookupPrecision: TMLPrecision?
+    /// The point (as written) of the last lookup that answered, found or nothing.
+    private var answered: (latitude: Double, longitude: Double, precision: TMLPrecision)?
+    private var lookupFailures = 0
+    /// The ping waiting for its lookup, the lookup, and its deadline.
+    private var lookingUp: PingWrite?
+    private var lookup: Task<Void, Never>?
+    private var lookupDeadline: Task<Void, Never>?
+    private var lookupGeneration = 0
 
     /// - Parameters:
     ///   - startedAt: the session's `started_at` (server time); `last_ping_at` starts there.
     ///   - endsAt: when the session is due (server time): the earlier of `stop_at` and `expires_at`.
+    ///   - places: the reverse geocoder for the session's `place`; nil writes no place.
+    ///   - placeOnServer: what a previous uploader for this session knew of its `place`.
     public init(sessionId: String, backend: any SessionBackend, clock: any ShareClock, serverClock: ServerClock,
                 battery: any BatteryMonitor, precision: TMLPrecision, startedAt: Date, endsAt: Date,
+                places: (any PlaceLookup)? = nil, placeOnServer: PlaceOnServer = PlaceOnServer(),
                 timing: Timing = Timing()) {
         self.sessionId = sessionId
         self.backend = backend
+        self.places = places
+        self.placeOnServer = placeOnServer
         self.clock = clock
         self.serverClock = serverClock
         self.battery = battery
@@ -159,6 +231,29 @@ public final class PingUploader {
         isStopped = true
         wake?.cancel()
         wake = nil
+        endLookup()
+        // A batch still in flight may yet land.
+        if sending?.place?.hasNameOrStreet == true { placeOnServer.unsure = true }
+    }
+
+    // MARK: Place and the precision write
+
+    /// The `place` that `ShareController`'s precision write must carry (x-decisions Q-PLACE). The
+    /// rules hold every update to the Approximate rule, so the write that sets `precision_next` to
+    /// approximate also drops the name and street from a place that may have them: it keeps the
+    /// confirmed area, city and `at`, or clears it. Nil when the place can stay as it is.
+    /// The lookup at the new precision follows with the next ping.
+    public func placeUpdate(forPrecisionRequest precision: TMLPrecision) -> PlaceUpdate? {
+        guard precision == .approximate else { return nil }
+        // A batch in flight lands before the precision write (Firestore keeps one client's writes in order).
+        guard placeOnServer.mayHaveNameOrStreet || sending?.place?.hasNameOrStreet == true else { return nil }
+        return placeOnServer.withoutNameOrStreet
+    }
+
+    /// The precision write landed, carrying `update`.
+    public func precisionRequestWritten(place update: PlaceUpdate?) {
+        guard let update, !isStopped else { return }
+        placeOnServer = PlaceOnServer(confirmed: update.place)
     }
 
     /// A new update from the location stream.
@@ -238,15 +333,17 @@ public final class PingUploader {
                 newest = nil
                 let recordedAt = min(serverClock.server(fix.timestamp), serverNow)
                 if now.timeIntervalSince(fix.timestamp) <= timing.maxFixAge, canSend(recordedAt) {
-                    return .ping(write(fix, recordedAt: recordedAt))
+                    // The newest fix replaces a failed batch.
+                    retry = nil
+                    return .ping(write(fix, recordedAt: recordedAt), fresh: true)
                 }
             }
             if let retry {
                 self.retry = nil
-                if serverNow.timeIntervalSince(retry.ping.recordedAt) <= timing.maxFixAge { return .ping(retry) }
+                if serverNow.timeIntervalSince(retry.ping.recordedAt) <= timing.maxFixAge { return .ping(retry, fresh: false) }
             }
             if stationary, let fix = lastFix, canSend(serverNow) {
-                return .ping(write(fix, recordedAt: serverNow))
+                return .ping(write(fix, recordedAt: serverNow), fresh: true)
             }
         }
         if now >= lastWriteAt.addingTimeInterval(timing.checkIn) { return .checkIn }
@@ -273,24 +370,15 @@ public final class PingUploader {
         writeStartedAt = now
         let backend = backend, sessionId = sessionId
         switch action {
-        case .ping(let write):
+        case .ping(let write, let fresh):
             lastPingStartedAt = now
             lastAttemptedAt = max(lastAttemptedAt ?? write.ping.recordedAt, write.ping.recordedAt)
             setInterval(write.pingInterval)
-            Task { [weak self] in
-                do throws(SharingError) {
-                    try await backend.writePing(sessionId: sessionId, write)
-                    self?.completed(nil, ping: write)
-                } catch .sessionEnded {
-                    // Refused: over, or a retry of a batch that had landed. The session says which.
-                    switch await Self.refusal(of: write, sessionId: sessionId, backend: backend) {
-                    case .written: self?.completed(nil, ping: write)
-                    case .over: self?.completed(.sessionEnded, ping: write)
-                    case .unknown: self?.completed(.offline, ping: write)
-                    }
-                } catch {
-                    self?.completed(error, ping: write)
-                }
+            if fresh, let places, placeLookupDue(for: write, now: now) {
+                lookUpPlace(for: write, with: places, now: now)
+            } else {
+                // A failed batch goes again exactly as it was, place and all.
+                send(fresh ? withPlace(write) : write)
             }
         case .checkIn:
             if !hasSignal(now) {
@@ -308,27 +396,56 @@ public final class PingUploader {
         }
     }
 
+    /// Sends a ping batch.
+    private func send(_ write: PingWrite) {
+        sending = write
+        let backend = backend, sessionId = sessionId
+        Task { [weak self] in
+            do throws(SharingError) {
+                try await backend.writePing(sessionId: sessionId, write)
+                self?.completed(nil, ping: write)
+            } catch .sessionEnded {
+                // Refused: over, or a retry of a batch that had landed. The session says which.
+                switch await Self.refusal(of: write, sessionId: sessionId, backend: backend) {
+                case .written(let place): self?.completed(nil, ping: write, serverPlace: place)
+                case .over: self?.completed(.sessionEnded, ping: write)
+                case .unknown: self?.completed(.offline, ping: write)
+                }
+            } catch {
+                self?.completed(error, ping: write)
+            }
+        }
+    }
+
     /// After a refused ping: written when the session's `last_fix_at` is at or after the ping's
     /// `recorded_at` (x-decisions Q-PING-WRITE), otherwise over.
     private static func refusal(of write: PingWrite, sessionId: String, backend: any SessionBackend) async -> Refusal {
         do throws(SharingError) {
             guard let session = try await backend.fetchSession(sessionId: sessionId) else { return .over }
-            return session.lastFixAt.map { $0 >= write.ping.recordedAt } == true ? .written : .over
+            return session.lastFixAt.map { $0 >= write.ping.recordedAt } == true ? .written(session.place) : .over
         } catch {
             return error.isRetryable ? .unknown : .over
         }
     }
 
-    private func completed(_ error: SharingError?, ping: PingWrite?) {
+    /// - Parameter serverPlace: the session's `place` as read from the server, after a refused
+    ///   retry that had landed (which of the batches set it is unknown).
+    private func completed(_ error: SharingError?, ping: PingWrite?, serverPlace: TMLPlace?? = nil) {
         guard !isStopped else { return }
         let now = clock.now
         writeStartedAt = nil
+        if ping != nil { sending = nil }
         switch error {
         case nil:
             failures = 0
             retryAt = nil
             lastWriteAt = now
             if let ping {
+                if let serverPlace {
+                    placeOnServer = PlaceOnServer(confirmed: serverPlace)
+                } else if let update = ping.place {
+                    placeOnServer = PlaceOnServer(confirmed: update.place)
+                }
                 lastSent = SharedPoint(ping)
                 precision = ping.precision
                 onChange?()
@@ -339,10 +456,108 @@ public final class PingUploader {
         case let error?:
             failures += 1
             retryAt = now.addingTimeInterval(timing.backoff[min(failures, timing.backoff.count) - 1])
+            // It may have landed anyway.
+            if ping?.place?.hasNameOrStreet == true { placeOnServer.unsure = true }
             // The same batch goes again unless a newer fix comes first; it's dropped once stale.
             if let ping, error.isRetryable { retry = ping }
         }
         pump()
+    }
+
+    // MARK: Place lookups
+
+    /// Whether `write` looks up its point first: the first lookup and the first at a new
+    /// precision go at once; otherwise once the spacing (or the backoff after failures) has passed,
+    /// and then only when the last lookup at this precision failed or the point has moved 25 m
+    /// from the one it answered for.
+    private func placeLookupDue(for write: PingWrite, now: Date) -> Bool {
+        if lookupPrecision != write.precision { return true }
+        guard let startedAt = lookupStartedAt else { return true }
+        var wait = timing.placeSpacing
+        if lookupFailures > 0, !timing.placeBackoff.isEmpty {
+            wait = max(wait, timing.placeBackoff[min(lookupFailures, timing.placeBackoff.count) - 1])
+        }
+        guard now >= startedAt.addingTimeInterval(wait) else { return false }
+        guard let answered, answered.precision == write.precision else { return true }
+        return ApproximateLocation.meters(from: (answered.latitude, answered.longitude), to: (write.ping.lat, write.ping.lng))
+            >= timing.placeDistance
+    }
+
+    /// Looks up the ping's own point (rounded when Approximate), then sends the ping. The first of
+    /// the answer and the deadline wins.
+    private func lookUpPlace(for write: PingWrite, with places: any PlaceLookup, now: Date) {
+        lookupStartedAt = now
+        lookupPrecision = write.precision
+        lookingUp = write
+        lookupGeneration += 1
+        let generation = lookupGeneration
+        let latitude = write.ping.lat, longitude = write.ping.lng
+        lookup = Task { [weak self] in
+            let result = await places.lookUp(latitude: latitude, longitude: longitude)
+            self?.lookedUp(result, generation: generation)
+        }
+        let clock = clock, wait = Duration.milliseconds(Int64((timing.placeWait * 1000).rounded(.up)))
+        lookupDeadline = Task { [weak self] in
+            do {
+                try await clock.sleep(for: wait)
+            } catch {
+                return
+            }
+            self?.lookedUp(nil, generation: generation)
+        }
+    }
+
+    /// The lookup answered (`result`), or took too long (nil): record it, then send the ping, unless
+    /// the share ended meanwhile.
+    private func lookedUp(_ result: PlaceLookupResult?, generation: Int) {
+        guard generation == lookupGeneration, var write = lookingUp, !isStopped else { return }
+        endLookup()
+        switch result {
+        case .found(let parts)?:
+            lookupFailures = 0
+            answered = (write.ping.lat, write.ping.lng, write.precision)
+            // Approximate says only the area and the city; without either it has nothing to say.
+            if let parts = write.precision == .approximate ? parts.approximate : parts {
+                found = (parts, write.precision)
+            }
+        case .nothing?:
+            lookupFailures = 0
+            answered = (write.ping.lat, write.ping.lng, write.precision)
+        case .failed?, nil:
+            lookupFailures += 1
+        }
+        // Approximate was chosen while it looked up: the ping goes Approximate, and the next
+        // lookup is the rounded point's.
+        if write.precision == .precise, effectivePrecision == .approximate { write = write.approximated() }
+        if isDue(clock.now) {
+            finish(.due)
+            return
+        }
+        send(withPlace(write))
+    }
+
+    private func endLookup() {
+        lookingUp = nil
+        lookup?.cancel()
+        lookup = nil
+        lookupDeadline?.cancel()
+        lookupDeadline = nil
+    }
+
+    /// A new ping with the `place` it carries: the place looked up at its precision when that
+    /// differs from the session's, or, when the batch leaves the session Approximate and it may
+    /// hold a name or street, the place without them (x-decisions Q-PLACE). Nil otherwise.
+    private func withPlace(_ write: PingWrite) -> PingWrite {
+        var write = write
+        let mustDrop = write.precision == .approximate && placeOnServer.mayHaveNameOrStreet
+        if let found, found.precision == write.precision {
+            if mustDrop || found.parts != placeOnServer.confirmed.flatMap(PlaceParts.init) {
+                write.place = .set(found.parts.place(at: write.ping.recordedAt))
+            }
+        } else if mustDrop {
+            write.place = placeOnServer.withoutNameOrStreet
+        }
+        return write
     }
 
     private func hasSignal(_ now: Date) -> Bool {
@@ -406,5 +621,15 @@ public final class PingUploader {
         guard !isStopped else { return }
         stop()
         onEnd?(end)
+    }
+}
+
+extension PingWrite {
+    /// The same ping at Approximate: rounded, with accuracy at least 500 m, and no place.
+    func approximated() -> PingWrite {
+        let fix = LocationFix(latitude: ping.lat, longitude: ping.lng, horizontalAccuracy: ping.accuracyM,
+                              timestamp: ping.recordedAt)
+        return PingWrite(ping: ApproximateLocation.ping(for: fix, precision: .approximate, recordedAt: ping.recordedAt),
+                         pingInterval: pingInterval, precision: .approximate)
     }
 }

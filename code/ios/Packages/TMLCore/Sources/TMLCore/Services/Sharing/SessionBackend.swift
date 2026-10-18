@@ -74,11 +74,11 @@ public struct StopRuleChange: Hashable, Sendable {
 }
 
 /// One ping and the session fields that go with it, written together in one batch
-/// (x-decisions Q-PING-WRITE):
+/// (x-decisions Q-PING-WRITE, Q-PLACE):
 /// - `shareSessions/{id}/pings/{auto}`: the ping, already rounded when Approximate;
 /// - `shareSessions/{id}`: `last_ping_at` = the server's time (the check-in), `last_fix_at` = the
 ///   ping's `recorded_at` (the very same timestamp), `ping_interval_s`, `precision` (applying any
-///   `precision_next`) and `precision_next` = null.
+///   `precision_next`), `precision_next` = null, and `place` when `place` isn't nil.
 /// The rules judge the ping by the session as this same batch leaves it, so a precision change
 /// and the first ping at the new precision land together. They also keep pings in order: each
 /// `recorded_at` at least 2 s after the previous `last_fix_at`, so a retried batch that already
@@ -87,11 +87,15 @@ public struct PingWrite: Hashable, Sendable {
     public var ping: TMLPing
     public var pingInterval: Double
     public var precision: TMLPrecision
+    /// The session's new `place`, nil to leave it as it is. A looked-up place has `at` = the
+    /// ping's `recorded_at`.
+    public var place: PlaceUpdate?
 
-    public init(ping: TMLPing, pingInterval: Double, precision: TMLPrecision) {
+    public init(ping: TMLPing, pingInterval: Double, precision: TMLPrecision, place: PlaceUpdate? = nil) {
         self.ping = ping
         self.pingInterval = pingInterval
         self.precision = precision
+        self.place = place
     }
 }
 
@@ -110,8 +114,11 @@ public protocol SessionBackend: AnyObject {
     func discardSession(sessionId: String) async throws(SharingError)
     /// The timer sheet: `stop_rule`, `stop_minutes` and `stop_at` on the session.
     func updateStopRule(sessionId: String, _ change: StopRuleChange) async throws(SharingError)
-    /// A precision change mid-session: `precision_next`, which the next ping applies.
-    func requestPrecision(sessionId: String, _ precision: TMLPrecision) async throws(SharingError)
+    /// A precision change mid-session: `precision_next`, which the next ping applies, and with it
+    /// `place` when `place` isn't nil. Turning Approximate on drops the name and street from the
+    /// session's place in this same write, since the rules hold every update to that
+    /// (x-decisions Q-PLACE).
+    func requestPrecision(sessionId: String, _ precision: TMLPrecision, place: PlaceUpdate?) async throws(SharingError)
     /// A ping and its check-in, in one batch (`PingWrite`). Returns once the server has it.
     func writePing(sessionId: String, _ write: PingWrite) async throws(SharingError)
     /// `shareSessions/{id}` read from the server, not the cache; nil when it doesn't exist. Used to

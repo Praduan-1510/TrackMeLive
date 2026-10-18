@@ -334,6 +334,51 @@ describe("callWatchdog", () => {
   });
 });
 
+describe("place: the jobs clear it at every end (x-decisions Q-PLACE)", () => {
+  // The viewer keeps reading the session doc after the end, so it must hold no place.
+  const place = () => ({ name: "Ferry Building", street: "The Embarcadero", area: "Financial District", city: "San Francisco", at: Timestamp.now() });
+
+  it("stopDueSessions at the timer and at the 1-hour limit", async () => {
+    await seed("timer", timerSession({ stop_at: at(Date.now() - 1000), place: place() }), { owner: "a" });
+    await seed("limit", sessionDoc({ started_at: at(Date.now() - 61 * MIN), expires_at: at(Date.now() - 1000), place: place() }), { owner: "b" });
+    await runAt(stopDueSessions, Date.now());
+    for (const [id, reason] of [["timer", "timer"], ["limit", "limit"]]) {
+      const s = await sessionOf(id!);
+      assert.deepEqual(validate("ShareSession", s), []);
+      assert.equal(s.end_reason, reason);
+      assert.equal(s.place, null);
+    }
+  });
+
+  it("stopDueSessions force-ending a malformed session", async () => {
+    const { sharer: _, ...broken } = sessionDoc({ started_at: at(Date.now() - 61 * MIN), expires_at: at(Date.now() - 1000), place: place() });
+    await seed("broken", broken);
+    await runAt(stopDueSessions, Date.now());
+    const s = await sessionOf("broken");
+    assert.equal(s.status, "stopped");
+    assert.equal(s.place, null);
+  });
+
+  it("callWatchdog stopping a silent call share, and not before", async () => {
+    await seed("silent", sessionDoc({ last_ping_at: at(Date.now() - 13 * MIN), call_active: false, place: place() }), { owner: "a" });
+    await seed("quiet", sessionDoc({ last_ping_at: at(Date.now() - 150_000), place: place() }), { owner: "b" });
+    await runAt(callWatchdog, Date.now());
+    const silent = await sessionOf("silent");
+    assert.equal(silent.end_reason, "call");
+    assert.equal(silent.place, null);
+    // Only call_active went off: the share, and its place, go on.
+    const quiet = await sessionOf("quiet");
+    assert.equal(quiet.status, "active");
+    assert.equal(quiet.place.street, "The Embarcadero");
+  });
+
+  it("live sessions keep theirs", async () => {
+    await seed("live", timerSession({ place: place() }));
+    await runAt(stopDueSessions, Date.now());
+    assert.equal((await sessionOf("live")).place.name, "Ferry Building");
+  });
+});
+
 describe("cleanupEndedSessions", () => {
   it("24 hours after the end: deletes pings, viewer pings, sign-ins and their Auth users; keeps the session, meta and call log", async () => {
     await seed("s1", endedSession(25 * HOUR), { pointer: false, pings: 3, viewerPings: 2, viewers: ["v_s1_a", "v_s1_b"], callLog: true });

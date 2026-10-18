@@ -196,7 +196,7 @@ public final class FakeSessionBackend: SessionBackend {
         store(session, id: sessionId)
     }
 
-    public func requestPrecision(sessionId: String, _ precision: TMLPrecision) async throws(SharingError) {
+    public func requestPrecision(sessionId: String, _ precision: TMLPrecision, place: PlaceUpdate?) async throws(SharingError) {
         await wait()
         calls.append(.precision(sessionId, precision))
         if let error = nextFieldWriteError {

@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { deleteApp, initializeApp, type App } from "firebase-admin/app";
-import { getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, getFirestore, Timestamp, type Firestore } from "firebase-admin/firestore";
 import {
   DEFAULT_USER_SETTINGS,
   validate,
@@ -240,6 +240,62 @@ describe("reportCallEnded", () => {
     const onCall = await share(callShare);
     assert.deepEqual(failure(await callEnded(onCall, "call-999")), { code: "FAILED_PRECONDITION", reason: "call_mismatch" });
     assert.equal((await sessionOf(onCall)).call_active, true);
+  });
+});
+
+describe("place: every callable that ends a share clears it (x-decisions Q-PLACE)", () => {
+  // The viewer keeps reading the session doc after the end, so it must hold no place.
+  const withPlace = (id: string, extra: Record<string, unknown> = {}) =>
+    sessionRef(id).update({
+      place: { name: "Ferry Building", street: "The Embarcadero", area: "Financial District", city: "San Francisco", at: Timestamp.now() },
+      ...extra,
+    });
+
+  it("stopSession: stopped now, or as timer or limit when already past them", async () => {
+    const now = await share(manualShare);
+    await withPlace(now);
+    ok(await stop(now));
+    assert.equal(valid("ShareSession", await sessionOf(now)).place, null);
+
+    const timer = await share(manualShare);
+    await withPlace(timer, { stop_at: Timestamp.fromMillis(Date.now() - 1000) });
+    assert.equal(ok(await stop(timer)).end_reason, "timer");
+    assert.equal((await sessionOf(timer)).place, null);
+
+    const limit = await share(callShare);
+    await withPlace(limit, { expires_at: Timestamp.fromMillis(Date.now() - 1000) });
+    assert.equal(ok(await stop(limit)).end_reason, "limit");
+    assert.equal((await sessionOf(limit)).place, null);
+  });
+
+  it("reportCallEnded: the call stop rule ends the share and clears it; past the timer too", async () => {
+    const call = await share(callShare);
+    await withPlace(call);
+    assert.equal(ok(await callEnded(call)).end_reason, "call");
+    assert.equal(valid("ShareSession", await sessionOf(call)).place, null);
+
+    const late = await share(timerCallShare);
+    await withPlace(late, { stop_at: Timestamp.fromMillis(Date.now() - 1000) });
+    assert.equal(ok(await callEnded(late)).end_reason, "timer");
+    assert.equal((await sessionOf(late)).place, null);
+  });
+
+  it("reportCallEnded with a timer: sharing goes on, and so does the place", async () => {
+    const id = await share(timerCallShare);
+    await withPlace(id);
+    ok(await callEnded(id));
+    const s = valid("ShareSession", await sessionOf(id));
+    assert.equal(s.status, "active");
+    assert.equal(s.place?.street, "The Embarcadero");
+  });
+
+  it("a session from before place existed ends with place null", async () => {
+    const id = await share(manualShare);
+    await sessionRef(id).update({ place: FieldValue.delete() });
+    ok(await stop(id));
+    const s = await sessionOf(id);
+    assert.ok("place" in s);
+    assert.equal(s.place, null);
   });
 });
 

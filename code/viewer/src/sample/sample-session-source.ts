@@ -1,8 +1,9 @@
 /**
  * A SessionSource that plays a scenario instead of reading Firestore: the same events, in the same
  * order and shapes (the shared schema's ShareSession and Ping, Timestamps as Date). Alex walks up
- * Harbor Way, a ping every ping_interval_s; the scenario's changes happen on schedule; share back
- * follows the Firestore rules' conditions. No network requests.
+ * Harbor Way, a ping every ping_interval_s, writing `place` as their phone would whenever the words
+ * change (and clearing it at the end); the scenario's changes happen on schedule; share back follows
+ * the Firestore rules' conditions. No network requests.
  */
 
 import { APPROXIMATE_ROUNDING_METERS, type SharerSnapshot } from '@tml/shared/schema/generated/ts/schema';
@@ -10,6 +11,7 @@ import type { LatLng } from '../geo/geo';
 import { harborWayAt } from '../map/svg/city';
 import { METERS_PER_PX, project, unproject } from '../map/svg/projection';
 import type { Session, SessionEvent, SessionPing, SessionSource } from '../session/source';
+import { samplePlace } from './sample-places';
 import type { Change, Scenario } from './scenarios';
 
 /** The link trade and the first snapshots take about this long. */
@@ -58,8 +60,12 @@ export function sampleSession(now: number): Session {
     viewer_sharing: false,
     share_back_requested_at: null,
     cleaned_at: null,
+    place: null,
   };
 }
+
+const sameWords = (a: Session['place'], b: Session['place']): boolean =>
+  a?.name === b?.name && a?.street === b?.street && a?.area === b?.area && a?.city === b?.city;
 
 export class SampleSessionSource implements SessionSource {
   private readonly scenario: Scenario;
@@ -77,6 +83,8 @@ export class SampleSessionSource implements SessionSource {
     const newest = now - scenario.lastPingAgoMs;
     // Two minutes of history before the newest ping, newest first.
     for (let i = 0; i < 30; i++) this.pings.push(this.pingAt(T_NOW - i * STEP_T, new Date(newest - i * this.session.ping_interval_s * 1000)));
+    const first = this.pings[0];
+    if (first) this.session = { ...this.session, place: this.placeAt(first) };
   }
 
   start(onEvent: (event: SessionEvent) => void): () => void {
@@ -131,13 +139,21 @@ export class SampleSessionSource implements SessionSource {
     return { ...(approx ? rounded(p) : p), accuracy_m: approx ? APPROXIMATE_ROUNDING_METERS : 8, recorded_at: recordedAt };
   }
 
+  /** The phone's lookup for this fix. */
+  private placeAt(ping: SessionPing): Session['place'] {
+    return samplePlace(ping, this.session.precision, ping.recorded_at);
+  }
+
   private walk(): void {
     if (!this.online || this.session.status !== 'active') return;
     this.step += 1;
     const now = new Date();
-    this.pings = [this.pingAt(T_NOW + this.step * STEP_T, now), ...this.pings].slice(0, PING_LIMIT);
+    const ping = this.pingAt(T_NOW + this.step * STEP_T, now);
+    this.pings = [ping, ...this.pings].slice(0, PING_LIMIT);
     this.emit({ type: 'pings', pings: this.pings });
-    this.update({ last_ping_at: now });
+    // The phone writes the place only when the words change, in the same batch as the ping.
+    const place = this.placeAt(ping);
+    this.update({ last_ping_at: now, ...(sameWords(place, this.session.place) ? {} : { place }) });
   }
 
   private apply(change: Change): void {
@@ -146,7 +162,8 @@ export class SampleSessionSource implements SessionSource {
       case 'stop':
       case 'timer':
         clearInterval(this.walker);
-        this.update({ status: 'stopped', ended_at: now, end_reason: change === 'stop' ? 'stopped' : 'timer', viewer_sharing: false });
+        // Every end clears the place (x-decisions Q-PLACE).
+        this.update({ status: 'stopped', ended_at: now, end_reason: change === 'stop' ? 'stopped' : 'timer', viewer_sharing: false, place: null });
         return;
       case 'call-ends':
         // A function clears viewer_sharing when call_active turns false (FSD §6).
