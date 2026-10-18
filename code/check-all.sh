@@ -600,7 +600,9 @@ run_step() { # <name> <function>
     n_fail=$((n_fail + 1))
     printf '%s\n' "${line}"
     (( verbose )) || excerpt "${STEP_LOG}"
-    (( IN_CI )) && echo "::error title=check-all: ${name} failed::exit ${status}; see the '${name}' group in this log"
+    # The annotation carries the log's last lines: annotations show without a GitHub login, logs don't.
+    (( IN_CI )) && echo "::error title=check-all: ${name} failed::exit ${status}; last lines of the '${name}' group:%0A$(
+      tail -n 25 "${STEP_LOG}" | cut -c1-240 | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } 1')"
   elif [[ -s "${STEP_SKIP_FILE}" ]]; then
     line="$(print_result SKIP "${name}" "${seconds}" "${note}$(head -n 1 "${STEP_SKIP_FILE}")")"
     n_skip=$((n_skip + 1))

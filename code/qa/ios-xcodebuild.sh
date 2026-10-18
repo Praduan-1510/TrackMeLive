@@ -124,8 +124,8 @@ show_errors() { # <log>
   # On GitHub, also post the first errors as annotations: they show on the run page without a
   # login, while job logs and artifacts need one. GitHub shows at most 10 per step.
   if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
-    grep -E "error:|Test Case .* failed|✘" "$1" | awk '!seen[$0]++' | head -n 10 |
-      sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/^/::error title=xcodebuild '"${action}"'::/' || true
+    grep -E "error:|Test Case .* failed|✘" "$1" | awk '!seen[$0]++' | head -n 10 | tr -d '\r' |
+      sed -e 's/%/%25/g' -e 's/^/::error title=xcodebuild '"${action}"'::/' || true
   fi
 }
 
